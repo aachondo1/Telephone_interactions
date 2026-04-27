@@ -93,6 +93,35 @@ export type QueueAttendanceEvolutionData = {
   queues: string[];
 };
 
+export type ExecutiveOccupancyEntry = {
+  executive: string;
+  avgOccupancyPct: number;
+  avgDailyTalkMinutes: number;
+  avgDailyFreeMinutes: number;
+  avgShiftMinutes: number;
+  daysWithCalls: number;
+};
+
+export type ExecutiveOccupancyData = {
+  entries: ExecutiveOccupancyEntry[];
+};
+
+export type HourlyDemandPoint = {
+  hour: number;
+  label: string;
+  lun: number | null;
+  mar: number | null;
+  mie: number | null;
+  jue: number | null;
+  vie: number | null;
+};
+
+export type HourlyDemandData = {
+  points: HourlyDemandPoint[];
+  peakErlangs: number;
+  weekdayCounts: { lun: number; mar: number; mie: number; jue: number; vie: number };
+};
+
 export type HourBucket = {
   hour: number;
   label: string;
@@ -144,6 +173,8 @@ export type KPISummary = {
   queueUnattendedHeatmap: QueueUnattendedHeatmapData;
   queueLoadVariability: QueueVariabilityData;
   queueAttendanceEvolution: QueueAttendanceEvolutionData;
+  executiveOccupancy: ExecutiveOccupancyData;
+  hourlyDemand: HourlyDemandData;
   hourlyDistribution: HourBucket[];
   dailyDistribution: DailyBucket[];
   directionStats: DirectionStat[];
@@ -389,6 +420,110 @@ export function calculateQueueAttendanceEvolution(records: CallRecord[]): QueueA
   };
 }
 
+function getShiftMinutes(dateStr: string): number {
+  const day = new Date(dateStr + 'T00:00:00').getDay();
+  if (day === 5) return 300;        // Viernes 9-14
+  if (day >= 1 && day <= 4) return 540; // Lun-Jue 9-18
+  return 0;
+}
+
+export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOccupancyData {
+  if (records.length === 0) return { entries: [] };
+
+  const execDateMap = new Map<string, Map<string, number>>();
+  for (const r of records) {
+    if (!r.executive || r.executive === 'SIN ATENDER' || !r.call_date || !r.attended) continue;
+    if (!execDateMap.has(r.executive)) execDateMap.set(r.executive, new Map());
+    const dm = execDateMap.get(r.executive)!;
+    dm.set(r.call_date, (dm.get(r.call_date) ?? 0) + r.duration_seconds);
+  }
+
+  const entries: ExecutiveOccupancyEntry[] = Array.from(execDateMap.entries())
+    .map(([executive, dateMap]) => {
+      let totalTalkSec = 0;
+      let totalShiftMin = 0;
+      let validDays = 0;
+      for (const [date, talkSec] of dateMap.entries()) {
+        const shiftMin = getShiftMinutes(date);
+        if (shiftMin === 0) continue;
+        totalTalkSec += talkSec;
+        totalShiftMin += shiftMin;
+        validDays++;
+      }
+      if (validDays < 3) return null;
+      const avgDailyTalkMin = Math.round(totalTalkSec / 60 / validDays);
+      const avgShiftMin = Math.round(totalShiftMin / validDays);
+      return {
+        executive,
+        avgOccupancyPct: Math.min(100, Math.round((totalTalkSec / 60) / totalShiftMin * 100)),
+        avgDailyTalkMinutes: avgDailyTalkMin,
+        avgDailyFreeMinutes: Math.max(0, avgShiftMin - avgDailyTalkMin),
+        avgShiftMinutes: avgShiftMin,
+        daysWithCalls: validDays,
+      };
+    })
+    .filter((e): e is ExecutiveOccupancyEntry => e !== null)
+    .sort((a, b) => b.avgOccupancyPct - a.avgOccupancyPct);
+
+  return { entries };
+}
+
+export function calculateHourlyDemand(records: CallRecord[]): HourlyDemandData {
+  const empty: HourlyDemandData = {
+    points: [], peakErlangs: 0,
+    weekdayCounts: { lun: 0, mar: 0, mie: 0, jue: 0, vie: 0 },
+  };
+  if (records.length === 0) return empty;
+
+  const datesByWeekday = new Map<number, Set<string>>();
+  for (const r of records) {
+    if (!r.call_date) continue;
+    const day = new Date(r.call_date + 'T00:00:00').getDay();
+    if (day < 1 || day > 5) continue;
+    if (!datesByWeekday.has(day)) datesByWeekday.set(day, new Set());
+    datesByWeekday.get(day)!.add(r.call_date);
+  }
+
+  const weekdayCounts = {
+    lun: datesByWeekday.get(1)?.size ?? 0,
+    mar: datesByWeekday.get(2)?.size ?? 0,
+    mie: datesByWeekday.get(3)?.size ?? 0,
+    jue: datesByWeekday.get(4)?.size ?? 0,
+    vie: datesByWeekday.get(5)?.size ?? 0,
+  };
+
+  const durationMap = new Map<number, Map<number, number>>();
+  for (const r of records) {
+    if (!r.call_date || r.call_hour === null || r.call_hour === undefined) continue;
+    const day = new Date(r.call_date + 'T00:00:00').getDay();
+    if (day < 1 || day > 5) continue;
+    if (!durationMap.has(day)) durationMap.set(day, new Map());
+    const hm = durationMap.get(day)!;
+    hm.set(r.call_hour, (hm.get(r.call_hour) ?? 0) + r.duration_seconds);
+  }
+
+  const dayKeys = [1, 2, 3, 4, 5] as const;
+  const dayNames = ['lun', 'mar', 'mie', 'jue', 'vie'] as const;
+  const dayCounts = [weekdayCounts.lun, weekdayCounts.mar, weekdayCounts.mie, weekdayCounts.jue, weekdayCounts.vie];
+  let peakErlangs = 0;
+
+  const points: HourlyDemandPoint[] = Array.from({ length: 24 }, (_, hour) => {
+    const point: HourlyDemandPoint = { hour, label: `${String(hour).padStart(2, '0')}:00`, lun: null, mar: null, mie: null, jue: null, vie: null };
+    dayKeys.forEach((day, idx) => {
+      const count = dayCounts[idx];
+      if (count === 0) return;
+      const totalSec = durationMap.get(day)?.get(hour) ?? 0;
+      if (totalSec === 0) return;
+      const erlangs = Math.round((totalSec / 3600 / count) * 10) / 10;
+      point[dayNames[idx]] = erlangs;
+      if (erlangs > peakErlangs) peakErlangs = erlangs;
+    });
+    return point;
+  });
+
+  return { points, peakErlangs, weekdayCounts };
+}
+
 export function calculateKPIs(records: CallRecord[]): KPISummary {
   const total = records.length;
   const empty: KPISummary = {
@@ -609,6 +744,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const queueUnattendedHeatmap = calculateQueueUnattendedHeatmap(records);
   const queueLoadVariability = calculateQueueLoadVariability(records);
   const queueAttendanceEvolution = calculateQueueAttendanceEvolution(records);
+  const executiveOccupancy = calculateExecutiveOccupancy(records);
+  const hourlyDemand = calculateHourlyDemand(records);
 
   return {
     totalCalls: total,
@@ -627,6 +764,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     queueUnattendedHeatmap,
     queueLoadVariability,
     queueAttendanceEvolution,
+    executiveOccupancy,
+    hourlyDemand,
     hourlyDistribution,
     dailyDistribution,
     directionStats,
