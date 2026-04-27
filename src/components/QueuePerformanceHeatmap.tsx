@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import type { QueueHeatmapData } from '../lib/kpi';
 
-const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const WEEKDAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const TAB_LABELS = ['Todos', ...WEEKDAY_LABELS];
 
 function getColor(count: number, maxCount: number): string {
@@ -65,7 +65,7 @@ export default function QueuePerformanceHeatmap({ data }: { data: QueueHeatmapDa
   const maxCellsPerQueue = 24 * 7;
   const cellSize = 20;
   const gap = 1;
-  const leftMargin = 150;
+  const leftMargin = 220;
   const topMargin = 50;
   const gridWidth = leftMargin + (24 * cellSize) + (23 * gap) + 20;
   const gridHeight = topMargin + (filteredData.data.length * cellSize) + ((filteredData.data.length - 1) * gap) + 40;
@@ -123,7 +123,7 @@ export default function QueuePerformanceHeatmap({ data }: { data: QueueHeatmapDa
 
           {/* Queue rows */}
           {filteredData.data.map((row, queueIndex) => {
-            const queueName = row.queue.length > 20 ? row.queue.substring(0, 17) + '...' : row.queue;
+            const queueName = row.queue.length > 35 ? row.queue.substring(0, 32) + '...' : row.queue;
 
             return (
               <g key={`queue-${queueIndex}`}>
