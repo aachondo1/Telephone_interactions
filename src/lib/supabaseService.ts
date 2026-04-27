@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
-import type { CallRecord, CallRecordInsert, CallUpload, DeduplicationStats, ProcessedCallSignature } from './supabase';
+import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert, CallUpload, DeduplicationStats, ProcessedCallSignature } from './supabase';
 import type { ParsedCallRecord } from './csvParser';
+import type { AgentStatusRow } from './agentStatusParser';
 import { hashPhone, maskPhone } from './csvParser';
 
 const BATCH_SIZE = 500;
@@ -166,4 +167,68 @@ export async function getAllUploads(): Promise<CallUpload[]> {
 
   if (error) throw new Error(`Error al cargar historial: ${error.message}`);
   return (data ?? []) as CallUpload[];
+}
+
+export async function saveAgentStatusUpload(
+  filename: string,
+  rows: AgentStatusRow[]
+): Promise<{ upload: AgentStatusUpload; savedCount: number }> {
+  const dates = rows
+    .flatMap(r => [r.dateRangeStart, r.dateRangeEnd])
+    .filter((d): d is string => d !== null)
+    .sort();
+  const dateRangeStart = dates[0] ?? null;
+  const dateRangeEnd   = dates[dates.length - 1] ?? null;
+
+  const { data: uploadData, error: uploadError } = await supabase
+    .from('agent_status_uploads')
+    .insert({ filename, record_count: rows.length, date_range_start: dateRangeStart, date_range_end: dateRangeEnd })
+    .select()
+    .single();
+
+  if (uploadError || !uploadData) {
+    throw new Error(`Error al guardar upload de estado: ${uploadError?.message}`);
+  }
+
+  const upload = uploadData as AgentStatusUpload;
+
+  const records = rows.map(r => ({
+    upload_id:           upload.id,
+    agent_id:            r.agentId,
+    agent_name:          r.agentName,
+    date_range_start:    r.dateRangeStart,
+    date_range_end:      r.dateRangeEnd,
+    connected_seconds:   r.connectedSeconds,
+    in_queue_seconds:    r.inQueueSeconds,
+    out_of_queue_seconds: r.outOfQueueSeconds,
+  }));
+
+  const { error } = await supabase.from('agent_status_records').insert(records);
+  if (error) throw new Error(`Error al guardar registros de estado: ${error.message}`);
+
+  return { upload, savedCount: rows.length };
+}
+
+export async function getAgentStatusRecords(uploadId: string): Promise<AgentStatusRecord[]> {
+  const { data, error } = await supabase
+    .from('agent_status_records')
+    .select('*')
+    .eq('upload_id', uploadId);
+
+  if (error) throw new Error(`Error al cargar estado de agentes: ${error.message}`);
+  return (data ?? []) as AgentStatusRecord[];
+}
+
+export async function getLatestAgentStatusUpload(): Promise<{ upload: AgentStatusUpload; records: AgentStatusRecord[] } | null> {
+  const { data, error } = await supabase
+    .from('agent_status_uploads')
+    .select('*')
+    .order('uploaded_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  const upload = data as AgentStatusUpload;
+  const records = await getAgentStatusRecords(upload.id);
+  return { upload, records };
 }

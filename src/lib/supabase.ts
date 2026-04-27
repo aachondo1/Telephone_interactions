@@ -49,3 +49,24 @@ export type DeduplicationStats = {
   duplicateRecords: number;
   totalAttempted: number;
 };
+
+export type AgentStatusUpload = {
+  id: string;
+  filename: string;
+  uploaded_at: string;
+  record_count: number;
+  date_range_start: string | null;
+  date_range_end: string | null;
+};
+
+export type AgentStatusRecord = {
+  id: string;
+  upload_id: string;
+  agent_id: string;
+  agent_name: string;
+  date_range_start: string | null;
+  date_range_end: string | null;
+  connected_seconds: number;
+  in_queue_seconds: number;
+  out_of_queue_seconds: number;
+};

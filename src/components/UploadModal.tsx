@@ -9,9 +9,11 @@ type Props = {
   isProcessing: boolean;
   error: string | null;
   progress: string;
+  title?: string;
+  description?: string;
 };
 
-export function UploadModal({ isOpen, onClose, onFileSelected, isProcessing, error, progress }: Props) {
+export function UploadModal({ isOpen, onClose, onFileSelected, isProcessing, error, progress, title, description }: Props) {
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
@@ -40,8 +42,8 @@ export function UploadModal({ isOpen, onClose, onFileSelected, isProcessing, err
               <UploadCloud size={16} className="text-sky-600" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-slate-800">Cargar nuevo CSV</h2>
-              <p className="text-xs text-slate-400">Formato delimitado por ; en UTF-8</p>
+              <h2 className="text-sm font-semibold text-slate-800">{title ?? 'Cargar nuevo CSV'}</h2>
+              <p className="text-xs text-slate-400">{description ?? 'Formato delimitado por ; en UTF-8'}</p>
             </div>
           </div>
           <button
