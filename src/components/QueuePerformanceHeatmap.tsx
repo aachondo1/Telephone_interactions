@@ -21,7 +21,24 @@ export default function QueuePerformanceHeatmap({ data }: { data: QueueHeatmapDa
     if (data.data.length === 0) return data;
 
     if (selectedTab === 0) {
-      return data;
+      const aggregatedData = data.data.map(row => {
+        const hourMap = new Map<number, number>();
+        for (const cell of row.cells) {
+          hourMap.set(cell.hour, (hourMap.get(cell.hour) ?? 0) + cell.count);
+        }
+        const cells = Array.from(hourMap.entries()).map(([hour, count]) => ({
+          hour,
+          weekday: 0,
+          count,
+        }));
+        return { ...row, cells };
+      });
+      const maxCount = Math.max(
+        ...aggregatedData.flatMap(row =>
+          row.cells.map(c => c.count)
+        )
+      );
+      return { data: aggregatedData, maxCount };
     }
 
     const weekday = selectedTab - 1;
@@ -122,72 +139,32 @@ export default function QueuePerformanceHeatmap({ data }: { data: QueueHeatmapDa
                 </text>
 
                 {/* Heatmap cells */}
-                {selectedTab === 0 ? (
-                  // "Todos" tab: show all 7 weekdays in nested cells
-                  Array.from({ length: 24 }).map((_, hour) => {
-                    const weekdayGroups = new Map<number, number>();
-                    for (let wd = 0; wd < 7; wd++) {
-                      const cell = row.cells.find(c => c.hour === hour && c.weekday === wd);
-                      weekdayGroups.set(wd, cell?.count ?? 0);
-                    }
+                {Array.from({ length: 24 }).map((_, hour) => {
+                  const cell = row.cells.find(c => c.hour === hour);
+                  const count = cell?.count ?? 0;
+                  const x = leftMargin + hour * (cellSize + gap);
+                  const y = topMargin + queueIndex * (cellSize + gap);
+                  const title = selectedTab === 0
+                    ? `${row.queue}, ${getHourLabel(hour)}: ${count}`
+                    : `${row.queue}, ${getHourLabel(hour)}, ${getWeekdayLabel(selectedTab - 1)}: ${count}`;
 
-                    return (
-                      <g key={`hour-${hour}`}>
-                        {Array.from({ length: 7 }).map((_, wd) => {
-                          const count = weekdayGroups.get(wd) ?? 0;
-                          const x =
-                            leftMargin +
-                            hour * (cellSize + gap) +
-                            (wd * (cellSize / 7));
-                          const y = topMargin + queueIndex * (cellSize + gap);
-                          const cellWidth = cellSize / 7 - 0.5;
-
-                          return (
-                            <g key={`cell-${hour}-${wd}`}>
-                              <rect
-                                x={x}
-                                y={y}
-                                width={cellWidth}
-                                height={cellSize}
-                                fill={getColor(count, filteredData.maxCount)}
-                                stroke="#e2e8f0"
-                                strokeWidth="0.5"
-                                className="heatmap-cell"
-                                style={{ cursor: 'pointer' }}
-                              />
-                              <title>{`${row.queue}, ${getHourLabel(hour)}, ${getWeekdayLabel(wd)}: ${count}`}</title>
-                            </g>
-                          );
-                        })}
-                      </g>
-                    );
-                  })
-                ) : (
-                  // Single weekday tab: show full cells
-                  Array.from({ length: 24 }).map((_, hour) => {
-                    const cell = row.cells.find(c => c.hour === hour && c.weekday === selectedTab - 1);
-                    const count = cell?.count ?? 0;
-                    const x = leftMargin + hour * (cellSize + gap);
-                    const y = topMargin + queueIndex * (cellSize + gap);
-
-                    return (
-                      <g key={`cell-${hour}`}>
-                        <rect
-                          x={x}
-                          y={y}
-                          width={cellSize}
-                          height={cellSize}
-                          fill={getColor(count, filteredData.maxCount)}
-                          stroke="#e2e8f0"
-                          strokeWidth="1"
-                          className="heatmap-cell"
-                          style={{ cursor: 'pointer' }}
-                        />
-                        <title>{`${row.queue}, ${getHourLabel(hour)}, ${getWeekdayLabel(selectedTab - 1)}: ${count}`}</title>
-                      </g>
-                    );
-                  })
-                )}
+                  return (
+                    <g key={`cell-${hour}`}>
+                      <rect
+                        x={x}
+                        y={y}
+                        width={cellSize}
+                        height={cellSize}
+                        fill={getColor(count, filteredData.maxCount)}
+                        stroke="#e2e8f0"
+                        strokeWidth="1"
+                        className="heatmap-cell"
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <title>{title}</title>
+                    </g>
+                  );
+                })}
               </g>
             );
           })}
