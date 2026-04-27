@@ -233,6 +233,24 @@ const VALID_QUEUES = new Set([
   'CN - Cobranza judicial',
 ]);
 
+export function calculateDateRangeFromRecords(
+  records: any[]
+): { start: string | null; end: string | null } {
+  const dates = records
+    .map((r: any) => r.call_date)
+    .filter((d: any): d is string => d !== null)
+    .sort();
+
+  if (dates.length === 0) {
+    return { start: null, end: null };
+  }
+
+  return {
+    start: dates[0],
+    end: dates[dates.length - 1],
+  };
+}
+
 export async function transformRows(
   rows: RawCallRecord[],
   columnMap: Record<string, string>,

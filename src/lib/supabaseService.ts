@@ -169,6 +169,29 @@ export async function getAllUploads(): Promise<CallUpload[]> {
   return (data ?? []) as CallUpload[];
 }
 
+export async function getAllCallRecords(): Promise<CallRecord[]> {
+  const PAGE_SIZE = 1000;
+  const allRecords: CallRecord[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('call_records')
+      .select('*')
+      .order('call_date', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw new Error(`Error al cargar registros: ${error.message}`);
+    if (!data || data.length === 0) break;
+
+    allRecords.push(...(data as CallRecord[]));
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return allRecords;
+}
+
 export async function saveAgentStatusUpload(
   filename: string,
   rows: AgentStatusRow[]
