@@ -122,6 +122,26 @@ export type HourlyDemandData = {
   weekdayCounts: { lun: number; mar: number; mie: number; jue: number; vie: number };
 };
 
+export type TopCallerQueueEntry = {
+  queue: string;
+  count: number;
+};
+
+export type TopCallerExecutiveEntry = {
+  executive: string;
+  count: number;
+};
+
+export type TopCallerEntry = {
+  aniHash: string;
+  aniMasked: string;
+  callCount: number;
+  attendedCount: number;
+  unattendedCount: number;
+  queues: TopCallerQueueEntry[];
+  executives: TopCallerExecutiveEntry[];
+};
+
 export type HourBucket = {
   hour: number;
   label: string;
@@ -183,6 +203,7 @@ export type KPISummary = {
   executiveWeekdayTalkTime: ExecutiveWeekdayTalkTime[];
   topExecutivesByVolume: string[];
   allExecutivesWithData: string[];
+  topCallers: TopCallerEntry[];
 };
 
 export function formatDuration(seconds: number): string {
@@ -524,6 +545,74 @@ export function calculateHourlyDemand(records: CallRecord[]): HourlyDemandData {
   return { points, peakErlangs, weekdayCounts };
 }
 
+// Chilean mobile numbers have 11 digits after stripping country code (56 + 9 + 8 digits).
+// The masked version preserves the original length (Xs + last 4), so length 11 = mobile.
+function isMobileNumber(aniMasked: string): boolean {
+  return aniMasked.length === 11;
+}
+
+export function calculateTopCallers(records: CallRecord[], limit = 10, mobileOnly = false): TopCallerEntry[] {
+  type Accumulator = {
+    aniMasked: string;
+    callCount: number;
+    attendedCount: number;
+    unattendedCount: number;
+    queues: Map<string, number>;
+    executives: Map<string, number>;
+  };
+
+  const callerMap = new Map<string, Accumulator>();
+
+  for (const r of records) {
+    if (!r.ani_hash) continue;
+    if (mobileOnly && !isMobileNumber(r.ani_masked)) continue;
+
+    let acc = callerMap.get(r.ani_hash);
+    if (!acc) {
+      acc = {
+        aniMasked: r.ani_masked,
+        callCount: 0,
+        attendedCount: 0,
+        unattendedCount: 0,
+        queues: new Map(),
+        executives: new Map(),
+      };
+      callerMap.set(r.ani_hash, acc);
+    }
+
+    acc.callCount++;
+    if (r.attended) {
+      acc.attendedCount++;
+      if (r.executive && r.executive !== 'SIN ATENDER') {
+        acc.executives.set(r.executive, (acc.executives.get(r.executive) ?? 0) + 1);
+      }
+    } else {
+      acc.unattendedCount++;
+    }
+
+    if (r.queue) {
+      acc.queues.set(r.queue, (acc.queues.get(r.queue) ?? 0) + 1);
+    }
+  }
+
+  return Array.from(callerMap.values())
+    .sort((a, b) => b.callCount - a.callCount)
+    .slice(0, limit)
+    .map(acc => ({
+      aniHash: '',
+      aniMasked: acc.aniMasked,
+      callCount: acc.callCount,
+      attendedCount: acc.attendedCount,
+      unattendedCount: acc.unattendedCount,
+      queues: Array.from(acc.queues.entries())
+        .map(([queue, count]) => ({ queue, count }))
+        .sort((a, b) => b.count - a.count),
+      executives: Array.from(acc.executives.entries())
+        .map(([executive, count]) => ({ executive, count }))
+        .sort((a, b) => b.count - a.count),
+    }));
+}
+
 export function calculateKPIs(records: CallRecord[]): KPISummary {
   const total = records.length;
   const empty: KPISummary = {
@@ -547,6 +636,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     executiveWeekdayTalkTime: [],
     topExecutivesByVolume: [],
     allExecutivesWithData: [],
+    topCallers: [],
   };
   if (total === 0) return empty;
 
@@ -746,6 +836,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const queueAttendanceEvolution = calculateQueueAttendanceEvolution(records);
   const executiveOccupancy = calculateExecutiveOccupancy(records);
   const hourlyDemand = calculateHourlyDemand(records);
+  const topCallers = calculateTopCallers(records, 10);
 
   return {
     totalCalls: total,
@@ -774,5 +865,6 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     executiveWeekdayTalkTime,
     topExecutivesByVolume,
     allExecutivesWithData,
+    topCallers,
   };
 }

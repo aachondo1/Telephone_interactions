@@ -28,6 +28,7 @@ import { calculateKPIs } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import { LayoutDashboard, Layers, Users, Target, Activity } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
+import { TopCallersTable } from './TopCallersTable';
 import type { AgentStatusRecord } from '../lib/supabase';
 
 type Tab = 'general' | 'colas' | 'ejecutivos' | 'planificacion' | 'conectividad';
@@ -257,6 +258,7 @@ export function Dashboard({ records, upload, agentStatusRecords }: Props) {
           <QueueUnattendedHeatmap data={kpis.queueUnattendedHeatmap} />
           <QueueLoadVariability data={kpis.queueLoadVariability} />
           <QueuesDetailTable stats={kpis.queueStats} />
+          <TopCallersTable records={filteredRecords} />
         </div>
       )}
 
