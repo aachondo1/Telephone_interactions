@@ -11,6 +11,11 @@ import { QueueKPICards } from './QueueKPICards';
 import { QueueBarChart } from './QueueBarChart';
 import { QueuePieChart } from './QueuePieChart';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
+import QueueUnattendedHeatmap from './QueueUnattendedHeatmap';
+import { QueueLoadVariability } from './QueueLoadVariability';
+import { QueueAttendanceEvolution } from './QueueAttendanceEvolution';
+import { PhoneOccupancyChart } from './PhoneOccupancyChart';
+import { StaffingDemandChart } from './StaffingDemandChart';
 import { QueuesDetailTable } from './QueuesDetailTable';
 import { ExecutiveKPICards } from './ExecutiveKPICards';
 import { ExecutiveBarChart } from './ExecutiveBarChart';
@@ -21,9 +26,9 @@ import { ExecutiveTalkTimeByWeekday } from './ExecutiveTalkTimeByWeekday';
 import { ExecutivesDetailTable } from './ExecutivesDetailTable';
 import { calculateKPIs } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
-import { LayoutDashboard, Layers, Users } from 'lucide-react';
+import { LayoutDashboard, Layers, Users, Target } from 'lucide-react';
 
-type Tab = 'general' | 'colas' | 'ejecutivos';
+type Tab = 'general' | 'colas' | 'ejecutivos' | 'planificacion';
 
 type Props = {
   records: CallRecord[];
@@ -142,6 +147,7 @@ const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'general', label: 'General', icon: LayoutDashboard },
   { id: 'colas', label: 'Colas', icon: Layers },
   { id: 'ejecutivos', label: 'Ejecutivos', icon: Users },
+  { id: 'planificacion', label: 'Planificación', icon: Target },
 ];
 
 export function Dashboard({ records, upload }: Props) {
@@ -235,7 +241,25 @@ export function Dashboard({ records, upload }: Props) {
             <QueuePieChart stats={kpis.queueStats} />
           </div>
           <QueuePerformanceHeatmap data={kpis.queuePerformanceHeatmap} />
+          <QueueAttendanceEvolution data={kpis.queueAttendanceEvolution} />
+          <QueueUnattendedHeatmap data={kpis.queueUnattendedHeatmap} />
+          <QueueLoadVariability data={kpis.queueLoadVariability} />
           <QueuesDetailTable stats={kpis.queueStats} />
+        </div>
+      )}
+
+      {activeTab === 'planificacion' && (
+        <div className="space-y-6">
+          <div className="bg-sky-50 border border-sky-100 rounded-2xl px-6 py-4 text-sm text-sky-800">
+            <p className="font-semibold mb-1">¿Cómo leer esta sección?</p>
+            <p className="text-sky-700 text-xs leading-relaxed">
+              <strong>Ocupación telefónica</strong>: % del turno que cada ejecutiva pasa en llamadas. El tiempo restante está disponible para atención presencial, correo u otras gestiones.
+              <br />
+              <strong>Demanda en Erlangs</strong>: cuántas personas necesitas simultáneamente en teléfono a cada hora. Ajusta el número de personas asignadas y verás en qué franjas hay déficit o exceso.
+            </p>
+          </div>
+          <StaffingDemandChart data={kpis.hourlyDemand} />
+          <PhoneOccupancyChart data={kpis.executiveOccupancy} />
         </div>
       )}
 

@@ -44,7 +44,7 @@ export function QueuesDetailTable({ stats }: Props) {
     { label: 'Dur. Promedio', key: 'avgDurationSeconds', align: 'text-right' },
     { label: 'Dur. Total', key: 'totalDurationSeconds', align: 'text-right' },
     { label: 'Sin atender', key: 'unattendedCount', align: 'text-right' },
-    { label: 'Completitud', key: 'completenessRate', align: 'text-right' },
+    { label: 'Atendidas / No Atendidas', key: 'completenessRate', align: 'text-center' },
   ];
 
   return (
@@ -101,15 +101,24 @@ export function QueuesDetailTable({ stats }: Props) {
                     <span className="text-slate-300">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                <td className="px-4 py-3 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-end gap-0.5 h-8 min-w-24">
                       <div
-                        className="h-full rounded-full bg-emerald-400"
-                        style={{ width: `${q.completenessRate}%` }}
+                        className="flex-1 bg-emerald-500 rounded-t-sm transition-all"
+                        style={{ height: `${Math.max((((q.count - q.unattendedCount) / q.count) * 100), 5)}%` }}
+                        title={`Atendidas: ${(q.count - q.unattendedCount).toLocaleString('es-CL')} (${Math.round(((q.count - q.unattendedCount) / q.count) * 100)}%)`}
+                      />
+                      <div
+                        className="flex-1 bg-red-500 rounded-t-sm transition-all"
+                        style={{ height: `${Math.max(((q.unattendedCount / q.count) * 100), 5)}%` }}
+                        title={`No atendidas: ${q.unattendedCount.toLocaleString('es-CL')} (${Math.round((q.unattendedCount / q.count) * 100)}%)`}
                       />
                     </div>
-                    <span className="text-xs text-slate-500 w-8 text-right">{q.completenessRate}%</span>
+                    <div className="text-xs text-slate-600 min-w-20">
+                      <div>{Math.round(((q.count - q.unattendedCount) / q.count) * 100)}% ✓</div>
+                      <div className="text-red-600">{Math.round((q.unattendedCount / q.count) * 100)}% ✗</div>
+                    </div>
                   </div>
                 </td>
               </tr>
