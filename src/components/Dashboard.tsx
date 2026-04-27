@@ -112,8 +112,9 @@ function applyFilters(records: CallRecord[], filters: FilterState): CallRecord[]
     if (filters.executives.length > 0 && !filters.executives.includes(r.executive)) return false;
 
     if (filters.attended !== 'all') {
-      const isUnassigned = !r.queue && !r.executive;
-      if (filters.attended === 'attended' && (!r.attended || isUnassigned)) return false;
+      const isUnassigned = !r.queue; // No queue = unassigned
+      const isUnattended = r.queue && !r.attended; // Has queue but not attended
+      if (filters.attended === 'attended' && !r.attended) return false;
       if (filters.attended === 'unattended' && (r.attended || isUnassigned)) return false;
       if (filters.attended === 'unassigned' && !isUnassigned) return false;
     }

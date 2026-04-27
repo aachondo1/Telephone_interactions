@@ -282,8 +282,13 @@ export async function transformRows(
       queue = rawQueue;
     } else if (isOutbound) {
       queue = 'Saliente';
-    } else if (rawQueue === '' && executives.length === 0) {
-      // No queue and no executive = unassigned
+    } else if (rawQueue === '') {
+      // Inbound with no queue = check duration
+      if (isInbound && durationSeconds < 90) {
+        // Inbound, < 1:30, no queue = invalid
+        continue;
+      }
+      // Has no queue = unassigned
       queue = '';
     } else {
       continue;
