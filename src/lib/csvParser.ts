@@ -274,10 +274,13 @@ export async function transformRows(
 
     const direction = (columnMap.direction ? row[columnMap.direction] : '') ?? '';
     const rawQueue = ((columnMap.queue ? row[columnMap.queue] : '') ?? '').trim();
+    const isOutbound = direction.toLowerCase() === 'outbound' || direction.toLowerCase() === 'saliente';
 
     let queue: string;
     if (VALID_QUEUES.has(rawQueue)) {
       queue = rawQueue;
+    } else if (isOutbound) {
+      queue = 'Saliente';
     } else if (rawQueue === '' && executives.length === 0) {
       queue = 'No asignada';
     } else {
