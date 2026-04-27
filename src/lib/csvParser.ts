@@ -275,12 +275,16 @@ export async function transformRows(
     const direction = (columnMap.direction ? row[columnMap.direction] : '') ?? '';
     const rawQueue = ((columnMap.queue ? row[columnMap.queue] : '') ?? '').trim();
     const isOutbound = direction.toLowerCase() === 'outbound' || direction.toLowerCase() === 'saliente';
+    const isInbound = direction.toLowerCase() === 'inbound' || direction.toLowerCase() === 'entrante';
 
     let queue: string;
     if (VALID_QUEUES.has(rawQueue)) {
       queue = rawQueue;
     } else if (isOutbound) {
       queue = 'Saliente';
+    } else if (isInbound && executives.length === 0 && durationSeconds < 90) {
+      // Inbound calls < 1:30 with no executive = abandoned before assignment
+      queue = 'No asignada';
     } else if (rawQueue === '' && executives.length === 0) {
       queue = 'No asignada';
     } else {
