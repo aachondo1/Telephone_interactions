@@ -26,13 +26,16 @@ import { ExecutiveTalkTimeByWeekday } from './ExecutiveTalkTimeByWeekday';
 import { ExecutivesDetailTable } from './ExecutivesDetailTable';
 import { calculateKPIs } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
-import { LayoutDashboard, Layers, Users, Target } from 'lucide-react';
+import { LayoutDashboard, Layers, Users, Target, Activity } from 'lucide-react';
+import { AgentConnectivityChart } from './AgentConnectivityChart';
+import type { AgentStatusRecord } from '../lib/supabase';
 
-type Tab = 'general' | 'colas' | 'ejecutivos' | 'planificacion';
+type Tab = 'general' | 'colas' | 'ejecutivos' | 'planificacion' | 'conectividad';
 
 type Props = {
   records: CallRecord[];
   upload: CallUpload;
+  agentStatusRecords: AgentStatusRecord[];
 };
 
 function formatDateRange(start: string | null, end: string | null): string {
@@ -148,9 +151,10 @@ const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'colas', label: 'Colas', icon: Layers },
   { id: 'ejecutivos', label: 'Ejecutivos', icon: Users },
   { id: 'planificacion', label: 'Planificación', icon: Target },
+  { id: 'conectividad', label: 'Conectividad', icon: Activity },
 ];
 
-export function Dashboard({ records, upload }: Props) {
+export function Dashboard({ records, upload, agentStatusRecords }: Props) {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [activeTab, setActiveTab] = useState<Tab>('general');
 
@@ -196,15 +200,16 @@ export function Dashboard({ records, upload }: Props) {
       />
 
       {/* Tab navigation */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-1.5 flex gap-1">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-1.5 flex gap-1 flex-wrap">
         {TABS.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
+          const showBadge = tab.id === 'conectividad' && agentStatusRecords.length > 0;
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all relative ${
                 isActive
                   ? 'bg-slate-800 text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
@@ -212,6 +217,13 @@ export function Dashboard({ records, upload }: Props) {
             >
               <Icon size={15} />
               {tab.label}
+              {showBadge && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                  isActive ? 'bg-emerald-400 text-white' : 'bg-emerald-100 text-emerald-700'
+                }`}>
+                  {agentStatusRecords.length}
+                </span>
+              )}
             </button>
           );
         })}
@@ -287,6 +299,42 @@ export function Dashboard({ records, upload }: Props) {
             executives={kpis.topExecutivesByVolume}
           />
           <ExecutivesDetailTable stats={kpis.executiveStats} />
+        </div>
+      )}
+
+      {activeTab === 'conectividad' && (
+        <div className="space-y-6">
+          {agentStatusRecords.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center py-16 gap-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center">
+                <Activity size={28} className="text-slate-300" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-600">Sin datos de conectividad</p>
+                <p className="text-sm text-slate-400 mt-1 max-w-sm">
+                  Carga el reporte "Estado de Agentes" usando el botón <strong>Estado agentes</strong> en la barra superior.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="bg-sky-50 border border-sky-100 rounded-2xl px-6 py-4 text-sm text-sky-800">
+                <p className="font-semibold mb-1">¿Cómo leer esta sección?</p>
+                <p className="text-sky-700 text-xs leading-relaxed">
+                  <strong>Conectado</strong> = En la cola + Fuera de la cola.{' '}
+                  <strong>En la cola</strong>: la agente está disponible para recibir llamados.{' '}
+                  <strong>Fuera de la cola</strong>: está conectada al sistema pero no recibe llamados (otras gestiones).
+                  {kpis.executiveStats.length > 0 && (
+                    <> La <strong>ocupación real</strong> cruza el tiempo efectivo en llamadas con el tiempo en cola.</>
+                  )}
+                </p>
+              </div>
+              <AgentConnectivityChart
+                agentRecords={agentStatusRecords}
+                executiveStats={kpis.executiveStats}
+              />
+            </>
+          )}
         </div>
       )}
     </div>

@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { PhoneCall, UploadCloud, History, ChevronDown } from 'lucide-react';
+import { PhoneCall, UploadCloud, History, ChevronDown, Users } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
 import { UploadModal } from './components/UploadModal';
 import { UploadHistory } from './components/UploadHistory';
 import { parseCSVText, detectColumns, validateColumns, transformRows } from './lib/csvParser';
-import { saveUpload, getCallRecords, getAllUploads, getProcessedSignatures } from './lib/supabaseService';
-import type { CallRecord, CallUpload } from './lib/supabase';
+import { parseAgentStatusCSV } from './lib/agentStatusParser';
+import { saveUpload, getCallRecords, getAllUploads, getProcessedSignatures, saveAgentStatusUpload, getLatestAgentStatusUpload } from './lib/supabaseService';
+import type { CallRecord, CallUpload, AgentStatusRecord } from './lib/supabase';
 
 type DataState =
   | { phase: 'loading' }
@@ -22,9 +23,22 @@ export default function App() {
   const [progress, setProgress] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  // Agent status state
+  const [agentStatusRecords, setAgentStatusRecords] = useState<AgentStatusRecord[]>([]);
+  const [agentStatusModalOpen, setAgentStatusModalOpen] = useState(false);
+  const [agentStatusProcessing, setAgentStatusProcessing] = useState(false);
+  const [agentStatusError, setAgentStatusError] = useState<string | null>(null);
+  const [agentStatusProgress, setAgentStatusProgress] = useState('');
+
   useEffect(() => {
-    getAllUploads()
-      .then(allUploads => {
+    Promise.all([
+      getAllUploads(),
+      getLatestAgentStatusUpload(),
+    ])
+      .then(([allUploads, agentStatus]) => {
+        if (agentStatus) {
+          setAgentStatusRecords(agentStatus.records);
+        }
         setUploads(allUploads);
         if (allUploads.length === 0) {
           setDataState({ phase: 'empty' });
@@ -102,6 +116,33 @@ export default function App() {
     }
   }, []);
 
+  const processAgentStatusFile = useCallback(async (file: File) => {
+    setAgentStatusProcessing(true);
+    setAgentStatusError(null);
+    setAgentStatusProgress('Leyendo archivo...');
+    try {
+      const text = await file.text();
+      setAgentStatusProgress('Procesando agentes...');
+      const { rows, errors } = parseAgentStatusCSV(text);
+      if (errors.length > 0 && rows.length === 0) {
+        setAgentStatusError(errors[0]);
+        setAgentStatusProcessing(false);
+        return;
+      }
+      setAgentStatusProgress(`Guardando ${rows.length} agentes...`);
+      const { records } = await saveAgentStatusUpload(file.name, rows).then(async ({ upload }) => {
+        const saved = await import('./lib/supabaseService').then(m => m.getAgentStatusRecords(upload.id));
+        return { records: saved };
+      });
+      setAgentStatusRecords(records);
+      setAgentStatusProcessing(false);
+      setAgentStatusModalOpen(false);
+    } catch (err) {
+      setAgentStatusError(err instanceof Error ? err.message : 'Error desconocido.');
+      setAgentStatusProcessing(false);
+    }
+  }, []);
+
   const openModal = () => {
     setUploadError(null);
     setModalOpen(true);
@@ -111,6 +152,18 @@ export default function App() {
     if (!isProcessing) {
       setModalOpen(false);
       setUploadError(null);
+    }
+  };
+
+  const openAgentStatusModal = () => {
+    setAgentStatusError(null);
+    setAgentStatusModalOpen(true);
+  };
+
+  const closeAgentStatusModal = () => {
+    if (!agentStatusProcessing) {
+      setAgentStatusModalOpen(false);
+      setAgentStatusError(null);
     }
   };
 
@@ -162,7 +215,23 @@ export default function App() {
               </div>
             )}
 
-            {/* Upload button */}
+            {/* Agent status upload button */}
+            <button
+              type="button"
+              onClick={openAgentStatusModal}
+              className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-colors border ${
+                agentStatusRecords.length > 0
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                  : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800'
+              }`}
+            >
+              <Users size={15} />
+              <span className="hidden sm:inline">
+                {agentStatusRecords.length > 0 ? `${agentStatusRecords.length} agentes` : 'Estado agentes'}
+              </span>
+            </button>
+
+            {/* Calls upload button */}
             <button
               type="button"
               onClick={openModal}
@@ -215,11 +284,15 @@ export default function App() {
         )}
 
         {dataState.phase === 'ready' && (
-          <Dashboard records={dataState.records} upload={dataState.upload} />
+          <Dashboard
+            records={dataState.records}
+            upload={dataState.upload}
+            agentStatusRecords={agentStatusRecords}
+          />
         )}
       </main>
 
-      {/* Upload modal */}
+      {/* Calls upload modal */}
       <UploadModal
         isOpen={modalOpen}
         onClose={closeModal}
@@ -227,6 +300,18 @@ export default function App() {
         isProcessing={isProcessing}
         error={uploadError}
         progress={progress}
+      />
+
+      {/* Agent status upload modal */}
+      <UploadModal
+        isOpen={agentStatusModalOpen}
+        onClose={closeAgentStatusModal}
+        onFileSelected={processAgentStatusFile}
+        isProcessing={agentStatusProcessing}
+        error={agentStatusError}
+        progress={agentStatusProgress}
+        title="Cargar Estado de Agentes"
+        description='Sube el reporte "Resumen de Estado por Agente" en formato CSV (separado por punto y coma). Solo se usarán las columnas Conectado, En la cola y Fuera de la cola.'
       />
     </div>
   );
