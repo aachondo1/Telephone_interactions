@@ -10,6 +10,7 @@ import type { FilterState } from './FilterBar';
 import { QueueKPICards } from './QueueKPICards';
 import { QueueBarChart } from './QueueBarChart';
 import { QueuePieChart } from './QueuePieChart';
+import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { QueuesDetailTable } from './QueuesDetailTable';
 import { ExecutiveKPICards } from './ExecutiveKPICards';
 import { ExecutiveBarChart } from './ExecutiveBarChart';
@@ -233,6 +234,7 @@ export function Dashboard({ records, upload }: Props) {
             <QueueBarChart stats={kpis.queueStats} />
             <QueuePieChart stats={kpis.queueStats} />
           </div>
+          <QueuePerformanceHeatmap data={kpis.queuePerformanceHeatmap} />
           <QueuesDetailTable stats={kpis.queueStats} />
         </div>
       )}
