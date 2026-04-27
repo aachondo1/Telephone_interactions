@@ -169,7 +169,7 @@ export function Dashboard({ records, upload, agentStatusRecords }: Props) {
       {/* Dataset info bar */}
       <div className="bg-white rounded-2xl px-6 py-4 shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-semibold text-slate-700">{upload.filename}</p>
+          <p className="font-semibold text-slate-700">Análisis histórico combinado</p>
           {dateRange && <p className="text-sm text-slate-400 mt-0.5">{dateRange}</p>}
         </div>
         <div className="flex items-center gap-6 text-sm">

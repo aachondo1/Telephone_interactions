@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { PhoneCall, UploadCloud, History, ChevronDown, Users } from 'lucide-react';
+import { PhoneCall, UploadCloud, Users } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
 import { UploadModal } from './components/UploadModal';
-import { UploadHistory } from './components/UploadHistory';
-import { parseCSVText, detectColumns, validateColumns, transformRows } from './lib/csvParser';
+import { parseCSVText, detectColumns, validateColumns, transformRows, calculateDateRangeFromRecords } from './lib/csvParser';
 import { parseAgentStatusCSV } from './lib/agentStatusParser';
-import { saveUpload, getCallRecords, getAllUploads, getProcessedSignatures, saveAgentStatusUpload, getLatestAgentStatusUpload } from './lib/supabaseService';
+import { saveUpload, getCallRecords, getAllUploads, getAllCallRecords, getProcessedSignatures, saveAgentStatusUpload, getLatestAgentStatusUpload } from './lib/supabaseService';
 import type { CallRecord, CallUpload, AgentStatusRecord } from './lib/supabase';
 
 type DataState =
@@ -16,12 +15,10 @@ type DataState =
 export default function App() {
   const [dataState, setDataState] = useState<DataState>({ phase: 'loading' });
   const [uploads, setUploads] = useState<CallUpload[]>([]);
-  const [activeUploadId, setActiveUploadId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [progress, setProgress] = useState('');
-  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Agent status state
   const [agentStatusRecords, setAgentStatusRecords] = useState<AgentStatusRecord[]>([]);
@@ -34,22 +31,31 @@ export default function App() {
     Promise.all([
       getAllUploads(),
       getLatestAgentStatusUpload(),
+      getAllCallRecords(),
     ])
-      .then(([allUploads, agentStatus]) => {
+      .then(([allUploads, agentStatus, records]) => {
         if (agentStatus) {
           setAgentStatusRecords(agentStatus.records);
         }
         setUploads(allUploads);
-        if (allUploads.length === 0) {
+
+        if (records.length === 0) {
           setDataState({ phase: 'empty' });
           setModalOpen(true);
           return;
         }
-        const latest = allUploads[0];
-        setActiveUploadId(latest.id);
-        return getCallRecords(latest.id).then(records => {
-          setDataState({ phase: 'ready', records, upload: latest });
-        });
+
+        const dateRange = calculateDateRangeFromRecords(records);
+        const virtualUpload: CallUpload = {
+          id: 'all-historical',
+          filename: 'Datos históricos combinados',
+          uploaded_at: new Date().toISOString(),
+          record_count: records.length,
+          date_range_start: dateRange.start,
+          date_range_end: dateRange.end,
+        };
+
+        setDataState({ phase: 'ready', records, upload: virtualUpload });
       })
       .catch(() => setDataState({ phase: 'empty' }));
   }, []);
@@ -88,12 +94,21 @@ export default function App() {
       setProgress(`Guardando ${parsed.length.toLocaleString('es-CL')} registros nuevos${duplicateCount > 0 ? ` (${duplicateCount} duplicados omitidos)` : ''}...`);
       const { upload, savedCount } = await saveUpload(file.name, parsed);
 
-      setProgress(`Cargando ${savedCount.toLocaleString('es-CL')} registros...`);
-      const records = await getCallRecords(upload.id);
+      setProgress(`Recargando histórico completo...`);
+      const allRecords = await getAllCallRecords();
+
+      const dateRange = calculateDateRangeFromRecords(allRecords);
+      const virtualUpload: CallUpload = {
+        id: 'all-historical',
+        filename: 'Datos históricos combinados',
+        uploaded_at: new Date().toISOString(),
+        record_count: allRecords.length,
+        date_range_start: dateRange.start,
+        date_range_end: dateRange.end,
+      };
 
       setUploads(prev => [upload, ...prev.filter(u => u.id !== upload.id)]);
-      setActiveUploadId(upload.id);
-      setDataState({ phase: 'ready', records, upload });
+      setDataState({ phase: 'ready', records: allRecords, upload: virtualUpload });
       setIsProcessing(false);
       setModalOpen(false);
     } catch (err) {
@@ -104,17 +119,6 @@ export default function App() {
     }
   }, []);
 
-  const selectUpload = useCallback(async (upload: CallUpload) => {
-    setDataState({ phase: 'loading' });
-    try {
-      const records = await getCallRecords(upload.id);
-      setActiveUploadId(upload.id);
-      setDataState({ phase: 'ready', records, upload });
-      setHistoryOpen(false);
-    } catch (err) {
-      setDataState({ phase: 'empty' });
-    }
-  }, []);
 
   const processAgentStatusFile = useCallback(async (file: File) => {
     setAgentStatusProcessing(true);
@@ -187,33 +191,6 @@ export default function App() {
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
-            {/* History dropdown (when there are multiple uploads) */}
-            {uploads.length > 1 && (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setHistoryOpen(o => !o)}
-                  className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-800 border border-slate-200 hover:border-slate-300 px-3 py-2 rounded-lg transition-colors bg-white"
-                >
-                  <History size={15} />
-                  <span className="hidden sm:inline">Historial</span>
-                  <ChevronDown size={13} className={`transition-transform ${historyOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {historyOpen && (
-                  <>
-                    <div className="fixed inset-0 z-20" onClick={() => setHistoryOpen(false)} />
-                    <div className="absolute right-0 top-full mt-2 z-30 w-80">
-                      <UploadHistory
-                        uploads={uploads}
-                        activeUploadId={activeUploadId}
-                        onSelect={selectUpload}
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
 
             {/* Agent status upload button */}
             <button
