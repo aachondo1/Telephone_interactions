@@ -111,16 +111,28 @@ function applyFilters(records: CallRecord[], filters: FilterState): CallRecord[]
     if (filters.queues.length > 0 && !filters.queues.includes(r.queue)) return false;
     if (filters.executives.length > 0 && !filters.executives.includes(r.executive)) return false;
 
-    if (filters.attended !== 'all') {
-      const isUnassigned = !r.queue; // No queue = unassigned
-      const isUnattended = r.queue && !r.attended; // Has queue but not attended
-      if (filters.attended === 'attended' && !r.attended) return false;
-      if (filters.attended === 'unattended' && (r.attended || isUnassigned)) return false;
-      if (filters.attended === 'unassigned' && !isUnassigned) return false;
+    if (filters.attendedStatus.length > 0) {
+      const isUnassigned = !r.queue;
+      const isAttended = r.attended && r.queue;
+      const isUnattended = !r.attended && r.queue;
+
+      let matchesAttendedFilter = false;
+      if (filters.attendedStatus.includes('attended') && isAttended) matchesAttendedFilter = true;
+      if (filters.attendedStatus.includes('unattended') && isUnattended) matchesAttendedFilter = true;
+      if (filters.attendedStatus.includes('unassigned') && isUnassigned) matchesAttendedFilter = true;
+
+      if (!matchesAttendedFilter) return false;
     }
 
-    if (filters.direction === 'inbound' && !isInbound(r.call_direction)) return false;
-    if (filters.direction === 'outbound' && isInbound(r.call_direction)) return false;
+    if (filters.direction.length > 0) {
+      const dirMatch = filters.direction.some(d => {
+        if (d === 'inbound') return isInbound(r.call_direction);
+        if (d === 'outbound') return !isInbound(r.call_direction);
+        return false;
+      });
+      if (!dirMatch) return false;
+    }
+
     return true;
   });
 }

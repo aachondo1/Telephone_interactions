@@ -53,8 +53,8 @@ export type FilterState = {
   departments: string[];
   queues: string[];
   executives: string[];
-  attended: 'all' | 'attended' | 'unattended' | 'unassigned';
-  direction: 'all' | 'inbound' | 'outbound';
+  attendedStatus: ('attended' | 'unattended' | 'unassigned')[];
+  direction: ('inbound' | 'outbound')[];
 };
 
 export const DEFAULT_FILTERS: FilterState = {
@@ -64,8 +64,8 @@ export const DEFAULT_FILTERS: FilterState = {
   departments: [],
   queues: [],
   executives: [],
-  attended: 'all',
-  direction: 'all',
+  attendedStatus: [],
+  direction: [],
 };
 
 type Props = {
@@ -80,11 +80,13 @@ function MultiSelect({
   options,
   selected,
   onChange,
+  renderOption = (opt) => opt,
 }: {
   label: string;
   options: string[];
   selected: string[];
   onChange: (v: string[]) => void;
+  renderOption?: (opt: string) => string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -134,7 +136,7 @@ function MultiSelect({
                   onChange={() => toggle(opt)}
                   className="accent-sky-500 rounded"
                 />
-                <span className="text-sm text-slate-700 truncate">{opt}</span>
+                <span className="text-sm text-slate-700 truncate">{renderOption(opt)}</span>
               </label>
             ))}
           </div>
@@ -196,8 +198,8 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
     filters.departments.length > 0 ||
     filters.queues.length > 0 ||
     filters.executives.length > 0 ||
-    filters.attended !== 'all' ||
-    filters.direction !== 'all';
+    filters.attendedStatus.length > 0 ||
+    filters.direction.length > 0;
 
   const clearAll = () => onChange(DEFAULT_FILTERS);
 
@@ -216,23 +218,18 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
       onRemove: () => onChange({ ...filters, dateRange: 'custom', dateStart: '', dateEnd: '' }),
     });
   }
-  if (filters.direction !== 'all') {
+  filters.direction.forEach(dir =>
     activeChips.push({
-      label: filters.direction === 'inbound' ? 'Entrantes' : 'Salientes',
-      onRemove: () => onChange({ ...filters, direction: 'all' }),
-    });
-  }
-  if (filters.attended !== 'all') {
-    const attendedLabels: Record<string, string> = {
-      attended: 'Atendidas',
-      unattended: 'No atendidas',
-      unassigned: 'No asignada',
-    };
+      label: dir === 'inbound' ? 'Entrantes' : 'Salientes',
+      onRemove: () => onChange({ ...filters, direction: filters.direction.filter(x => x !== dir) }),
+    })
+  );
+  filters.attendedStatus.forEach(status =>
     activeChips.push({
-      label: attendedLabels[filters.attended] || filters.attended,
-      onRemove: () => onChange({ ...filters, attended: 'all' }),
-    });
-  }
+      label: status === 'attended' ? 'Atendidas' : status === 'unattended' ? 'No atendidas' : 'No asignada',
+      onRemove: () => onChange({ ...filters, attendedStatus: filters.attendedStatus.filter(x => x !== status) }),
+    })
+  );
   filters.departments.forEach(d =>
     activeChips.push({
       label: `Depto: ${d}`,
@@ -338,54 +335,23 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
           onChange={executives => onChange({ ...filters, executives })}
         />
 
-        {/* Direction toggle */}
-        <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm">
-          {(['all', 'inbound', 'outbound'] as const).map(opt => {
-            const label = opt === 'all' ? 'Todas' : opt === 'inbound' ? 'Entrantes' : 'Salientes';
-            const active = filters.direction === opt;
-            return (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => onChange({ ...filters, direction: opt })}
-                className={`px-3 py-1.5 transition-colors ${
-                  active
-                    ? 'bg-emerald-500 text-white font-medium'
-                    : 'bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
+        {/* Direction multi-select */}
+        <MultiSelect
+          label="Dirección"
+          options={['inbound', 'outbound']}
+          selected={filters.direction}
+          onChange={direction => onChange({ ...filters, direction })}
+          renderOption={(opt) => opt === 'inbound' ? 'Entrantes' : 'Salientes'}
+        />
 
-        {/* Attended toggle */}
-        <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm">
-          {(['all', 'attended', 'unattended', 'unassigned'] as const).map(opt => {
-            const labels: Record<typeof opt, string> = {
-              all: 'Todas',
-              attended: 'Atendidas',
-              unattended: 'No atendidas',
-              unassigned: 'No asignada',
-            };
-            const active = filters.attended === opt;
-            return (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => onChange({ ...filters, attended: opt })}
-                className={`px-3 py-1.5 transition-colors ${
-                  active
-                    ? 'bg-sky-500 text-white font-medium'
-                    : 'bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {labels[opt]}
-              </button>
-            );
-          })}
-        </div>
+        {/* Attended Status multi-select */}
+        <MultiSelect
+          label="Estado"
+          options={['attended', 'unattended', 'unassigned']}
+          selected={filters.attendedStatus}
+          onChange={attendedStatus => onChange({ ...filters, attendedStatus })}
+          renderOption={(opt) => opt === 'attended' ? 'Atendidas' : opt === 'unattended' ? 'No atendidas' : 'No asignada'}
+        />
 
         {/* Clear all */}
         {hasActiveFilters && (
