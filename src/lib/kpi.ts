@@ -81,6 +81,18 @@ export type QueueVariabilityData = {
   queues: QueueVariabilityRow[];
 };
 
+export type AttendancePeriodPoint = {
+  key: string;
+  label: string;
+  [queue: string]: number | string | null;
+};
+
+export type QueueAttendanceEvolutionData = {
+  weeklyPeriods: AttendancePeriodPoint[];
+  monthlyPeriods: AttendancePeriodPoint[];
+  queues: string[];
+};
+
 export type HourBucket = {
   hour: number;
   label: string;
@@ -131,6 +143,7 @@ export type KPISummary = {
   queuePerformanceHeatmap: QueueHeatmapData;
   queueUnattendedHeatmap: QueueUnattendedHeatmapData;
   queueLoadVariability: QueueVariabilityData;
+  queueAttendanceEvolution: QueueAttendanceEvolutionData;
   hourlyDistribution: HourBucket[];
   dailyDistribution: DailyBucket[];
   directionStats: DirectionStat[];
@@ -302,6 +315,78 @@ export function calculateQueueLoadVariability(records: CallRecord[]): QueueVaria
   });
 
   return { queues };
+}
+
+const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+function getMondayKey(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().split('T')[0];
+}
+
+function weekLabel(mondayKey: string): string {
+  const d = new Date(mondayKey + 'T00:00:00');
+  return `${d.getDate()} ${MONTH_LABELS[d.getMonth()]}`;
+}
+
+function monthLabel(monthKey: string): string {
+  const [year, month] = monthKey.split('-');
+  return `${MONTH_LABELS[parseInt(month) - 1]} ${year}`;
+}
+
+export function calculateQueueAttendanceEvolution(records: CallRecord[]): QueueAttendanceEvolutionData {
+  if (records.length === 0) return { weeklyPeriods: [], monthlyPeriods: [], queues: [] };
+
+  const queueTotals = new Map<string, number>();
+  for (const r of records) {
+    if (!r.queue || !r.call_date) continue;
+    queueTotals.set(r.queue, (queueTotals.get(r.queue) ?? 0) + 1);
+  }
+  const topQueues = Array.from(queueTotals.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([q]) => q);
+  const topQueueSet = new Set(topQueues);
+
+  type PeriodStats = Map<string, Map<string, { total: number; attended: number }>>;
+
+  const weekMap: PeriodStats = new Map();
+  const monthMap: PeriodStats = new Map();
+
+  for (const r of records) {
+    if (!r.queue || !r.call_date || !topQueueSet.has(r.queue)) continue;
+
+    const weekKey = getMondayKey(r.call_date);
+    const monthKey = r.call_date.substring(0, 7);
+
+    for (const [map, key] of [[weekMap, weekKey], [monthMap, monthKey]] as [PeriodStats, string][]) {
+      if (!map.has(key)) map.set(key, new Map());
+      const qm = map.get(key)!;
+      const cur = qm.get(r.queue) ?? { total: 0, attended: 0 };
+      qm.set(r.queue, { total: cur.total + 1, attended: cur.attended + (r.attended ? 1 : 0) });
+    }
+  }
+
+  function buildPeriods(map: PeriodStats, labelFn: (k: string) => string, minCalls: number): AttendancePeriodPoint[] {
+    return Array.from(map.keys()).sort().map(key => {
+      const qm = map.get(key)!;
+      const point: AttendancePeriodPoint = { key, label: labelFn(key) };
+      for (const queue of topQueues) {
+        const s = qm.get(queue);
+        point[queue] = s && s.total >= minCalls ? Math.round((s.attended / s.total) * 100) : null;
+      }
+      return point;
+    });
+  }
+
+  return {
+    weeklyPeriods: buildPeriods(weekMap, weekLabel, 5),
+    monthlyPeriods: buildPeriods(monthMap, monthLabel, 10),
+    queues: topQueues,
+  };
 }
 
 export function calculateKPIs(records: CallRecord[]): KPISummary {
@@ -523,6 +608,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const queuePerformanceHeatmap = calculateQueuePerformanceHeatmap(records);
   const queueUnattendedHeatmap = calculateQueueUnattendedHeatmap(records);
   const queueLoadVariability = calculateQueueLoadVariability(records);
+  const queueAttendanceEvolution = calculateQueueAttendanceEvolution(records);
 
   return {
     totalCalls: total,
@@ -540,6 +626,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     queuePerformanceHeatmap,
     queueUnattendedHeatmap,
     queueLoadVariability,
+    queueAttendanceEvolution,
     hourlyDistribution,
     dailyDistribution,
     directionStats,
