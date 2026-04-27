@@ -75,6 +75,105 @@ type Props = {
   filteredCount: number;
 };
 
+function DateRangeDropdown({
+  dateRange,
+  dateStart,
+  dateEnd,
+  minDate,
+  maxDate,
+  onChange,
+}: {
+  dateRange: FilterState['dateRange'];
+  dateStart: string;
+  dateEnd: string;
+  minDate: string;
+  maxDate: string;
+  onChange: (dateRange: FilterState['dateRange'], dateStart: string, dateEnd: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const labels: Record<FilterState['dateRange'], string> = {
+    thisWeek: 'Esta semana',
+    lastWeek: 'Semana pasada',
+    thisMonth: 'Este mes',
+    lastMonth: 'Mes anterior',
+    thisQuarter: 'Este trimestre',
+    lastQuarter: 'Trimestre anterior',
+    custom: 'Rango personalizado',
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-colors ${
+          dateRange !== 'custom'
+            ? 'border-orange-400 bg-orange-50 text-orange-700'
+            : dateStart || dateEnd
+              ? 'border-orange-400 bg-orange-50 text-orange-700'
+              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+        }`}
+      >
+        <Calendar size={14} />
+        <span>{labels[dateRange]}</span>
+        {dateStart && dateEnd && dateRange === 'custom' && (
+          <span className="text-xs opacity-75">({dateStart} - {dateEnd})</span>
+        )}
+        <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute top-full mt-1 left-0 z-20 bg-white border border-slate-200 rounded-xl shadow-lg min-w-[250px] p-3 space-y-3">
+            <div className="space-y-2">
+              {(['thisWeek', 'lastWeek', 'thisMonth', 'lastMonth', 'thisQuarter', 'lastQuarter'] as const).map(opt => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt, '', '');
+                    setOpen(false);
+                  }}
+                  className={`w-full text-left text-sm px-3 py-2 rounded-lg transition-colors ${
+                    dateRange === opt
+                      ? 'bg-orange-100 text-orange-700 font-medium'
+                      : 'hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  {labels[opt]}
+                </button>
+              ))}
+            </div>
+            <div className="border-t border-slate-200 pt-3">
+              <p className="text-xs font-medium text-slate-500 mb-2">O personalizado:</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={dateStart}
+                  min={minDate}
+                  max={dateEnd || maxDate}
+                  onChange={e => onChange('custom', e.target.value, dateEnd)}
+                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400"
+                />
+                <span className="text-slate-400 text-xs">—</span>
+                <input
+                  type="date"
+                  value={dateEnd}
+                  min={dateStart || minDate}
+                  max={maxDate}
+                  onChange={e => onChange('custom', dateStart, e.target.value)}
+                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400"
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function MultiSelect({
   label,
   options,
@@ -258,58 +357,17 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
           <span className="text-sm font-medium text-slate-600">Filtros</span>
         </div>
 
-        {/* Date range presets */}
-        <div className="flex items-center gap-1.5">
-          <Calendar size={14} className="text-slate-400" />
-          {(['thisWeek', 'lastWeek', 'thisMonth', 'lastMonth', 'thisQuarter', 'lastQuarter'] as const).map(opt => {
-            const labels: Record<typeof opt, string> = {
-              thisWeek: 'Esta sem.',
-              lastWeek: 'Sem. pas.',
-              thisMonth: 'Este mes',
-              lastMonth: 'Mes ant.',
-              thisQuarter: 'Este trim.',
-              lastQuarter: 'Trim. ant.',
-            };
-            const active = filters.dateRange === opt;
-            return (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => onChange({ ...filters, dateRange: opt, dateStart: '', dateEnd: '' })}
-                className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
-                  active
-                    ? 'bg-violet-500 text-white font-medium'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                }`}
-              >
-                {labels[opt]}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Custom date range */}
-        {filters.dateRange === 'custom' && (
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={filters.dateStart}
-              min={minDate}
-              max={filters.dateEnd || maxDate}
-              onChange={e => onChange({ ...filters, dateStart: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400"
-            />
-            <span className="text-slate-400 text-sm">—</span>
-            <input
-              type="date"
-              value={filters.dateEnd}
-              min={filters.dateStart || minDate}
-              max={maxDate}
-              onChange={e => onChange({ ...filters, dateEnd: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400"
-            />
-          </div>
-        )}
+        {/* Date range dropdown */}
+        <DateRangeDropdown
+          dateRange={filters.dateRange}
+          dateStart={filters.dateStart}
+          dateEnd={filters.dateEnd}
+          minDate={minDate}
+          maxDate={maxDate}
+          onChange={(dateRange, dateStart, dateEnd) =>
+            onChange({ ...filters, dateRange, dateStart, dateEnd })
+          }
+        />
 
         {/* Departments multi-select */}
         <MultiSelect
