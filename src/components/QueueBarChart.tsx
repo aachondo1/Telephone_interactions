@@ -9,6 +9,7 @@ import {
   Cell,
 } from 'recharts';
 import type { QueueStat } from '../lib/kpi';
+import { formatDuration } from '../lib/kpi';
 
 type Props = {
   stats: QueueStat[];
@@ -24,12 +25,12 @@ export function QueueBarChart({ stats }: Props) {
   const data = stats.slice(0, 10).map(q => ({
     queue: q.queue.length > 22 ? q.queue.slice(0, 22) + '…' : q.queue,
     fullName: q.queue,
-    llamadas: q.count,
+    tiempo: q.totalDurationSeconds,
   }));
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-      <h3 className="text-sm font-semibold text-slate-700 mb-4">Colas por volumen de llamadas</h3>
+      <h3 className="text-sm font-semibold text-slate-700 mb-4">Colas por tiempo total</h3>
       <ResponsiveContainer width="100%" height={320}>
         <BarChart
           data={data}
@@ -52,13 +53,13 @@ export function QueueBarChart({ stats }: Props) {
             tickLine={false}
           />
           <Tooltip
-            formatter={(value: number) => [value.toLocaleString('es-CL'), 'Llamadas']}
+            formatter={(value: number) => [formatDuration(value), 'Tiempo']}
             labelFormatter={(_: unknown, payload: {payload?: {fullName?: string}}[]) =>
               payload?.[0]?.payload?.fullName ?? ''
             }
             contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', fontSize: 13 }}
           />
-          <Bar dataKey="llamadas" radius={[0, 6, 6, 0]} maxBarSize={28}>
+          <Bar dataKey="tiempo" radius={[0, 6, 6, 0]} maxBarSize={28}>
             {data.map((_, i) => (
               <Cell key={i} fill={COLORS[i % COLORS.length]} />
             ))}

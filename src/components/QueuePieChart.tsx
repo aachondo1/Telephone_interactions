@@ -7,6 +7,7 @@ import {
   Legend,
 } from 'recharts';
 import type { QueueStat } from '../lib/kpi';
+import { formatDuration } from '../lib/kpi';
 
 type Props = {
   stats: QueueStat[];
@@ -20,12 +21,12 @@ const COLORS = [
 
 export function QueuePieChart({ stats }: Props) {
   const top = stats.slice(0, 8);
-  const othersCount = stats.slice(8).reduce((acc, q) => acc + q.count, 0);
-  const totalAll = stats.reduce((acc, q) => acc + q.count, 0);
+  const othersDuration = stats.slice(8).reduce((acc, q) => acc + q.totalDurationSeconds, 0);
+  const totalAll = stats.reduce((acc, q) => acc + q.totalDurationSeconds, 0);
 
   const data = [
-    ...top.map(q => ({ name: q.queue, value: q.count })),
-    ...(othersCount > 0 ? [{ name: 'Otras', value: othersCount }] : []),
+    ...top.map(q => ({ name: q.queue, value: q.totalDurationSeconds })),
+    ...(othersDuration > 0 ? [{ name: 'Otras', value: othersDuration }] : []),
   ];
 
   return (
@@ -48,8 +49,8 @@ export function QueuePieChart({ stats }: Props) {
           </Pie>
           <Tooltip
             formatter={(value: number) => [
-              `${value.toLocaleString('es-CL')} (${Math.round((value / totalAll) * 100)}%)`,
-              'Llamadas',
+              `${formatDuration(value)} (${Math.round((value / totalAll) * 100)}%)`,
+              'Tiempo',
             ]}
             contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', fontSize: 13 }}
           />

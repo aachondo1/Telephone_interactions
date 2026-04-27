@@ -196,6 +196,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
       complete: e.complete + (r.export_complete ? 1 : 0),
     });
   }
+  const totalQueueDuration = Array.from(queueMap.values()).reduce((sum, d) => sum + d.totalDuration, 0);
   const queueStats: QueueStat[] = Array.from(queueMap.entries())
     .map(([queue, d]) => {
       const avg = Math.round(d.totalDuration / d.count);
@@ -206,7 +207,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
         avgDurationFormatted: formatDuration(avg),
         totalDurationSeconds: d.totalDuration,
         totalDurationFormatted: formatDuration(d.totalDuration),
-        percentage: Math.round((d.count / total) * 100),
+        percentage: Math.round((d.totalDuration / totalQueueDuration) * 100),
         inboundCount: d.inbound,
         outboundCount: d.outbound,
         unattendedCount: d.unattended,
@@ -214,7 +215,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
         completenessRate: Math.round((d.complete / d.count) * 100),
       };
     })
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => b.totalDurationSeconds - a.totalDurationSeconds);
 
   // Hourly distribution
   const hourMap = new Map<number, number>();

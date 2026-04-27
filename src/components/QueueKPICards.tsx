@@ -16,9 +16,9 @@ export function QueueKPICards({ stats, totalCalls }: Props) {
 
   const cards = [
     {
-      label: 'Cola principal',
+      label: 'Cola principal (por tiempo)',
       value: topQueue ? topQueue.queue : '—',
-      sub: topQueue ? `${topQueue.count.toLocaleString('es-CL')} llamadas` : '',
+      sub: topQueue ? `${topQueue.totalDurationFormatted} tiempo total` : '',
       icon: Layers,
       color: 'bg-sky-50 text-sky-600',
       border: 'border-sky-100',
@@ -32,9 +32,9 @@ export function QueueKPICards({ stats, totalCalls }: Props) {
       border: 'border-emerald-100',
     },
     {
-      label: '% carga mayor cola',
+      label: '% tiempo en cola principal',
       value: topQueue ? `${topQueue.percentage}%` : '—',
-      sub: topQueue ? topQueue.queue : '',
+      sub: topQueue ? `del tiempo total` : '',
       icon: BarChart2,
       color: 'bg-amber-50 text-amber-600',
       border: 'border-amber-100',
