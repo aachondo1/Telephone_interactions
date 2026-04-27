@@ -1,0 +1,51 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export type CallUpload = {
+  id: string;
+  filename: string;
+  uploaded_at: string;
+  record_count: number;
+  date_range_start: string | null;
+  date_range_end: string | null;
+};
+
+export type CallRecord = {
+  id: string;
+  upload_id: string;
+  call_date: string | null;
+  call_time: string | null;
+  call_hour: number | null;
+  executive: string;
+  original_call_id: string;
+  ani_hash: string;
+  ani_masked: string;
+  call_direction: string;
+  queue: string;
+  duration_seconds: number;
+  duration_formatted: string;
+  attended: boolean;
+  export_complete: boolean;
+};
+
+export type CallRecordInsert = Omit<CallRecord, 'id'>;
+
+export type ProcessedCallSignature = {
+  id: string;
+  ani_hash: string;
+  call_date: string;
+  call_time: string;
+  last_upload_id: string;
+  processed_at: string;
+  created_at: string;
+};
+
+export type DeduplicationStats = {
+  newRecords: number;
+  duplicateRecords: number;
+  totalAttempted: number;
+};
