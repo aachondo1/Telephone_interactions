@@ -10,7 +10,7 @@ import type { FilterState } from './FilterBar';
 import { QueueKPICards } from './QueueKPICards';
 import { QueueBarChart } from './QueueBarChart';
 import { QueuePieChart } from './QueuePieChart';
-import { QueuePerformanceHeatmap } from './QueuePerformanceHeatmap';
+import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { QueuesDetailTable } from './QueuesDetailTable';
 import { ExecutiveKPICards } from './ExecutiveKPICards';
 import { ExecutiveBarChart } from './ExecutiveBarChart';
