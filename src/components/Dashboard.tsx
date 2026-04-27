@@ -11,6 +11,8 @@ import { QueueKPICards } from './QueueKPICards';
 import { QueueBarChart } from './QueueBarChart';
 import { QueuePieChart } from './QueuePieChart';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
+import QueueUnattendedHeatmap from './QueueUnattendedHeatmap';
+import { QueueLoadVariability } from './QueueLoadVariability';
 import { QueuesDetailTable } from './QueuesDetailTable';
 import { ExecutiveKPICards } from './ExecutiveKPICards';
 import { ExecutiveBarChart } from './ExecutiveBarChart';
@@ -235,6 +237,8 @@ export function Dashboard({ records, upload }: Props) {
             <QueuePieChart stats={kpis.queueStats} />
           </div>
           <QueuePerformanceHeatmap data={kpis.queuePerformanceHeatmap} />
+          <QueueUnattendedHeatmap data={kpis.queueUnattendedHeatmap} />
+          <QueueLoadVariability data={kpis.queueLoadVariability} />
           <QueuesDetailTable stats={kpis.queueStats} />
         </div>
       )}

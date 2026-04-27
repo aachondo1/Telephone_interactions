@@ -46,6 +46,41 @@ export type QueueHeatmapData = {
   maxCount: number;
 };
 
+export type QueueUnattendedCell = {
+  hour: number;
+  weekday: number;
+  total: number;
+  unattended: number;
+  rate: number;
+};
+
+export type QueueUnattendedRow = {
+  queue: string;
+  cells: QueueUnattendedCell[];
+};
+
+export type QueueUnattendedHeatmapData = {
+  data: QueueUnattendedRow[];
+};
+
+export type QueueHourlyStats = {
+  hour: number;
+  label: string;
+  avg: number;
+  min: number;
+  max: number;
+};
+
+export type QueueVariabilityRow = {
+  queue: string;
+  totalCalls: number;
+  hourlyStats: QueueHourlyStats[];
+};
+
+export type QueueVariabilityData = {
+  queues: QueueVariabilityRow[];
+};
+
 export type HourBucket = {
   hour: number;
   label: string;
@@ -94,6 +129,8 @@ export type KPISummary = {
   executiveStats: ExecutiveStat[];
   queueStats: QueueStat[];
   queuePerformanceHeatmap: QueueHeatmapData;
+  queueUnattendedHeatmap: QueueUnattendedHeatmapData;
+  queueLoadVariability: QueueVariabilityData;
   hourlyDistribution: HourBucket[];
   dailyDistribution: DailyBucket[];
   directionStats: DirectionStat[];
@@ -174,6 +211,97 @@ export function calculateQueuePerformanceHeatmap(records: CallRecord[]): QueueHe
   });
 
   return { data, maxCount };
+}
+
+export function calculateQueueUnattendedHeatmap(records: CallRecord[]): QueueUnattendedHeatmapData {
+  if (records.length === 0) return { data: [] };
+
+  const queueMap = new Map<string, Map<number, Map<number, { total: number; unattended: number }>>>();
+
+  for (const r of records) {
+    const queue = r.queue || 'Sin cola';
+    const hour = r.call_hour ?? -1;
+    const date = r.call_date;
+    if (hour < 0 || hour > 23 || !date) continue;
+
+    const weekday = new Date(date + 'T00:00:00').getDay();
+    if (!queueMap.has(queue)) queueMap.set(queue, new Map());
+    const hourMap = queueMap.get(queue)!;
+    if (!hourMap.has(hour)) hourMap.set(hour, new Map());
+    const wdMap = hourMap.get(hour)!;
+    const cur = wdMap.get(weekday) ?? { total: 0, unattended: 0 };
+    wdMap.set(weekday, { total: cur.total + 1, unattended: cur.unattended + (!r.attended ? 1 : 0) });
+  }
+
+  const topQueues = Array.from(queueMap.entries())
+    .map(([queue, hourMap]) => {
+      const total = Array.from(hourMap.values())
+        .reduce((s, wdMap) => s + Array.from(wdMap.values()).reduce((a, b) => a + b.total, 0), 0);
+      return [queue, total] as [string, number];
+    })
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  const data: QueueUnattendedRow[] = topQueues.map(([queue]) => {
+    const hourMap = queueMap.get(queue)!;
+    const cells: QueueUnattendedCell[] = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let weekday = 0; weekday < 7; weekday++) {
+        const stats = hourMap.get(hour)?.get(weekday) ?? { total: 0, unattended: 0 };
+        const rate = stats.total > 0 ? Math.round((stats.unattended / stats.total) * 100) : -1;
+        cells.push({ hour, weekday, ...stats, rate });
+      }
+    }
+    return { queue, cells };
+  });
+
+  return { data };
+}
+
+export function calculateQueueLoadVariability(records: CallRecord[]): QueueVariabilityData {
+  if (records.length === 0) return { queues: [] };
+
+  const queueDateHourMap = new Map<string, Map<string, Map<number, number>>>();
+
+  for (const r of records) {
+    const queue = r.queue || 'Sin cola';
+    const hour = r.call_hour ?? -1;
+    const date = r.call_date;
+    if (hour < 0 || hour > 23 || !date) continue;
+
+    if (!queueDateHourMap.has(queue)) queueDateHourMap.set(queue, new Map());
+    const dateMap = queueDateHourMap.get(queue)!;
+    if (!dateMap.has(date)) dateMap.set(date, new Map());
+    const hourMap = dateMap.get(date)!;
+    hourMap.set(hour, (hourMap.get(hour) ?? 0) + 1);
+  }
+
+  const topQueues = Array.from(queueDateHourMap.entries())
+    .map(([queue, dateMap]) => {
+      const total = Array.from(dateMap.values())
+        .reduce((s, hm) => s + Array.from(hm.values()).reduce((a, b) => a + b, 0), 0);
+      return [queue, total] as [string, number];
+    })
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  const queues: QueueVariabilityRow[] = topQueues.map(([queue, totalCalls]) => {
+    const dateMap = queueDateHourMap.get(queue)!;
+    const allDates = Array.from(dateMap.keys());
+
+    const hourlyStats: QueueHourlyStats[] = Array.from({ length: 24 }, (_, hour) => {
+      const countsPerDay = allDates.map(d => dateMap.get(d)?.get(hour) ?? 0);
+      const activeDays = countsPerDay.filter(c => c > 0);
+      const avg = Math.round(countsPerDay.reduce((a, b) => a + b, 0) / allDates.length);
+      const min = activeDays.length > 0 ? Math.min(...activeDays) : 0;
+      const max = activeDays.length > 0 ? Math.max(...activeDays) : 0;
+      return { hour, label: `${String(hour).padStart(2, '0')}:00`, avg, min, max };
+    });
+
+    return { queue, totalCalls, hourlyStats };
+  });
+
+  return { queues };
 }
 
 export function calculateKPIs(records: CallRecord[]): KPISummary {
@@ -393,6 +521,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   });
 
   const queuePerformanceHeatmap = calculateQueuePerformanceHeatmap(records);
+  const queueUnattendedHeatmap = calculateQueueUnattendedHeatmap(records);
+  const queueLoadVariability = calculateQueueLoadVariability(records);
 
   return {
     totalCalls: total,
@@ -408,6 +538,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     executiveStats,
     queueStats,
     queuePerformanceHeatmap,
+    queueUnattendedHeatmap,
+    queueLoadVariability,
     hourlyDistribution,
     dailyDistribution,
     directionStats,
