@@ -24,14 +24,15 @@ import { ExecutiveTalkTimeByHour } from './ExecutiveTalkTimeByHour';
 import { ExecutiveTalkTimeByDay } from './ExecutiveTalkTimeByDay';
 import { ExecutiveTalkTimeByWeekday } from './ExecutiveTalkTimeByWeekday';
 import { ExecutivesDetailTable } from './ExecutivesDetailTable';
+import { ExecutiveDashboard } from './ExecutiveDashboard';
 import { calculateKPIs } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
-import { LayoutDashboard, Layers, Users, Target, Activity } from 'lucide-react';
+import { LayoutDashboard, Layers, Users, Target, Activity, TrendingUp } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
 import type { AgentStatusRecord } from '../lib/supabase';
 
-type Tab = 'general' | 'colas' | 'ejecutivos' | 'planificacion' | 'conectividad';
+type Tab = 'resumen' | 'general' | 'colas' | 'ejecutivos' | 'planificacion' | 'conectividad';
 
 type Props = {
   records: CallRecord[];
@@ -148,16 +149,17 @@ function applyFilters(records: CallRecord[], filters: FilterState): CallRecord[]
 }
 
 const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: 'general', label: 'General', icon: LayoutDashboard },
-  { id: 'colas', label: 'Colas', icon: Layers },
-  { id: 'ejecutivos', label: 'Ejecutivos', icon: Users },
-  { id: 'planificacion', label: 'Planificación', icon: Target },
-  { id: 'conectividad', label: 'Conectividad', icon: Activity },
+  { id: 'resumen',       label: 'Vista Directiva', icon: TrendingUp      },
+  { id: 'general',       label: 'General',          icon: LayoutDashboard },
+  { id: 'colas',         label: 'Colas',            icon: Layers          },
+  { id: 'ejecutivos',    label: 'Ejecutivos',       icon: Users           },
+  { id: 'planificacion', label: 'Planificación',    icon: Target          },
+  { id: 'conectividad',  label: 'Conectividad',     icon: Activity        },
 ];
 
 export function Dashboard({ records, upload, agentStatusRecords }: Props) {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [activeTab, setActiveTab] = useState<Tab>('general');
+  const [activeTab, setActiveTab] = useState<Tab>('resumen');
 
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
   const kpis = useMemo(() => calculateKPIs(filteredRecords), [filteredRecords]);
@@ -231,6 +233,13 @@ export function Dashboard({ records, upload, agentStatusRecords }: Props) {
       </div>
 
       {/* Tab content */}
+      {activeTab === 'resumen' && (
+        <ExecutiveDashboard
+          kpis={kpis}
+          onNavigate={(tab) => setActiveTab(tab)}
+        />
+      )}
+
       {activeTab === 'general' && (
         <div className="space-y-6">
           <KPICards kpis={kpis} />
