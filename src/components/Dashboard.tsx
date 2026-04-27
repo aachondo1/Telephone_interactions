@@ -110,8 +110,14 @@ function applyFilters(records: CallRecord[], filters: FilterState): CallRecord[]
 
     if (filters.queues.length > 0 && !filters.queues.includes(r.queue)) return false;
     if (filters.executives.length > 0 && !filters.executives.includes(r.executive)) return false;
-    if (filters.attended === 'attended' && !r.attended) return false;
-    if (filters.attended === 'unattended' && r.attended) return false;
+
+    if (filters.attended !== 'all') {
+      const isUnassigned = r.queue === 'No asignada' && !r.attended;
+      if (filters.attended === 'attended' && (!r.attended || isUnassigned)) return false;
+      if (filters.attended === 'unattended' && (r.attended || isUnassigned)) return false;
+      if (filters.attended === 'unassigned' && !isUnassigned) return false;
+    }
+
     if (filters.direction === 'inbound' && !isInbound(r.call_direction)) return false;
     if (filters.direction === 'outbound' && isInbound(r.call_direction)) return false;
     return true;

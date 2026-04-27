@@ -53,7 +53,7 @@ export type FilterState = {
   departments: string[];
   queues: string[];
   executives: string[];
-  attended: 'all' | 'attended' | 'unattended';
+  attended: 'all' | 'attended' | 'unattended' | 'unassigned';
   direction: 'all' | 'inbound' | 'outbound';
 };
 
@@ -223,8 +223,13 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
     });
   }
   if (filters.attended !== 'all') {
+    const attendedLabels: Record<string, string> = {
+      attended: 'Atendidas',
+      unattended: 'No atendidas',
+      unassigned: 'No asignada',
+    };
     activeChips.push({
-      label: filters.attended === 'attended' ? 'Atendidas' : 'No atendidas',
+      label: attendedLabels[filters.attended] || filters.attended,
       onRemove: () => onChange({ ...filters, attended: 'all' }),
     });
   }
@@ -357,8 +362,13 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
 
         {/* Attended toggle */}
         <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm">
-          {(['all', 'attended', 'unattended'] as const).map(opt => {
-            const label = opt === 'all' ? 'Todas' : opt === 'attended' ? 'Atendidas' : 'No atendidas';
+          {(['all', 'attended', 'unattended', 'unassigned'] as const).map(opt => {
+            const labels: Record<typeof opt, string> = {
+              all: 'Todas',
+              attended: 'Atendidas',
+              unattended: 'No atendidas',
+              unassigned: 'No asignada',
+            };
             const active = filters.attended === opt;
             return (
               <button
@@ -371,7 +381,7 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
                     : 'bg-white text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                {label}
+                {labels[opt]}
               </button>
             );
           })}
