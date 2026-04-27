@@ -282,11 +282,9 @@ export async function transformRows(
       queue = rawQueue;
     } else if (isOutbound) {
       queue = 'Saliente';
-    } else if (isInbound && executives.length === 0 && durationSeconds < 90) {
-      // Inbound calls < 1:30 with no executive = abandoned before assignment
-      queue = 'No asignada';
     } else if (rawQueue === '' && executives.length === 0) {
-      queue = 'No asignada';
+      // No queue and no executive = unassigned
+      queue = '';
     } else {
       continue;
     }
