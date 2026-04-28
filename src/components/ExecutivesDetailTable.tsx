@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import type { ExecutiveStat } from '../lib/kpi';
+import { formatDuration } from '../lib/kpi';
 
 type Props = {
   stats: ExecutiveStat[];
@@ -42,7 +43,11 @@ export function ExecutivesDetailTable({ stats }: Props) {
     { label: 'Llamadas', key: 'count', align: 'text-right' },
     { label: '%', key: 'percentage', align: 'text-right' },
     { label: 'Dur. Promedio', key: 'avgDurationSeconds', align: 'text-right' },
-    { label: 'Dur. Total', key: 'totalDurationSeconds', align: 'text-right' },
+    { label: 'Manejo Promedio', key: 'avgHandleTimeSeconds', align: 'text-right' },
+    { label: 'Espera Promedio', key: 'avgQueueTimeSeconds', align: 'text-right' },
+    { label: 'Alerta Promedio', key: 'avgAlertTimeSeconds', align: 'text-right' },
+    { label: 'Seg. Alerta', key: 'avgAlertSegments', align: 'text-right' },
+    { label: 'Rebotes', key: 'bounceCount', align: 'text-right' },
     { label: 'Entrantes', key: 'inboundCount', align: 'text-right' },
     { label: 'Salientes', key: 'outboundCount', align: 'text-right' },
     { label: 'Sin atender', key: 'unattendedCount', align: 'text-right' },
@@ -104,7 +109,23 @@ export function ExecutivesDetailTable({ stats }: Props) {
                     {e.avgDurationFormatted}
                   </td>
                   <td className="px-4 py-3 text-right text-slate-600 font-mono text-xs">
-                    {e.totalDurationFormatted}
+                    {formatDuration(e.avgHandleTimeSeconds)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-600 font-mono text-xs">
+                    {formatDuration(e.avgQueueTimeSeconds)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-600 font-mono text-xs">
+                    {formatDuration(e.avgAlertTimeSeconds)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-600 font-medium">
+                    {e.avgAlertSegments.toFixed(1)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {e.bounceCount > 0 ? (
+                      <span className="text-amber-600 font-medium">{e.bounceCount.toLocaleString('es-CL')}</span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <span className="text-sky-600 font-medium">{e.inboundCount.toLocaleString('es-CL')}</span>

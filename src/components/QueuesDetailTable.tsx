@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import type { QueueStat } from '../lib/kpi';
+import { formatDuration } from '../lib/kpi';
 
 type Props = {
   stats: QueueStat[];
@@ -42,7 +43,11 @@ export function QueuesDetailTable({ stats }: Props) {
     { label: 'Llamadas', key: 'count', align: 'text-right' },
     { label: '%', key: 'percentage', align: 'text-right' },
     { label: 'Dur. Promedio', key: 'avgDurationSeconds', align: 'text-right' },
-    { label: 'Dur. Total', key: 'totalDurationSeconds', align: 'text-right' },
+    { label: 'Espera Promedio', key: 'avgQueueTimeSeconds', align: 'text-right' },
+    { label: 'Manejo Promedio', key: 'avgHandleTimeSeconds', align: 'text-right' },
+    { label: 'Alerta Promedio', key: 'avgAlertTimeSeconds', align: 'text-right' },
+    { label: 'Rebote %', key: 'bounceRate', align: 'text-right' },
+    { label: 'Abandono Cola %', key: 'abandonQueueRate', align: 'text-right' },
     { label: 'Sin atender', key: 'unattendedCount', align: 'text-right' },
     { label: 'Atendidas / No Atendidas', key: 'completenessRate', align: 'text-center' },
   ];
@@ -93,6 +98,33 @@ export function QueuesDetailTable({ stats }: Props) {
                 </td>
                 <td className="px-4 py-3 text-right text-slate-600 font-mono text-xs">
                   {q.totalDurationFormatted}
+                </td>
+                <td className="px-4 py-3 text-right text-slate-600 font-mono text-xs">
+                  {formatDuration(q.avgQueueTimeSeconds)}
+                </td>
+                <td className="px-4 py-3 text-right text-slate-600 font-mono text-xs">
+                  {formatDuration(q.avgHandleTimeSeconds)}
+                </td>
+                <td className="px-4 py-3 text-right text-slate-600 font-mono text-xs">
+                  {formatDuration(q.avgAlertTimeSeconds)}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {q.bounceRate > 0 ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 font-medium">
+                      {q.bounceRate}%
+                    </span>
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {q.abandonQueueRate > 0 ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700 font-medium">
+                      {q.abandonQueueRate}%
+                    </span>
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right">
                   {q.unattendedCount > 0 ? (
