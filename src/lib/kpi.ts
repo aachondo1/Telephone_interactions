@@ -728,7 +728,8 @@ export function calculateServiceLevel(records: CallRecord[]): ServiceLevelData {
 
   for (const r of records) {
     if (r.call_hour === null || r.call_hour === undefined) continue;
-    if (r.queue_time_seconds === null || r.queue_time_seconds === undefined) continue;
+    if (r.queue_time_seconds === null || r.queue_time_seconds === undefined || r.queue_time_seconds < 0) continue;
+    if (r.queue_time_seconds === 0 && !r.attended) continue;
 
     const h = r.call_hour;
     const hourData = hourMap.get(h)!;
@@ -788,12 +789,14 @@ export function calculateAbandonStats(records: CallRecord[]): AbandonStats {
     }
   }
 
+  const { reentries } = calculateRentryRate(records);
+
   return {
     totalUnattended,
     abandonedInQueue,
     abandonedInAlert,
     abandonedInIVR,
-    reentries: 0,
+    reentries,
   };
 }
 
@@ -922,14 +925,14 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     count: number; totalDuration: number;
     inbound: number; outbound: number; unattended: number; complete: number;
     totalHandleTime: number; totalQueueTime: number; totalAlertTime: number;
-    totalAlertSegments: number; bounceCount: number;
+    totalAlertSegments: number; bounceCount: number; alertableCount: number;
   }>();
   for (const r of records) {
     const exec = r.executive || 'SIN ATENDER';
     const e = execMap.get(exec) ?? {
       count: 0, totalDuration: 0, inbound: 0, outbound: 0, unattended: 0, complete: 0,
       totalHandleTime: 0, totalQueueTime: 0, totalAlertTime: 0,
-      totalAlertSegments: 0, bounceCount: 0,
+      totalAlertSegments: 0, bounceCount: 0, alertableCount: 0,
     };
     execMap.set(exec, {
       count: e.count + 1,
@@ -943,6 +946,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
       totalAlertTime: e.totalAlertTime + (r.alert_time_seconds ?? 0),
       totalAlertSegments: e.totalAlertSegments + (r.alert_segments ?? 0),
       bounceCount: e.bounceCount + (r.is_bounce ? 1 : 0),
+      alertableCount: e.alertableCount + ((r.alert_segments ?? 0) > 0 ? 1 : 0),
     });
   }
   const executiveStats: ExecutiveStat[] = Array.from(execMap.entries())
@@ -952,7 +956,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
       const avgQueueTime = Math.round(d.totalQueueTime / d.count);
       const avgAlertTime = Math.round(d.totalAlertTime / d.count);
       const avgAlertSegments = Math.round((d.totalAlertSegments / d.count) * 10) / 10;
-      const bounceRate = Math.round((d.bounceCount / d.count) * 100);
+      const bounceRate = d.alertableCount > 0 ? Math.round((d.bounceCount / d.alertableCount) * 100) : 0;
       return {
         executive,
         count: d.count,
@@ -982,7 +986,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     count: number; totalDuration: number;
     inbound: number; outbound: number; unattended: number; complete: number;
     totalHandleTime: number; totalQueueTime: number; totalAlertTime: number;
-    totalAlertSegments: number; bounceCount: number;
+    totalAlertSegments: number; bounceCount: number; alertableCount: number;
     abandonQueueCount: number; abandonAlertCount: number;
   }>();
   for (const r of records) {
@@ -990,7 +994,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     const e = queueMap.get(q) ?? {
       count: 0, totalDuration: 0, inbound: 0, outbound: 0, unattended: 0, complete: 0,
       totalHandleTime: 0, totalQueueTime: 0, totalAlertTime: 0,
-      totalAlertSegments: 0, bounceCount: 0,
+      totalAlertSegments: 0, bounceCount: 0, alertableCount: 0,
       abandonQueueCount: 0, abandonAlertCount: 0,
     };
     queueMap.set(q, {
@@ -1005,6 +1009,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
       totalAlertTime: e.totalAlertTime + (r.alert_time_seconds ?? 0),
       totalAlertSegments: e.totalAlertSegments + (r.alert_segments ?? 0),
       bounceCount: e.bounceCount + (r.is_bounce ? 1 : 0),
+      alertableCount: e.alertableCount + ((r.alert_segments ?? 0) > 0 ? 1 : 0),
       abandonQueueCount: e.abandonQueueCount + (r.abandon_type === 'queue' ? 1 : 0),
       abandonAlertCount: e.abandonAlertCount + (r.abandon_type === 'alert' ? 1 : 0),
     });
@@ -1017,9 +1022,9 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
       const avgQueueTime = Math.round(d.totalQueueTime / d.count);
       const avgAlertTime = Math.round(d.totalAlertTime / d.count);
       const avgAlertSegments = Math.round((d.totalAlertSegments / d.count) * 10) / 10;
-      const bounceRate = Math.round((d.bounceCount / d.count) * 100);
-      const abandonQueueRate = Math.round((d.abandonQueueCount / d.unattended) * 100) || 0;
-      const abandonAlertRate = Math.round((d.abandonAlertCount / d.unattended) * 100) || 0;
+      const bounceRate = d.alertableCount > 0 ? Math.round((d.bounceCount / d.alertableCount) * 100) : 0;
+      const abandonQueueRate = d.unattended > 0 ? Math.round((d.abandonQueueCount / d.unattended) * 100) : 0;
+      const abandonAlertRate = d.unattended > 0 ? Math.round((d.abandonAlertCount / d.unattended) * 100) : 0;
       return {
         queue,
         count: d.count,

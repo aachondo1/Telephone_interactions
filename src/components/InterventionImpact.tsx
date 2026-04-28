@@ -119,18 +119,23 @@ export function InterventionImpact({ records }: Props) {
         ...getMetricChange(beforeKPIs.avgQueueTimeSeconds, afterKPIs.avgQueueTimeSeconds),
         unit: 'segundos',
       },
-      {
-        label: 'Tasa de rebote promedio',
-        beforeValue: beforeKPIs.executeStatsByAvgBounce ?? 0,
-        afterValue: afterKPIs.executeStatsByAvgBounce ?? 0,
-        beforeFormatted: `${(beforeKPIs.executiveStats.reduce((sum, e) => sum + e.bounceRate, 0) / Math.max(1, beforeKPIs.executiveStats.length)).toFixed(1)}%`,
-        afterFormatted: `${(afterKPIs.executiveStats.reduce((sum, e) => sum + e.bounceRate, 0) / Math.max(1, afterKPIs.executiveStats.length)).toFixed(1)}%`,
-        ...getMetricChange(
-          beforeKPIs.executiveStats.reduce((sum, e) => sum + e.bounceRate, 0) / Math.max(1, beforeKPIs.executiveStats.length),
-          afterKPIs.executiveStats.reduce((sum, e) => sum + e.bounceRate, 0) / Math.max(1, afterKPIs.executiveStats.length)
-        ),
-        unit: '%',
-      },
+      (() => {
+        const beforeAvg = beforeKPIs.executiveStats.length > 0
+          ? beforeKPIs.executiveStats.reduce((sum, e) => sum + e.bounceRate, 0) / beforeKPIs.executiveStats.length
+          : 0;
+        const afterAvg = afterKPIs.executiveStats.length > 0
+          ? afterKPIs.executiveStats.reduce((sum, e) => sum + e.bounceRate, 0) / afterKPIs.executiveStats.length
+          : 0;
+        return {
+          label: 'Tasa de rebote promedio',
+          beforeValue: beforeAvg,
+          afterValue: afterAvg,
+          beforeFormatted: `${beforeAvg.toFixed(1)}%`,
+          afterFormatted: `${afterAvg.toFixed(1)}%`,
+          ...getMetricChange(beforeAvg, afterAvg),
+          unit: '%',
+        };
+      })(),
     ];
 
     return { beforeKPIs, afterKPIs, metrics };
@@ -252,25 +257,24 @@ export function InterventionImpact({ records }: Props) {
       </div>
 
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-        <h4 className="text-sm font-semibold text-slate-700 mb-4">Comparación de distribución horaria</h4>
+        <h4 className="text-sm font-semibold text-slate-700 mb-4">Comparación de demanda horaria (Erlangs)</h4>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart
-            data={[
-              {
-                name: 'Hora',
-                antes: analysis.beforeKPIs.hourlyDemand.points.length,
-                despues: analysis.afterKPIs.hourlyDemand.points.length,
-              },
-            ]}
-          >
+          <LineChart data={analysis.beforeKPIs.hourlyDemand.points.slice(0, 24).map((pt, i) => {
+            const afterPt = analysis.afterKPIs.hourlyDemand.points[i];
+            return {
+              hour: pt.label,
+              antes: Math.max(0, ...[pt.lun, pt.mar, pt.mie, pt.jue, pt.vie].filter(v => v !== null) as number[]),
+              despues: afterPt ? Math.max(0, ...[afterPt.lun, afterPt.mar, afterPt.mie, afterPt.jue, afterPt.vie].filter(v => v !== null) as number[]) : 0,
+            };
+          })}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+            <XAxis dataKey="hour" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} label={{ value: 'Erlangs', angle: -90, position: 'insideLeft', offset: 8, fontSize: 11, fill: '#94a3b8' }} />
             <Tooltip />
             <Legend />
-            <Bar dataKey="antes" fill="#94a3b8" />
-            <Bar dataKey="despues" fill="#10b981" />
-          </BarChart>
+            <Line type="monotone" dataKey="antes" stroke="#94a3b8" dot={false} />
+            <Line type="monotone" dataKey="despues" stroke="#10b981" dot={false} />
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </div>

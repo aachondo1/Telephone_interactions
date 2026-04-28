@@ -364,8 +364,8 @@ export async function transformRows(
       : '';
 
     // Calculate derived fields
-    const holdTimeSeconds = Math.max(0, handleTimeSeconds - durationSeconds - 45);
     const acwSeconds = 45;
+    const holdTimeSeconds = Math.max(0, handleTimeSeconds - acwSeconds - durationSeconds);
     const abandonType = calculateAbandonType(attended, flowExit, queueTimeSeconds, alertedUsers);
     const isBounce = calculateIsBounce(alertSegments, alertedUsers, executives);
 
