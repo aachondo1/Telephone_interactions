@@ -66,10 +66,19 @@ export function validateColumns(columnMap: Record<string, string>): string[] {
   return missing;
 }
 
-// Parses semicolon-delimited CSV with quoted fields
+// Detects delimiter: tab (TSV) or semicolon (CSV)
+function detectDelimiter(firstLine: string): string {
+  const tabCount = (firstLine.match(/\t/g) || []).length;
+  const semiCount = (firstLine.match(/;/g) || []).length;
+  return tabCount > semiCount ? '\t' : ';';
+}
+
+// Parses semicolon-delimited CSV or tab-delimited TSV with quoted fields
 export function parseCSVText(text: string): { headers: string[]; rows: RawCallRecord[] } {
   const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
   if (lines.length === 0) return { headers: [], rows: [] };
+
+  const delimiter = detectDelimiter(lines[0]);
 
   const parseLine = (line: string): string[] => {
     const fields: string[] = [];
@@ -84,7 +93,7 @@ export function parseCSVText(text: string): { headers: string[]; rows: RawCallRe
         } else {
           inQuotes = !inQuotes;
         }
-      } else if (ch === ';' && !inQuotes) {
+      } else if (ch === delimiter && !inQuotes) {
         fields.push(current.trim());
         current = '';
       } else {
