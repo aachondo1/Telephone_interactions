@@ -1,8 +1,16 @@
 import { useState, useMemo } from 'react';
 import type { QueueHeatmapData } from '../lib/kpi';
 
-const WEEKDAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-const TAB_LABELS = ['Todos', ...WEEKDAY_LABELS];
+const WEEKDAY_TABS = [
+  { label: 'Todos', weekday: -1 },
+  { label: 'Lun', weekday: 1 },
+  { label: 'Mar', weekday: 2 },
+  { label: 'Mié', weekday: 3 },
+  { label: 'Jue', weekday: 4 },
+  { label: 'Vie', weekday: 5 },
+];
+
+const HOURS = Array.from({ length: 11 }, (_, i) => i + 8); // 8..18
 
 function getColor(count: number, maxCount: number): string {
   if (maxCount === 0 || count === 0) return '#ffffff';
@@ -34,14 +42,12 @@ export default function QueuePerformanceHeatmap({ data }: { data: QueueHeatmapDa
         return { ...row, cells };
       });
       const maxCount = Math.max(
-        ...aggregatedData.flatMap(row =>
-          row.cells.map(c => c.count)
-        )
+        ...aggregatedData.flatMap(row => row.cells.map(c => c.count))
       );
       return { data: aggregatedData, maxCount };
     }
 
-    const weekday = selectedTab - 1;
+    const weekday = WEEKDAY_TABS[selectedTab].weekday;
     return {
       ...data,
       data: data.data.map(row => ({
@@ -62,16 +68,15 @@ export default function QueuePerformanceHeatmap({ data }: { data: QueueHeatmapDa
     );
   }
 
-  const maxCellsPerQueue = 24 * 7;
+  const numHours = HOURS.length; // 11
   const cellSize = 20;
   const gap = 1;
   const leftMargin = 220;
   const topMargin = 50;
-  const gridWidth = leftMargin + (24 * cellSize) + (23 * gap) + 20;
+  const gridWidth = leftMargin + (numHours * cellSize) + ((numHours - 1) * gap) + 20;
   const gridHeight = topMargin + (filteredData.data.length * cellSize) + ((filteredData.data.length - 1) * gap) + 40;
 
   const getHourLabel = (hour: number) => `${String(hour).padStart(2, '0')}:00`;
-  const getWeekdayLabel = (weekday: number) => WEEKDAY_LABELS[weekday];
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
@@ -81,7 +86,7 @@ export default function QueuePerformanceHeatmap({ data }: { data: QueueHeatmapDa
         </h3>
 
         <div className="flex gap-2 flex-wrap">
-          {TAB_LABELS.map((label, index) => (
+          {WEEKDAY_TABS.map((tab, index) => (
             <button
               key={index}
               onClick={() => setSelectedTab(index)}
@@ -91,7 +96,7 @@ export default function QueuePerformanceHeatmap({ data }: { data: QueueHeatmapDa
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
-              {label}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -108,16 +113,16 @@ export default function QueuePerformanceHeatmap({ data }: { data: QueueHeatmapDa
           </defs>
 
           {/* Hour labels */}
-          {Array.from({ length: 24 }).map((_, h) => (
+          {HOURS.map((h, idx) => (
             <text
               key={`hour-${h}`}
-              x={leftMargin + h * (cellSize + gap) + cellSize / 2}
+              x={leftMargin + idx * (cellSize + gap) + cellSize / 2}
               y={topMargin - 8}
               textAnchor="middle"
               className="heatmap-label text-slate-600"
               fill="#475569"
             >
-              {h % 4 === 0 ? getHourLabel(h) : ''}
+              {(h - 8) % 2 === 0 ? getHourLabel(h) : ''}
             </text>
           ))}
 
@@ -139,14 +144,14 @@ export default function QueuePerformanceHeatmap({ data }: { data: QueueHeatmapDa
                 </text>
 
                 {/* Heatmap cells */}
-                {Array.from({ length: 24 }).map((_, hour) => {
+                {HOURS.map((hour, idx) => {
                   const cell = row.cells.find(c => c.hour === hour);
                   const count = cell?.count ?? 0;
-                  const x = leftMargin + hour * (cellSize + gap);
+                  const x = leftMargin + idx * (cellSize + gap);
                   const y = topMargin + queueIndex * (cellSize + gap);
                   const title = selectedTab === 0
                     ? `${row.queue}, ${getHourLabel(hour)}: ${count}`
-                    : `${row.queue}, ${getHourLabel(hour)}, ${getWeekdayLabel(selectedTab - 1)}: ${count}`;
+                    : `${row.queue}, ${getHourLabel(hour)}, ${WEEKDAY_TABS[selectedTab].label}: ${count}`;
 
                   return (
                     <g key={`cell-${hour}`}>

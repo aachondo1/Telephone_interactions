@@ -103,10 +103,20 @@ function getEffectiveDateRange(filters: FilterState): { start: string; end: stri
   }
 }
 
+function isBusinessHours(r: CallRecord): boolean {
+  if (!r.call_date || r.call_hour === null || r.call_hour === undefined) return true;
+  const day = new Date(r.call_date + 'T00:00:00').getDay();
+  if (day === 0 || day === 6) return false;
+  if (day >= 1 && day <= 4) return r.call_hour >= 8 && r.call_hour < 19;
+  if (day === 5) return r.call_hour >= 8 && r.call_hour < 15;
+  return false;
+}
+
 function applyFilters(records: CallRecord[], filters: FilterState): CallRecord[] {
   const { start, end } = getEffectiveDateRange(filters);
 
   return records.filter(r => {
+    if (!isBusinessHours(r)) return false;
     if (start && r.call_date && r.call_date < start) return false;
     if (end && r.call_date && r.call_date > end) return false;
 

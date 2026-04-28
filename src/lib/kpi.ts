@@ -320,8 +320,8 @@ export function calculateQueuePerformanceHeatmap(records: CallRecord[]): QueueHe
     const hourMap = queueMap.get(queue)!;
     const cells: QueueHeatmapCell[] = [];
 
-    for (let hour = 0; hour < 24; hour++) {
-      for (let weekday = 0; weekday < 7; weekday++) {
+    for (let hour = 8; hour <= 18; hour++) {
+      for (let weekday = 1; weekday <= 5; weekday++) {
         const count = hourMap.get(hour)?.get(weekday) ?? 0;
         cells.push({ hour, weekday, count });
         maxCount = Math.max(maxCount, count);
@@ -366,8 +366,8 @@ export function calculateQueueUnattendedHeatmap(records: CallRecord[]): QueueUna
   const data: QueueUnattendedRow[] = topQueues.map(([queue]) => {
     const hourMap = queueMap.get(queue)!;
     const cells: QueueUnattendedCell[] = [];
-    for (let hour = 0; hour < 24; hour++) {
-      for (let weekday = 0; weekday < 7; weekday++) {
+    for (let hour = 8; hour <= 18; hour++) {
+      for (let weekday = 1; weekday <= 5; weekday++) {
         const stats = hourMap.get(hour)?.get(weekday) ?? { total: 0, unattended: 0 };
         const rate = stats.total > 0 ? Math.round((stats.unattended / stats.total) * 100) : -1;
         cells.push({ hour, weekday, ...stats, rate });
@@ -410,7 +410,8 @@ export function calculateQueueLoadVariability(records: CallRecord[]): QueueVaria
     const dateMap = queueDateHourMap.get(queue)!;
     const allDates = Array.from(dateMap.keys());
 
-    const hourlyStats: QueueHourlyStats[] = Array.from({ length: 24 }, (_, hour) => {
+    const hourlyStats: QueueHourlyStats[] = Array.from({ length: 11 }, (_, i) => {
+      const hour = i + 8;
       const countsPerDay = allDates.map(d => dateMap.get(d)?.get(hour) ?? 0);
       const activeDays = countsPerDay.filter(c => c > 0);
       const avg = Math.round(countsPerDay.reduce((a, b) => a + b, 0) / allDates.length);
@@ -634,7 +635,8 @@ export function calculateHourlyDemand(records: CallRecord[]): HourlyDemandData {
   const dayCounts = [weekdayCounts.lun, weekdayCounts.mar, weekdayCounts.mie, weekdayCounts.jue, weekdayCounts.vie];
   let peakErlangs = 0;
 
-  const points: HourlyDemandPoint[] = Array.from({ length: 24 }, (_, hour) => {
+  const points: HourlyDemandPoint[] = Array.from({ length: 11 }, (_, i) => {
+    const hour = i + 8;
     const point: HourlyDemandPoint = { hour, label: `${String(hour).padStart(2, '0')}:00`, lun: null, mar: null, mie: null, jue: null, vie: null };
     dayKeys.forEach((day, idx) => {
       const count = dayCounts[idx];
@@ -1056,11 +1058,10 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
       hourMap.set(r.call_hour, (hourMap.get(r.call_hour) ?? 0) + 1);
     }
   }
-  const hourlyDistribution: HourBucket[] = Array.from({ length: 24 }, (_, h) => ({
-    hour: h,
-    label: `${String(h).padStart(2, '0')}:00`,
-    count: hourMap.get(h) ?? 0,
-  }));
+  const hourlyDistribution: HourBucket[] = Array.from({ length: 11 }, (_, i) => {
+    const h = i + 8;
+    return { hour: h, label: `${String(h).padStart(2, '0')}:00`, count: hourMap.get(h) ?? 0 };
+  });
 
   // Daily distribution
   const dateMap = new Map<string, number>();
@@ -1138,7 +1139,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const allExecutivesWithData = Array.from(
     new Set(records.filter(r => r.attended && r.executive).map(r => r.executive))
   ).sort();
-  const executiveHourlyTalkTime: ExecutiveHourlyTalkTime[] = Array.from({ length: 24 }, (_, h) => {
+  const executiveHourlyTalkTime: ExecutiveHourlyTalkTime[] = Array.from({ length: 11 }, (_, i) => {
+    const h = i + 8;
     const row: ExecutiveHourlyTalkTime = { hour: h, label: `${String(h).padStart(2, '0')}:00` };
     for (const exec of allExecutivesWithData) {
       row[exec] = execHourMap.get(h)?.get(exec) ?? 0;
@@ -1157,7 +1159,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     const wdMap = execWeekdayMap.get(weekday)!;
     wdMap.set(r.executive, (wdMap.get(r.executive) ?? 0) + (r.handle_time_seconds ?? r.duration_seconds));
   }
-  const executiveWeekdayTalkTime: ExecutiveWeekdayTalkTime[] = Array.from({ length: 7 }, (_, day) => {
+  const executiveWeekdayTalkTime: ExecutiveWeekdayTalkTime[] = [1, 2, 3, 4, 5].map(day => {
     const row: ExecutiveWeekdayTalkTime = { day, label: weekdayLabels[day] };
     for (const exec of allExecutivesWithData) {
       row[exec] = execWeekdayMap.get(day)?.get(exec) ?? 0;

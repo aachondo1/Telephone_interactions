@@ -7,8 +7,8 @@ type Props = {
 export function HourlyChart({ data }: Props) {
   const maxCount = Math.max(...data.map(d => d.count), 1);
 
-  // Only show every 2nd label on smaller sizes
-  const labelsToShow = new Set([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]);
+  // Only show every 2nd label for business hours (8-18)
+  const labelsToShow = new Set([8, 10, 12, 14, 16, 18]);
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">

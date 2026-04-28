@@ -42,8 +42,8 @@ export function StaffingDemandChart({ data }: Props) {
     );
   }
 
-  // Solo mostrar horas de trabajo (8-19 para ver contexto)
-  const businessHours = data.points.filter(p => p.hour >= 8 && p.hour <= 19);
+  // Solo mostrar horas de trabajo (8-18)
+  const businessHours = data.points.filter(p => p.hour >= 8 && p.hour <= 18);
 
   function toggleDay(key: string) {
     setVisibleDays(prev => {
@@ -133,8 +133,8 @@ export function StaffingDemandChart({ data }: Props) {
         <ComposedChart data={businessHours} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
 
-          {/* Sombra del horario viernes (9-14) */}
-          <ReferenceArea x1="14:00" x2="19:00" fill="#fef2f2" fillOpacity={0.4} />
+          {/* Sombra del horario viernes (viernes termina a las 14:00) */}
+          <ReferenceArea x1="15:00" x2="19:00" fill="#fef2f2" fillOpacity={0.4} />
 
           <XAxis
             dataKey="label"
@@ -213,7 +213,7 @@ export function StaffingDemandChart({ data }: Props) {
       </ResponsiveContainer>
 
       <p className="text-xs text-slate-400 mt-3 text-center">
-        La zona rosada (14–19h) indica que el viernes ya no hay turno. Erlangs = líneas telefónicas simultáneas promedio en esa franja.
+        La zona rosada (15–18h) indica que el viernes ya no hay turno (termina a las 14h). Erlangs = líneas telefónicas simultáneas promedio en esa franja.
       </p>
     </div>
   );
