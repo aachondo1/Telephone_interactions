@@ -512,10 +512,12 @@ function calculateAbandonType(
   if (attended) return null;
 
   if (!flowExit) return 'ivr';
-  if (queueTime > 0 && alertedUsers.trim() === '') return 'queue';
   if (alertedUsers.trim() !== '') return 'alert';
 
-  return null;
+  // Fallback: if exited the flow (flowExit=true) but no alert was sent,
+  // the call spent time in queue before abandonment, or was an "instant abandon"
+  // (hung up 2-3s in IVR/queue). Classify as queue to avoid orphaned records.
+  return 'queue';
 }
 
 function calculateIsBounce(
