@@ -341,3 +341,58 @@ export async function transformRows(
 
   return { records: results, duplicateCount };
 }
+
+function timeStringToMinutes(timeStr: string | null): number | null {
+  if (!timeStr) return null;
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  if (isNaN(hours) || isNaN(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+export function filterOverlappingCalls(records: ParsedCallRecord[]): { records: ParsedCallRecord[]; canceledCount: number } {
+  const recordsByDateAndExecutive = new Map<string, ParsedCallRecord[]>();
+
+  for (const record of records) {
+    if (!record.callDate || !record.callTime) continue;
+
+    for (const executive of record.executives) {
+      const key = `${record.callDate}|${executive}`;
+      if (!recordsByDateAndExecutive.has(key)) {
+        recordsByDateAndExecutive.set(key, []);
+      }
+      recordsByDateAndExecutive.get(key)!.push(record);
+    }
+  }
+
+  const canceledIndices = new Set<number>();
+  let canceledCount = 0;
+
+  for (const callsForExecutive of recordsByDateAndExecutive.values()) {
+    callsForExecutive.sort((a, b) => {
+      const aTime = timeStringToMinutes(a.callTime);
+      const bTime = timeStringToMinutes(b.callTime);
+      if (aTime === null || bTime === null) return 0;
+      return aTime - bTime;
+    });
+
+    for (let i = 0; i < callsForExecutive.length; i++) {
+      const currentCall = callsForExecutive[i];
+      const currentStart = timeStringToMinutes(currentCall.callTime);
+      const currentEnd = currentStart !== null ? currentStart + Math.ceil(currentCall.durationSeconds / 60) : null;
+
+      for (let j = i + 1; j < callsForExecutive.length; j++) {
+        const nextCall = callsForExecutive[j];
+        const nextStart = timeStringToMinutes(nextCall.callTime);
+
+        if (currentEnd !== null && nextStart !== null && nextStart < currentEnd) {
+          const recordIndex = records.indexOf(nextCall);
+          canceledIndices.add(recordIndex);
+          canceledCount++;
+        }
+      }
+    }
+  }
+
+  const filtered = records.filter((_, index) => !canceledIndices.has(index));
+  return { records: filtered, canceledCount };
+}

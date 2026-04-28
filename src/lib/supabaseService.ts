@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert, CallUpload, DeduplicationStats, ProcessedCallSignature } from './supabase';
 import type { ParsedCallRecord } from './csvParser';
 import type { AgentStatusRow } from './agentStatusParser';
-import { hashPhone, maskPhone } from './csvParser';
+import { hashPhone, maskPhone, filterOverlappingCalls } from './csvParser';
 
 const BATCH_SIZE = 500;
 
@@ -27,8 +27,11 @@ export async function saveUpload(
   filename: string,
   records: ParsedCallRecord[]
 ): Promise<{ upload: CallUpload; savedCount: number; stats: DeduplicationStats }> {
+  // Filter overlapping calls first
+  const { records: filteredRecords, canceledCount } = filterOverlappingCalls(records);
+
   // Determine date range
-  const dates = records
+  const dates = filteredRecords
     .map(r => r.callDate)
     .filter((d): d is string => d !== null)
     .sort();
@@ -39,7 +42,7 @@ export async function saveUpload(
   const expanded: (Omit<CallRecordInsert, 'upload_id'> & { ani_hash: string; call_date: string | null; call_time: string | null })[] = [];
   const processedSignatures = new Set<string>();
 
-  for (const record of records) {
+  for (const record of filteredRecords) {
     const hash = await hashPhone(record.cleanPhone);
     const masked = maskPhone(record.cleanPhone);
 
@@ -131,6 +134,7 @@ export async function saveUpload(
     newRecords: savedCount,
     duplicateRecords: 0,
     totalAttempted: records.length,
+    canceledOverlappingCalls: canceledCount,
   };
 
   return { upload, savedCount, stats };
