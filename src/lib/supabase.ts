@@ -30,6 +30,7 @@ export type CallRecord = {
   duration_formatted: string;
   attended: boolean;
   export_complete: boolean;
+  is_overlapping: boolean;
 };
 
 export type CallRecordInsert = Omit<CallRecord, 'id'>;
