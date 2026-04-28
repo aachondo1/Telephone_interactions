@@ -574,11 +574,9 @@ export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOcc
             const callTime = timeStringToMinutes(call.call_time);
             if (callTime === null) continue;
 
-            const handleMin = Math.ceil((call.handle_time_seconds ?? call.duration_seconds) / 60);
-            const alertMin = Math.ceil((call.alert_time_seconds ?? 0) / 60);
-            const totalMin = handleMin + alertMin;
+            const handleMin = Math.ceil((call.handle_time_seconds || call.duration_seconds) / 60);
 
-            intervals.push([callTime, callTime + totalMin]);
+            intervals.push([callTime, callTime + handleMin]);
           }
 
           const mergedIntervals = mergeIntervals(intervals);
