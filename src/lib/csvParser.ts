@@ -296,7 +296,9 @@ export async function transformRows(
     const durationFormatted = formatDuration(durationSeconds);
 
     const rawUser = columnMap.users ? (row[columnMap.users] ?? '') : '';
-    const executives = parseExecutives(rawUser);
+    const allUsers = parseExecutives(rawUser);
+    // Only the last user in the list actually handled the call
+    const executives = allUsers.length > 0 ? [allUsers[allUsers.length - 1]] : [];
     const attended = executives.length > 0;
 
     const rawPhone = columnMap.phone ? (row[columnMap.phone] ?? '') : '';
@@ -367,7 +369,7 @@ export async function transformRows(
     const acwSeconds = 45;
     const holdTimeSeconds = Math.max(0, handleTimeSeconds - acwSeconds - durationSeconds);
     const abandonType = calculateAbandonType(attended, flowExit, queueTimeSeconds, alertedUsers);
-    const isBounce = calculateIsBounce(alertSegments, alertedUsers, executives);
+    const isBounce = calculateIsBounce(alertSegments, alertedUsers, allUsers);
 
     const record: ParsedCallRecord = {
       originalCallId,
@@ -522,10 +524,13 @@ function calculateIsBounce(
   executives: string[]
 ): boolean {
   if (alertSegments <= 1) return false;
-  if (alertedUsers.trim() === '') return false;
+  if (alertedUsers.trim() === '' || executives.length === 0) return false;
 
-  const firstAlerted = alertedUsers.split(';')[0]?.trim().toUpperCase() ?? '';
-  const firstExecutive = executives[0]?.toUpperCase() ?? '';
+  const alertedList = alertedUsers.split(';').map(u => u.trim()).filter(u => u !== '');
+  if (alertedList.length === 0) return false;
 
-  return firstAlerted !== '' && firstAlerted !== firstExecutive;
+  const firstAlerted = alertedList[0].toUpperCase();
+  const lastExecutive = executives[executives.length - 1].toUpperCase();
+
+  return firstAlerted !== lastExecutive;
 }
