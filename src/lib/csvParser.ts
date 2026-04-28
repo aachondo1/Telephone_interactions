@@ -19,6 +19,7 @@ export type ParsedCallRecord = {
   rawUser: string;
   attended: boolean;
   exportComplete: boolean;
+  isOverlapping: boolean;
 };
 
 export type ParseResult = {
@@ -343,6 +344,7 @@ export async function transformRows(
       rawUser,
       attended,
       exportComplete,
+      isOverlapping: false,
     };
 
     results.push(record);
@@ -358,7 +360,7 @@ function timeStringToMinutes(timeStr: string | null): number | null {
   return hours * 60 + minutes;
 }
 
-export function filterOverlappingCalls(records: ParsedCallRecord[]): { records: ParsedCallRecord[]; canceledCount: number } {
+export function markOverlappingCalls(records: ParsedCallRecord[]): { records: ParsedCallRecord[]; canceledCount: number } {
   const recordsByDateAndExecutive = new Map<string, ParsedCallRecord[]>();
 
   for (const record of records) {
@@ -373,8 +375,8 @@ export function filterOverlappingCalls(records: ParsedCallRecord[]): { records: 
     }
   }
 
-  const canceledIndices = new Set<number>();
-  let canceledCount = 0;
+  let overlapCount = 0;
+  const markedRecords = records.map(r => ({ ...r }));
 
   for (const callsForExecutive of recordsByDateAndExecutive.values()) {
     callsForExecutive.sort((a, b) => {
@@ -394,14 +396,19 @@ export function filterOverlappingCalls(records: ParsedCallRecord[]): { records: 
         const nextStart = timeStringToMinutes(nextCall.callTime);
 
         if (currentEnd !== null && nextStart !== null && nextStart < currentEnd) {
-          const recordIndex = records.indexOf(nextCall);
-          canceledIndices.add(recordIndex);
-          canceledCount++;
+          const recordIndex = markedRecords.indexOf(nextCall);
+          if (recordIndex !== -1) {
+            markedRecords[recordIndex].isOverlapping = true;
+            overlapCount++;
+          }
         }
       }
     }
   }
 
-  const filtered = records.filter((_, index) => !canceledIndices.has(index));
-  return { records: filtered, canceledCount };
+  return { records: markedRecords, canceledCount: overlapCount };
+}
+
+export function filterOverlappingCalls(records: ParsedCallRecord[]): { records: ParsedCallRecord[]; canceledCount: number } {
+  return markOverlappingCalls(records);
 }

@@ -262,9 +262,9 @@ export function calculateQueuePerformanceHeatmap(records: CallRecord[]): QueueHe
     .map(([queue, hourMap]) => {
       const total = Array.from(hourMap.values())
         .reduce((sum, weekdayMap) => sum + Array.from(weekdayMap.values()).reduce((a, b) => a + b, 0), 0);
-      return [queue, total];
+      return [queue, total] as [string, number];
     })
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => (b as [string, number])[1] - (a as [string, number])[1])
     .slice(0, 10);
 
   let maxCount = 0;
@@ -456,15 +456,49 @@ function getShiftMinutes(dateStr: string): number {
   return 0;
 }
 
+function timeStringToMinutes(timeStr: string | null): number | null {
+  if (!timeStr) return null;
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  if (isNaN(hours) || isNaN(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function mergeIntervals(intervals: Array<[number, number]>): Array<[number, number]> {
+  if (intervals.length === 0) return [];
+
+  const sorted: Array<[number, number]> = intervals.slice().sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [sorted[0] as [number, number]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const [prevStart, prevEnd] = merged[merged.length - 1];
+    const curr = sorted[i];
+    const currStart: number = curr[0];
+    const currEnd: number = curr[1];
+
+    if (currStart <= prevEnd) {
+      merged[merged.length - 1] = [prevStart, Math.max(prevEnd, currEnd)];
+    } else {
+      merged.push([currStart, currEnd]);
+    }
+  }
+
+  return merged;
+}
+
+function calculateTotalDuration(intervals: Array<[number, number]>): number {
+  return intervals.reduce((sum, [start, end]) => sum + (end - start), 0);
+}
+
 export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOccupancyData {
   if (records.length === 0) return { entries: [] };
 
-  const execDateMap = new Map<string, Map<string, number>>();
+  const execDateMap = new Map<string, Map<string, CallRecord[]>>();
   for (const r of records) {
     if (!r.executive || r.executive === 'SIN ATENDER' || !r.call_date || !r.attended) continue;
     if (!execDateMap.has(r.executive)) execDateMap.set(r.executive, new Map());
     const dm = execDateMap.get(r.executive)!;
-    dm.set(r.call_date, (dm.get(r.call_date) ?? 0) + r.duration_seconds);
+    if (!dm.has(r.call_date)) dm.set(r.call_date, []);
+    dm.get(r.call_date)!.push(r);
   }
 
   const entries: ExecutiveOccupancyEntry[] = Array.from(execDateMap.entries())
@@ -472,13 +506,29 @@ export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOcc
       let totalTalkSec = 0;
       let totalShiftMin = 0;
       let validDays = 0;
-      for (const [date, talkSec] of dateMap.entries()) {
+
+      for (const [date, callsOnDate] of dateMap.entries()) {
         const shiftMin = getShiftMinutes(date);
         if (shiftMin === 0) continue;
-        totalTalkSec += talkSec;
+
+        // Build intervals for this date (in minutes)
+        const intervals: Array<[number, number]> = [];
+        for (const call of callsOnDate) {
+          const callTime = timeStringToMinutes(call.call_time);
+          if (callTime === null) continue;
+          const durationMin = Math.ceil(call.duration_seconds / 60);
+          intervals.push([callTime, callTime + durationMin]);
+        }
+
+        // Merge overlapping intervals
+        const mergedIntervals = mergeIntervals(intervals);
+        const dayTalkMin = calculateTotalDuration(mergedIntervals);
+
+        totalTalkSec += dayTalkMin * 60;
         totalShiftMin += shiftMin;
         validDays++;
       }
+
       if (validDays < 3) return null;
       const avgDailyTalkMin = Math.round(totalTalkSec / 60 / validDays);
       const avgShiftMin = Math.round(totalShiftMin / validDays);
@@ -636,6 +686,12 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     minDurationFormatted: '00:00',
     executiveStats: [],
     queueStats: [],
+    queuePerformanceHeatmap: { data: [], maxCount: 0 },
+    queueUnattendedHeatmap: { data: [] },
+    queueLoadVariability: { queues: [] },
+    queueAttendanceEvolution: { weeklyPeriods: [], monthlyPeriods: [], queues: [] },
+    executiveOccupancy: { entries: [] },
+    hourlyDemand: { points: [], peakErlangs: 0, weekdayCounts: { lun: 0, mar: 0, mie: 0, jue: 0, vie: 0 } },
     hourlyDistribution: [],
     dailyDistribution: [],
     dailyAttendedVsUnattended: [],

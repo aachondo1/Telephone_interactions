@@ -96,7 +96,7 @@ export default function App() {
 
       let successMessage = `✓ Se guardaron ${savedCount.toLocaleString('es-CL')} registros`;
       if (stats.canceledOverlappingCalls > 0) {
-        successMessage += ` (${stats.canceledOverlappingCalls} llamadas superpuestas canceladas)`;
+        successMessage += ` (${stats.canceledOverlappingCalls} llamadas superpuestas detectadas)`;
       }
       setProgress(successMessage);
 

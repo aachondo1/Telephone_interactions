@@ -27,11 +27,11 @@ export async function saveUpload(
   filename: string,
   records: ParsedCallRecord[]
 ): Promise<{ upload: CallUpload; savedCount: number; stats: DeduplicationStats }> {
-  // Filter overlapping calls first
-  const { records: filteredRecords, canceledCount } = filterOverlappingCalls(records);
+  // Mark overlapping calls instead of filtering them
+  const { records: markedRecords, canceledCount } = filterOverlappingCalls(records);
 
   // Determine date range
-  const dates = filteredRecords
+  const dates = markedRecords
     .map(r => r.callDate)
     .filter((d): d is string => d !== null)
     .sort();
@@ -42,7 +42,7 @@ export async function saveUpload(
   const expanded: (Omit<CallRecordInsert, 'upload_id'> & { ani_hash: string; call_date: string | null; call_time: string | null })[] = [];
   const processedSignatures = new Set<string>();
 
-  for (const record of filteredRecords) {
+  for (const record of markedRecords) {
     const hash = await hashPhone(record.cleanPhone);
     const masked = maskPhone(record.cleanPhone);
 
@@ -69,6 +69,7 @@ export async function saveUpload(
       duration_formatted: record.durationFormatted,
       attended: record.attended,
       export_complete: record.exportComplete,
+      is_overlapping: record.isOverlapping,
     });
   }
 
