@@ -561,18 +561,19 @@ export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOcc
         if (shiftMin === 0) continue;
 
         // Build intervals for this date (in minutes)
-        // Include: duration + queue_time + alert_time (total engagement per Genesys specs)
+        // Include: handle_time + alert_time (not queue_time, which is before agent pickup)
         const intervals: Array<[number, number]> = [];
         for (const call of callsOnDate) {
           const callTime = timeStringToMinutes(call.call_time);
           if (callTime === null) continue;
 
-          // Total time = handle_time (which includes duration + ACW)
-          // Plus queue time and alert time to get true availability
+          // Total time agent is occupied:
+          // - handle_time: duration + ACW (45s) + hold (client on hold with agent)
+          // - alert_time: system attempting to connect with agents
+          // NOTE: queue_time is NOT included (that's before agent answers)
           const handleMin = Math.ceil((call.handle_time_seconds ?? call.duration_seconds) / 60);
-          const queueMin = Math.ceil((call.queue_time_seconds ?? 0) / 60);
           const alertMin = Math.ceil((call.alert_time_seconds ?? 0) / 60);
-          const totalMin = handleMin + queueMin + alertMin;
+          const totalMin = handleMin + alertMin;
 
           intervals.push([callTime, callTime + totalMin]);
         }

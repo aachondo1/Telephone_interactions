@@ -29,34 +29,41 @@ Rebote = alert_segments > 1 AND Usuarios != Primer nombre en Usuarios-Alertados
 
 ---
 
-## 2. ✅ Corrección: Disponibilidad Real del Agente (kpi.ts:541-597)
+## 2. ✅ Corrección: Ocupación del Agente (kpi.ts:541-597)
 
 ### Problema:
-El cálculo de ocupación solo consideraba `handle_time_seconds` y `duration_seconds`.  
-Según especificaciones, debería incluir: **queue_time + alert_time + handle_time**
+Inicialmente se sumaba `queue_time` a la ocupación, pero esto es INCORRECTO.
+
+### Especificación Técnica (Aclaración):
+```
+Queue Time: Tiempo ANTES de que el agente conteste
+→ NO afecta ocupación del agente (cliente en fila, agente libre/en otra llamada)
+
+Handle Time: Tiempo DURANTE la atención
+→ SÍ afecta ocupación (agente manejando la llamada)
+→ Incluye: Duration + ACW (45s) + Hold
+
+Alert Time: Tiempo de timbrado
+→ SÍ afecta (agente siendo buscado por el sistema)
+```
 
 ### Solución:
 ```typescript
-const totalMin = handleMin + queueMin + alertMin;
-intervals.push([callTime, callTime + totalMin]);
+const handleMin = Math.ceil(call.handle_time_seconds / 60);
+const alertMin = Math.ceil(call.alert_time_seconds / 60);
+const totalMin = handleMin + alertMin;  // NO incluir queue_time
 ```
 
-Se ahora suma correctamente:
-- `handle_time_seconds` (conversación + ACW de 45s)
-- `queue_time_seconds` (tiempo en fila)
-- `alert_time_seconds` (tiempo de timbrado)
-
-### Especificación Técnica:
-```
-Hora de término real = Fecha + queue_time + alert_time + handle_time
-```
+La ocupación correcta suma:
+- `handle_time_seconds` (Duration + 45s ACW + Hold)
+- `alert_time_seconds` (Timbrado del sistema)
 
 ### Impacto:
-- ✅ La ocupación reportada ahora es más precisa
-- ✅ Refleja el tiempo real que el agente estuvo ocupado/disponible
+- ✅ Ocupación reportada es correcta según especificaciones
+- ✅ Queue time se usa para métricas de cola, no de agente
 
 ### Archivos modificados:
-- `src/lib/kpi.ts` (línea 570-574)
+- `src/lib/kpi.ts` (línea 559-574)
 
 ---
 
