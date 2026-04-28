@@ -37,7 +37,8 @@ function parseAgentDate(raw: string): string | null {
 function findCol(headers: string[], candidates: string[]): string | null {
   const norm = headers.map(h => h.toLowerCase().trim());
   for (const c of candidates) {
-    const idx = norm.findIndex(h => h === c || h.includes(c));
+    const normalized = c.toLowerCase().trim();
+    const idx = norm.findIndex(h => h === normalized || h.includes(normalized));
     if (idx !== -1) return headers[idx];
   }
   return null;
@@ -54,13 +55,13 @@ export function parseAgentStatusCSV(text: string): AgentStatusParseResult {
 
   if (headers.length === 0) return { rows: [], errors: ['Archivo vacío.'] };
 
-  const colAgentId   = findCol(headers, ['id del agente', 'agent id', 'agentid']);
-  const colAgentName = findCol(headers, ['nombre del agente', 'agent name', 'nombre agente', 'agente']);
-  const colStart     = findCol(headers, ['inicio del intervalo', 'start', 'inicio']);
-  const colEnd       = findCol(headers, ['fin del intervalo', 'end', 'fin']);
+  const colAgentId   = findCol(headers, ['id del agente', 'agent id', 'agentid', 'id agente']);
+  const colAgentName = findCol(headers, ['nombre del agente', 'agent name', 'nombre agente', 'agente', 'nombre']);
+  const colStart     = findCol(headers, ['inicio del intervalo', 'start', 'inicio', 'inicio intervalo']);
+  const colEnd       = findCol(headers, ['fin del intervalo', 'end', 'fin', 'fin intervalo']);
   const colConnected = findCol(headers, ['conectado', 'connected']);
-  const colInQueue   = findCol(headers, ['en la cola', 'in queue', 'inqueue', 'en cola']);
-  const colOutQueue  = findCol(headers, ['fuera de la cola', 'out of queue', 'out queue', 'fuera de cola']);
+  const colInQueue   = findCol(headers, ['en la cola', 'in queue', 'inqueue', 'en cola', 'encola']);
+  const colOutQueue  = findCol(headers, ['fuera de la cola', 'out of queue', 'out queue', 'fuera de cola', 'fuerador cola']);
 
   const missing: string[] = [];
   if (!colAgentName) missing.push('Nombre del agente');
