@@ -20,6 +20,10 @@ export function QueuesDetailTable({ stats }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('count');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+  if (stats.length > 0) {
+    console.log('First queue stat:', stats[0]);
+  }
+
   function handleSort(key: SortKey) {
     if (sortKey === key) {
       setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
