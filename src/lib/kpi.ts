@@ -153,6 +153,13 @@ export type DailyBucket = {
   count: number;
 };
 
+export type DailyAttendanceBucket = {
+  date: string;
+  attended: number;
+  unattended: number;
+  total: number;
+};
+
 export type DirectionStat = {
   direction: string;
   count: number;
@@ -197,6 +204,7 @@ export type KPISummary = {
   hourlyDemand: HourlyDemandData;
   hourlyDistribution: HourBucket[];
   dailyDistribution: DailyBucket[];
+  dailyAttendedVsUnattended: DailyAttendanceBucket[];
   directionStats: DirectionStat[];
   executiveDailyTalkTime: ExecutiveDailyTalkTime[];
   executiveHourlyTalkTime: ExecutiveHourlyTalkTime[];
@@ -630,6 +638,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     queueStats: [],
     hourlyDistribution: [],
     dailyDistribution: [],
+    dailyAttendedVsUnattended: [],
     directionStats: [],
     executiveDailyTalkTime: [],
     executiveHourlyTalkTime: [],
@@ -752,6 +761,20 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     .map(([date, count]) => ({ date, count }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  // Daily attended vs unattended split
+  const dailyAttMap = new Map<string, { attended: number; unattended: number }>();
+  for (const r of records) {
+    if (!r.call_date) continue;
+    const cur = dailyAttMap.get(r.call_date) ?? { attended: 0, unattended: 0 };
+    dailyAttMap.set(r.call_date, {
+      attended: cur.attended + (r.attended ? 1 : 0),
+      unattended: cur.unattended + (!r.attended ? 1 : 0),
+    });
+  }
+  const dailyAttendedVsUnattended: DailyAttendanceBucket[] = Array.from(dailyAttMap.entries())
+    .map(([date, d]) => ({ date, attended: d.attended, unattended: d.unattended, total: d.attended + d.unattended }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
   // Direction stats
   const dirMap = new Map<string, number>();
   for (const r of records) {
@@ -859,6 +882,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     hourlyDemand,
     hourlyDistribution,
     dailyDistribution,
+    dailyAttendedVsUnattended,
     directionStats,
     executiveDailyTalkTime,
     executiveHourlyTalkTime,
