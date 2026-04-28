@@ -501,7 +501,7 @@ function calculateIsBounce(
   if (alertedUsers.trim() === '') return false;
 
   const firstAlerted = alertedUsers.split(';')[0]?.trim().toUpperCase() ?? '';
-  const lastExecutive = executives[executives.length - 1]?.toUpperCase() ?? '';
+  const firstExecutive = executives[0]?.toUpperCase() ?? '';
 
-  return firstAlerted !== '' && firstAlerted !== lastExecutive;
+  return firstAlerted !== '' && firstAlerted !== firstExecutive;
 }
