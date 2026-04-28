@@ -42,7 +42,7 @@ export function PhoneOccupancyChart({ data }: Props) {
             Ocupación Telefónica por Ejecutiva
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            % del turno dedicado a llamadas atendidas · promedio días con actividad
+            % de 2280 minutos semanales · promedio diario (semanas con actividad)
           </p>
         </div>
         <div className="text-right">
@@ -88,7 +88,7 @@ export function PhoneOccupancyChart({ data }: Props) {
                 >
                   {entry.avgOccupancyPct > 15 && (
                     <span className="text-[10px] font-semibold" style={{ color: colors.text }}>
-                      {formatMinutes(entry.avgDailyTalkMinutes)}
+                      {formatMinutes(Math.round(entry.weeklyTalkMinutes / 5))}
                     </span>
                   )}
                 </div>
@@ -99,7 +99,7 @@ export function PhoneOccupancyChart({ data }: Props) {
                     style={{ left: `${entry.avgOccupancyPct}%` }}
                   >
                     <span className="text-[10px] text-slate-400">
-                      {formatMinutes(entry.avgDailyFreeMinutes)} libres
+                      {formatMinutes(Math.round(entry.weeklyFreeMinutes / 5))} libres
                     </span>
                   </div>
                 )}
