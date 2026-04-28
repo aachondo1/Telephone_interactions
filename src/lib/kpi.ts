@@ -738,6 +738,9 @@ export function calculateServiceLevel(records: CallRecord[]): ServiceLevelData {
   }
 
   for (const r of records) {
+    // CRITICAL: Only inbound calls. Outbound calls (agente initiated) bypass queue.
+    // Including outbound artificially lowers Service Level metric.
+    if (!isInbound(r.call_direction)) continue;
     if (r.call_hour === null || r.call_hour === undefined) continue;
     if (r.queue_time_seconds === null || r.queue_time_seconds === undefined || r.queue_time_seconds < 0) continue;
     if (r.queue_time_seconds === 0 && !r.attended) continue;
@@ -792,6 +795,9 @@ export function calculateAbandonStats(records: CallRecord[]): AbandonStats {
   let abandonedInIVR = 0;
 
   for (const r of records) {
+    // CRITICAL: Only inbound calls. Outbound calls (agent-initiated) are not "abandoned" by definition.
+    // Mixing inbound+outbound artificially lowers the Abandon Rate metric.
+    if (!isInbound(r.call_direction)) continue;
     if (!r.attended) {
       totalUnattended += 1;
       if (r.abandon_type === 'queue') abandonedInQueue += 1;
@@ -909,7 +915,9 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const handleTimes = records.map(r => r.handle_time_seconds ?? 0);
   const alertTimes = records.map(r => r.alert_time_seconds ?? 0);
 
-  // Recalculate hold time dynamically to ensure consistency: hold_time = handle_time - 45 - duration
+  // "Zero Hold" Rule: Recalculate hold time dynamically to protect against Genesys rounding milliseconds.
+  // Formula: hold_time = handle_time - 45 (ACW) - duration
+  // Math.max(0, ...) prevents "negative hold" (-1s) from millisecond rounding errors in Genesys data.
   const holdTimes = records.map(r => Math.max(0, (r.handle_time_seconds ?? 0) - 45 - (r.duration_seconds ?? 0)));
 
   const avgQueueTimeSeconds = queueTimes.length > 0
