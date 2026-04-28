@@ -467,7 +467,31 @@ export function filterOverlappingCalls(records: ParsedCallRecord[]): { records: 
 
 function parseNumericField(raw: string): number {
   if (!raw || raw.trim() === '') return 0;
-  const num = parseInt(raw.trim(), 10);
+  const s = raw.trim();
+
+  // Handle time format: "XXm YYs", "XX:YY:ZZ", "XX:YY", or plain number
+  // Examples: "19m 10s" -> 1150, "17m 38s" -> 1058, "39s" -> 39, "1:23:45" -> 5025
+  if (s.includes('m') && s.includes('s')) {
+    const mMatch = s.match(/(\d+)m/);
+    const sMatch = s.match(/(\d+)s/);
+    const minutes = mMatch ? parseInt(mMatch[1], 10) : 0;
+    const seconds = sMatch ? parseInt(sMatch[1], 10) : 0;
+    return minutes * 60 + seconds;
+  }
+
+  if (s.includes(':')) {
+    const parts = s.split(':').map(p => parseInt(p, 10));
+    if (parts.length === 3) {
+      // HH:MM:SS
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2) {
+      // MM:SS
+      return parts[0] * 60 + parts[1];
+    }
+  }
+
+  // Plain number (already in seconds)
+  const num = parseInt(s, 10);
   return isNaN(num) ? 0 : num;
 }
 
