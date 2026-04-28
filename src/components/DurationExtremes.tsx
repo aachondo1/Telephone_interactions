@@ -7,7 +7,7 @@ type Props = {
 
 export function DurationExtremes({ kpis }: Props) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4">
         <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
           <TrendingUp size={22} className="text-emerald-600" />
@@ -20,7 +20,7 @@ export function DurationExtremes({ kpis }: Props) {
             {kpis.maxDurationFormatted}
           </p>
           <p className="text-xs text-slate-400 mt-0.5">
-            {kpis.maxDurationSeconds.toLocaleString('es-CL')} segundos
+            {kpis.maxDurationSeconds.toLocaleString('es-CL')} s
           </p>
         </div>
       </div>
@@ -37,7 +37,41 @@ export function DurationExtremes({ kpis }: Props) {
             {kpis.minDurationFormatted}
           </p>
           <p className="text-xs text-slate-400 mt-0.5">
-            {kpis.minDurationSeconds.toLocaleString('es-CL')} segundos
+            {kpis.minDurationSeconds.toLocaleString('es-CL')} s
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0">
+          <TrendingUp size={22} className="text-orange-600" />
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">
+            Espera Máxima
+          </p>
+          <p className="text-2xl font-bold font-mono text-slate-800">
+            {kpis.maxQueueTimeFormatted}
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {kpis.maxQueueTimeSeconds.toLocaleString('es-CL')} s
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">
+          <TrendingUp size={22} className="text-purple-600" />
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">
+            Hold Máximo
+          </p>
+          <p className="text-2xl font-bold font-mono text-slate-800">
+            {kpis.maxHoldTimeFormatted}
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {kpis.maxHoldTimeSeconds.toLocaleString('es-CL')} s
           </p>
         </div>
       </div>

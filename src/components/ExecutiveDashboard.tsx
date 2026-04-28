@@ -105,8 +105,8 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
   return (
     <div className="space-y-6">
 
-      {/* ── 6 KPI cards ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      {/* ── 8 KPI cards ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 
         {/* Total llamadas */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
@@ -186,6 +186,30 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
           </div>
           <p className={`text-3xl font-bold leading-none ${LIGHT_VALUE[compLight]}`}>{kpis.completenessRate}%</p>
           <p className="text-xs text-slate-400 mt-1.5">Exportación completa</p>
+        </div>
+
+        {/* Service Level */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div className="flex items-start justify-between mb-3">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Service Level</p>
+            <div className="w-8 h-8 bg-indigo-50 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Target size={15} className="text-indigo-600" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.serviceLevel.overallSL}%</p>
+          <p className="text-xs text-slate-400 mt-1.5">Atendidas en ≤20s</p>
+        </div>
+
+        {/* Tiempo promedio en cola */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div className="flex items-start justify-between mb-3">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Espera promedio</p>
+            <div className="w-8 h-8 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Clock size={15} className="text-orange-600" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.avgQueueTimeFormatted}</p>
+          <p className="text-xs text-slate-400 mt-1.5">En cola</p>
         </div>
 
       </div>

@@ -20,6 +20,16 @@ export type ParsedCallRecord = {
   attended: boolean;
   exportComplete: boolean;
   isOverlapping: boolean;
+  queueTimeSeconds: number;
+  handleTimeSeconds: number;
+  alertSegments: number;
+  alertTimeSeconds: number;
+  flowExit: boolean;
+  alertedUsers: string;
+  abandonType: string | null;
+  isBounce: boolean;
+  holdTimeSeconds: number;
+  acwSeconds: number;
 };
 
 export type ParseResult = {
@@ -38,6 +48,12 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   users: ['usuarios', 'users', 'agente', 'agentes', 'ejecutivo', 'ejecutivos', 'user', 'agent'],
   phone: ['ani', 'teléfono', 'telefono', 'phone', 'número', 'numero', 'caller', 'número llamante'],
   exportComplete: ['exportación completa', 'exportacion completa', 'export complete', 'completa', 'complete'],
+  queueTime: ['total de cola', 'tiempo de cola', 'queue time', 'wait time', 'tiempo en cola'],
+  handleTime: ['manejo total', 'handle time', 'total handle', 'tiempo de manejo'],
+  alertSegments: ['segmentos de alerta', 'alert segments', 'intentos', 'intentos de entrega'],
+  alertTime: ['total de alertas', 'alert time', 'ring time', 'tiempo de alerta', 'tiempo de timbre'],
+  flowExit: ['salida de flujo', 'flow exit', 'ivr exit', 'salida ivr'],
+  alertedUsers: ['usuarios - alertados', 'alerted users', 'agentes alertados', 'usuarios alertados'],
 };
 
 function findColumn(headers: string[], aliases: string[]): string | null {
@@ -327,6 +343,32 @@ export async function transformRows(
       ? (row[columnMap.callId] ?? String(i))
       : String(i);
 
+    // Parse Genesys fields
+    const queueTimeSeconds = columnMap.queueTime
+      ? parseNumericField(row[columnMap.queueTime] ?? '0')
+      : 0;
+    const handleTimeSeconds = columnMap.handleTime
+      ? parseNumericField(row[columnMap.handleTime] ?? '0')
+      : 0;
+    const alertSegments = columnMap.alertSegments
+      ? parseNumericField(row[columnMap.alertSegments] ?? '1')
+      : 1;
+    const alertTimeSeconds = columnMap.alertTime
+      ? parseNumericField(row[columnMap.alertTime] ?? '0')
+      : 0;
+    const flowExit = columnMap.flowExit
+      ? parseFlowExit(row[columnMap.flowExit] ?? 'true')
+      : true;
+    const alertedUsers = columnMap.alertedUsers
+      ? (row[columnMap.alertedUsers] ?? '')
+      : '';
+
+    // Calculate derived fields
+    const acwSeconds = 45;
+    const holdTimeSeconds = Math.max(0, handleTimeSeconds - acwSeconds - durationSeconds);
+    const abandonType = calculateAbandonType(attended, flowExit, queueTimeSeconds, alertedUsers);
+    const isBounce = calculateIsBounce(alertSegments, alertedUsers, executives);
+
     const record: ParsedCallRecord = {
       originalCallId,
       rawDate,
@@ -345,6 +387,16 @@ export async function transformRows(
       attended,
       exportComplete,
       isOverlapping: false,
+      queueTimeSeconds,
+      handleTimeSeconds,
+      alertSegments,
+      alertTimeSeconds,
+      flowExit,
+      alertedUsers,
+      abandonType,
+      isBounce,
+      holdTimeSeconds,
+      acwSeconds,
     };
 
     results.push(record);
@@ -411,4 +463,45 @@ export function markOverlappingCalls(records: ParsedCallRecord[]): { records: Pa
 
 export function filterOverlappingCalls(records: ParsedCallRecord[]): { records: ParsedCallRecord[]; canceledCount: number } {
   return markOverlappingCalls(records);
+}
+
+function parseNumericField(raw: string): number {
+  if (!raw || raw.trim() === '') return 0;
+  const num = parseInt(raw.trim(), 10);
+  return isNaN(num) ? 0 : num;
+}
+
+function parseFlowExit(raw: string): boolean {
+  if (!raw || raw.trim() === '') return true;
+  const s = raw.trim().toLowerCase();
+  return s === 'sí' || s === 'si' || s === 'yes' || s === '1' || s === 'true';
+}
+
+function calculateAbandonType(
+  attended: boolean,
+  flowExit: boolean,
+  queueTime: number,
+  alertedUsers: string
+): string | null {
+  if (attended) return null;
+
+  if (!flowExit) return 'ivr';
+  if (queueTime > 0 && alertedUsers.trim() === '') return 'queue';
+  if (alertedUsers.trim() !== '') return 'alert';
+
+  return null;
+}
+
+function calculateIsBounce(
+  alertSegments: number,
+  alertedUsers: string,
+  executives: string[]
+): boolean {
+  if (alertSegments <= 1) return false;
+  if (alertedUsers.trim() === '') return false;
+
+  const firstAlerted = alertedUsers.split(';')[0]?.trim().toUpperCase() ?? '';
+  const lastExecutive = executives[executives.length - 1]?.toUpperCase() ?? '';
+
+  return firstAlerted !== '' && firstAlerted !== lastExecutive;
 }

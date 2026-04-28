@@ -18,9 +18,10 @@ type Props = {
 type ScatterPoint = {
   x: number;
   y: number;
-  executive: string;
-  avgFormatted: string;
   z: number;
+  executive: string;
+  handleFormatted: string;
+  alertSegments: number;
 };
 
 function CustomTooltip({ active, payload }: { active?: boolean; payload?: {payload?: ScatterPoint}[] }) {
@@ -31,7 +32,8 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: {paylo
     <div className="bg-white rounded-xl border border-slate-100 shadow-lg p-3 text-sm">
       <p className="font-semibold text-slate-700 mb-1">{d.executive}</p>
       <p className="text-slate-500">Llamadas: <span className="text-slate-700 font-medium">{d.x.toLocaleString('es-CL')}</span></p>
-      <p className="text-slate-500">Dur. promedio: <span className="text-slate-700 font-medium font-mono">{d.avgFormatted}</span></p>
+      <p className="text-slate-500">Manejo: <span className="text-slate-700 font-medium font-mono">{d.handleFormatted}</span></p>
+      <p className="text-slate-500">Seg. Alerta: <span className="text-slate-700 font-medium">{d.alertSegments.toFixed(1)}</span></p>
     </div>
   );
 }
@@ -41,17 +43,18 @@ export function ExecutiveScatterChart({ stats }: Props) {
     .filter(e => e.executive !== 'SIN ATENDER')
     .map(e => ({
       x: e.count,
-      y: Math.round(e.avgDurationSeconds / 60),
+      y: Math.round(e.avgHandleTimeSeconds / 60),
+      z: Math.round(e.avgAlertSegments * 100),
       executive: e.executive,
-      avgFormatted: formatDuration(e.avgDurationSeconds),
-      z: 1,
+      handleFormatted: formatDuration(e.avgHandleTimeSeconds),
+      alertSegments: e.avgAlertSegments,
     }));
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-slate-700">Eficiencia vs Volumen</h3>
-        <p className="text-xs text-slate-400 mt-0.5">Eje X = cantidad de llamadas · Eje Y = duración promedio (min)</p>
+        <h3 className="text-sm font-semibold text-slate-700">Manejo vs Volumen</h3>
+        <p className="text-xs text-slate-400 mt-0.5">X = Llamadas · Y = Tiempo manejo (min) · Tamaño = Segmentos alerta</p>
       </div>
       <ResponsiveContainer width="100%" height={300}>
         <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
@@ -68,13 +71,13 @@ export function ExecutiveScatterChart({ stats }: Props) {
           <YAxis
             dataKey="y"
             type="number"
-            name="Dur. prom (min)"
+            name="Manejo (min)"
             tick={{ fontSize: 11, fill: '#94a3b8' }}
             axisLine={false}
             tickLine={false}
-            label={{ value: 'Min. prom.', angle: -90, position: 'insideLeft', offset: 8, fontSize: 11, fill: '#94a3b8' }}
+            label={{ value: 'Min. manejo', angle: -90, position: 'insideLeft', offset: 8, fontSize: 11, fill: '#94a3b8' }}
           />
-          <ZAxis dataKey="z" range={[60, 60]} />
+          <ZAxis dataKey="z" range={[50, 300]} />
           <Tooltip content={<CustomTooltip />} />
           <Scatter data={data} fill="#10b981" fillOpacity={0.75} />
         </ScatterChart>

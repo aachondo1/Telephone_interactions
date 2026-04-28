@@ -27,12 +27,13 @@ import { ExecutivesDetailTable } from './ExecutivesDetailTable';
 import { ExecutiveDashboard } from './ExecutiveDashboard';
 import { calculateKPIs } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
-import { LayoutDashboard, Layers, Users, Target, Activity, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, Layers, Users, Target, Activity, TrendingUp, Zap } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
 import type { AgentStatusRecord } from '../lib/supabase';
+import { InterventionImpact } from './InterventionImpact';
 
-type Tab = 'resumen' | 'general' | 'colas' | 'ejecutivos' | 'planificacion' | 'conectividad';
+type Tab = 'resumen' | 'general' | 'colas' | 'ejecutivos' | 'planificacion' | 'conectividad' | 'intervencion';
 
 type Props = {
   records: CallRecord[];
@@ -155,6 +156,7 @@ const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'ejecutivos',    label: 'Ejecutivos',       icon: Users           },
   { id: 'planificacion', label: 'Planificación',    icon: Target          },
   { id: 'conectividad',  label: 'Conectividad',     icon: Activity        },
+  { id: 'intervencion',  label: 'Intervención',     icon: Zap             },
 ];
 
 export function Dashboard({ records, upload, agentStatusRecords }: Props) {
@@ -347,6 +349,10 @@ export function Dashboard({ records, upload, agentStatusRecords }: Props) {
             </>
           )}
         </div>
+      )}
+
+      {activeTab === 'intervencion' && (
+        <InterventionImpact records={filteredRecords} />
       )}
     </div>
   );

@@ -55,6 +55,7 @@ export type FilterState = {
   executives: string[];
   attendedStatus: ('attended' | 'unattended' | 'unassigned')[];
   direction: ('inbound' | 'outbound')[];
+  abandonType: ('queue' | 'alert' | 'ivr')[];
 };
 
 export const DEFAULT_FILTERS: FilterState = {
@@ -66,6 +67,7 @@ export const DEFAULT_FILTERS: FilterState = {
   executives: [],
   attendedStatus: [],
   direction: [],
+  abandonType: [],
 };
 
 type Props = {
@@ -298,7 +300,8 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
     filters.queues.length > 0 ||
     filters.executives.length > 0 ||
     filters.attendedStatus.length > 0 ||
-    filters.direction.length > 0;
+    filters.direction.length > 0 ||
+    filters.abandonType.length > 0;
 
   const clearAll = () => onChange(DEFAULT_FILTERS);
 
@@ -327,6 +330,12 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
     activeChips.push({
       label: status === 'attended' ? 'Atendidas' : status === 'unattended' ? 'No atendidas' : 'No asignada',
       onRemove: () => onChange({ ...filters, attendedStatus: filters.attendedStatus.filter(x => x !== status) }),
+    })
+  );
+  filters.abandonType.forEach(type =>
+    activeChips.push({
+      label: type === 'queue' ? 'Abandono: Cola' : type === 'alert' ? 'Abandono: Alerta' : 'Abandono: IVR',
+      onRemove: () => onChange({ ...filters, abandonType: filters.abandonType.filter(x => x !== type) }),
     })
   );
   filters.departments.forEach(d =>
@@ -409,6 +418,15 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
           selected={filters.attendedStatus}
           onChange={attendedStatus => onChange({ ...filters, attendedStatus })}
           renderOption={(opt) => opt === 'attended' ? 'Atendidas' : opt === 'unattended' ? 'No atendidas' : 'No asignada'}
+        />
+
+        {/* Abandon Type multi-select */}
+        <MultiSelect
+          label="Tipo Abandono"
+          options={['queue', 'alert', 'ivr']}
+          selected={filters.abandonType}
+          onChange={abandonType => onChange({ ...filters, abandonType })}
+          renderOption={(opt) => opt === 'queue' ? 'En cola' : opt === 'alert' ? 'En alerta' : 'En IVR'}
         />
 
         {/* Clear all */}
