@@ -1,5 +1,28 @@
 import type { CallRecord } from './supabase';
 
+export type ServiceLevelPoint = {
+  hour: number;
+  label: string;
+  totalInQueue: number;
+  answeredWithin20s: number;
+  serviceLevel: number;
+  avgQueueTime: number;
+  medianQueueTime: number;
+};
+
+export type ServiceLevelData = {
+  overallSL: number;
+  points: ServiceLevelPoint[];
+};
+
+export type AbandonStats = {
+  totalUnattended: number;
+  abandonedInQueue: number;
+  abandonedInAlert: number;
+  abandonedInIVR: number;
+  reentries: number;
+};
+
 export type ExecutiveStat = {
   executive: string;
   count: number;
@@ -13,6 +36,12 @@ export type ExecutiveStat = {
   unattendedCount: number;
   unattendedPercent: number;
   completenessRate: number;
+  avgHandleTimeSeconds: number;
+  avgQueueTimeSeconds: number;
+  avgAlertTimeSeconds: number;
+  avgAlertSegments: number;
+  bounceCount: number;
+  bounceRate: number;
 };
 
 export type QueueStat = {
@@ -28,6 +57,13 @@ export type QueueStat = {
   unattendedCount: number;
   unattendedPercent: number;
   completenessRate: number;
+  avgQueueTimeSeconds: number;
+  avgHandleTimeSeconds: number;
+  avgAlertTimeSeconds: number;
+  avgAlertSegments: number;
+  bounceRate: number;
+  abandonQueueRate: number;
+  abandonAlertRate: number;
 };
 
 export type QueueHeatmapCell = {
@@ -194,6 +230,12 @@ export type KPISummary = {
   maxDurationFormatted: string;
   minDurationSeconds: number;
   minDurationFormatted: string;
+  avgQueueTimeSeconds: number;
+  avgQueueTimeFormatted: string;
+  avgHandleTimeSeconds: number;
+  avgHandleTimeFormatted: string;
+  avgAlertTimeSeconds: number;
+  avgHoldTimeSeconds: number;
   executiveStats: ExecutiveStat[];
   queueStats: QueueStat[];
   queuePerformanceHeatmap: QueueHeatmapData;
@@ -212,6 +254,8 @@ export type KPISummary = {
   topExecutivesByVolume: string[];
   allExecutivesWithData: string[];
   topCallers: TopCallerEntry[];
+  serviceLevel: ServiceLevelData;
+  abandonStats: AbandonStats;
 };
 
 export function formatDuration(seconds: number): string {
@@ -671,6 +715,125 @@ export function calculateTopCallers(records: CallRecord[], limit = 10, mobileOnl
     }));
 }
 
+export function calculateServiceLevel(records: CallRecord[]): ServiceLevelData {
+  const hourMap = new Map<number, { total: number; within20s: number; queueTimes: number[] }>();
+
+  for (let h = 0; h < 24; h++) {
+    hourMap.set(h, { total: 0, within20s: 0, queueTimes: [] });
+  }
+
+  for (const r of records) {
+    if (r.call_hour === null || r.call_hour === undefined) continue;
+    if (r.queue_time_seconds === null || r.queue_time_seconds === undefined) continue;
+
+    const h = r.call_hour;
+    const hourData = hourMap.get(h)!;
+    hourData.total += 1;
+    if (r.queue_time_seconds <= 20) {
+      hourData.within20s += 1;
+    }
+    hourData.queueTimes.push(r.queue_time_seconds);
+  }
+
+  const points: ServiceLevelPoint[] = [];
+  let totalInQueue = 0;
+  let totalWithin20s = 0;
+
+  for (let h = 0; h < 24; h++) {
+    const hourData = hourMap.get(h)!;
+    const sl = hourData.total > 0 ? Math.round((hourData.within20s / hourData.total) * 100) : 0;
+    const avgQueue = hourData.total > 0
+      ? Math.round(hourData.queueTimes.reduce((a, b) => a + b, 0) / hourData.total)
+      : 0;
+    hourData.queueTimes.sort((a, b) => a - b);
+    const medianQueue = hourData.queueTimes.length > 0
+      ? hourData.queueTimes[Math.floor(hourData.queueTimes.length / 2)]
+      : 0;
+
+    points.push({
+      hour: h,
+      label: `${String(h).padStart(2, '0')}:00`,
+      totalInQueue: hourData.total,
+      answeredWithin20s: hourData.within20s,
+      serviceLevel: sl,
+      avgQueueTime: avgQueue,
+      medianQueueTime: medianQueue,
+    });
+
+    totalInQueue += hourData.total;
+    totalWithin20s += hourData.within20s;
+  }
+
+  const overallSL = totalInQueue > 0 ? Math.round((totalWithin20s / totalInQueue) * 100) : 0;
+
+  return { overallSL, points };
+}
+
+export function calculateAbandonStats(records: CallRecord[]): AbandonStats {
+  let totalUnattended = 0;
+  let abandonedInQueue = 0;
+  let abandonedInAlert = 0;
+  let abandonedInIVR = 0;
+
+  for (const r of records) {
+    if (!r.attended) {
+      totalUnattended += 1;
+      if (r.abandon_type === 'queue') abandonedInQueue += 1;
+      else if (r.abandon_type === 'alert') abandonedInAlert += 1;
+      else if (r.abandon_type === 'ivr') abandonedInIVR += 1;
+    }
+  }
+
+  return {
+    totalUnattended,
+    abandonedInQueue,
+    abandonedInAlert,
+    abandonedInIVR,
+    reentries: 0,
+  };
+}
+
+export function calculateRentryRate(records: CallRecord[], hours: number = 24): { reentries: number; reentryRate: number } {
+  const callsByAni = new Map<string, CallRecord[]>();
+
+  for (const r of records) {
+    if (!callsByAni.has(r.ani_hash)) {
+      callsByAni.set(r.ani_hash, []);
+    }
+    callsByAni.get(r.ani_hash)!.push(r);
+  }
+
+  let reentries = 0;
+  const hoursMs = hours * 3600 * 1000;
+
+  for (const [, calls] of callsByAni.entries()) {
+    const abandoned = calls.filter(c => !c.attended && c.abandon_type !== null);
+    const attended = calls.filter(c => c.attended);
+
+    for (const abandonedCall of abandoned) {
+      if (!abandonedCall.call_date || !abandonedCall.call_time) continue;
+
+      const abandonedTime = new Date(`${abandonedCall.call_date}T${abandonedCall.call_time}`).getTime();
+
+      for (const attendedCall of attended) {
+        if (!attendedCall.call_date || !attendedCall.call_time) continue;
+
+        const attendedTime = new Date(`${attendedCall.call_date}T${attendedCall.call_time}`).getTime();
+
+        if (attendedTime > abandonedTime && attendedTime - abandonedTime <= hoursMs) {
+          reentries += 1;
+          break;
+        }
+      }
+    }
+  }
+
+  const abandonCount = records.filter(r => !r.attended && r.abandon_type !== null).length;
+  const reentryRate = abandonCount > 0 ? Math.round((reentries / abandonCount) * 100) : 0;
+
+  return { reentries, reentryRate };
+}
+
 export function calculateKPIs(records: CallRecord[]): KPISummary {
   const total = records.length;
   const empty: KPISummary = {
@@ -684,6 +847,12 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     maxDurationFormatted: '00:00',
     minDurationSeconds: 0,
     minDurationFormatted: '00:00',
+    avgQueueTimeSeconds: 0,
+    avgQueueTimeFormatted: '00:00',
+    avgHandleTimeSeconds: 0,
+    avgHandleTimeFormatted: '00:00',
+    avgAlertTimeSeconds: 0,
+    avgHoldTimeSeconds: 0,
     executiveStats: [],
     queueStats: [],
     queuePerformanceHeatmap: { data: [], maxCount: 0 },
@@ -702,6 +871,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     topExecutivesByVolume: [],
     allExecutivesWithData: [],
     topCallers: [],
+    serviceLevel: { overallSL: 0, points: [] },
+    abandonStats: { totalUnattended: 0, abandonedInQueue: 0, abandonedInAlert: 0, abandonedInIVR: 0, reentries: 0 },
   };
   if (total === 0) return empty;
 
@@ -710,6 +881,25 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const avgDurationSeconds = Math.round(totalDuration / total);
   const maxDurationSeconds = Math.max(...durations);
   const minDurationSeconds = Math.min(...durations);
+
+  // Genesys metrics
+  const queueTimes = records.map(r => r.queue_time_seconds ?? 0);
+  const handleTimes = records.map(r => r.handle_time_seconds ?? 0);
+  const alertTimes = records.map(r => r.alert_time_seconds ?? 0);
+  const holdTimes = records.map(r => r.hold_time_seconds ?? 0);
+
+  const avgQueueTimeSeconds = queueTimes.length > 0
+    ? Math.round(queueTimes.reduce((a, b) => a + b, 0) / queueTimes.length)
+    : 0;
+  const avgHandleTimeSeconds = handleTimes.length > 0
+    ? Math.round(handleTimes.reduce((a, b) => a + b, 0) / handleTimes.length)
+    : 0;
+  const avgAlertTimeSeconds = alertTimes.length > 0
+    ? Math.round(alertTimes.reduce((a, b) => a + b, 0) / alertTimes.length)
+    : 0;
+  const avgHoldTimeSeconds = holdTimes.length > 0
+    ? Math.round(holdTimes.reduce((a, b) => a + b, 0) / holdTimes.length)
+    : 0;
 
   const completeCount = records.filter(r => r.export_complete).length;
   const completenessRate = Math.round((completeCount / total) * 100);
@@ -721,10 +911,16 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const execMap = new Map<string, {
     count: number; totalDuration: number;
     inbound: number; outbound: number; unattended: number; complete: number;
+    totalHandleTime: number; totalQueueTime: number; totalAlertTime: number;
+    totalAlertSegments: number; bounceCount: number;
   }>();
   for (const r of records) {
     const exec = r.executive || 'SIN ATENDER';
-    const e = execMap.get(exec) ?? { count: 0, totalDuration: 0, inbound: 0, outbound: 0, unattended: 0, complete: 0 };
+    const e = execMap.get(exec) ?? {
+      count: 0, totalDuration: 0, inbound: 0, outbound: 0, unattended: 0, complete: 0,
+      totalHandleTime: 0, totalQueueTime: 0, totalAlertTime: 0,
+      totalAlertSegments: 0, bounceCount: 0,
+    };
     execMap.set(exec, {
       count: e.count + 1,
       totalDuration: e.totalDuration + r.duration_seconds,
@@ -732,11 +928,21 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
       outbound: e.outbound + (!isInbound(r.call_direction) ? 1 : 0),
       unattended: e.unattended + (!r.attended ? 1 : 0),
       complete: e.complete + (r.export_complete ? 1 : 0),
+      totalHandleTime: e.totalHandleTime + (r.handle_time_seconds ?? 0),
+      totalQueueTime: e.totalQueueTime + (r.queue_time_seconds ?? 0),
+      totalAlertTime: e.totalAlertTime + (r.alert_time_seconds ?? 0),
+      totalAlertSegments: e.totalAlertSegments + (r.alert_segments ?? 0),
+      bounceCount: e.bounceCount + (r.is_bounce ? 1 : 0),
     });
   }
   const executiveStats: ExecutiveStat[] = Array.from(execMap.entries())
     .map(([executive, d]) => {
       const avg = Math.round(d.totalDuration / d.count);
+      const avgHandleTime = Math.round(d.totalHandleTime / d.count);
+      const avgQueueTime = Math.round(d.totalQueueTime / d.count);
+      const avgAlertTime = Math.round(d.totalAlertTime / d.count);
+      const avgAlertSegments = Math.round((d.totalAlertSegments / d.count) * 10) / 10;
+      const bounceRate = Math.round((d.bounceCount / d.count) * 100);
       return {
         executive,
         count: d.count,
@@ -750,6 +956,12 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
         unattendedCount: d.unattended,
         unattendedPercent: Math.round((d.unattended / d.count) * 100),
         completenessRate: Math.round((d.complete / d.count) * 100),
+        avgHandleTimeSeconds: avgHandleTime,
+        avgQueueTimeSeconds: avgQueueTime,
+        avgAlertTimeSeconds: avgAlertTime,
+        avgAlertSegments: avgAlertSegments,
+        bounceCount: d.bounceCount,
+        bounceRate: bounceRate,
       };
     })
     .filter(e => e.count >= 5)
@@ -759,10 +971,18 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const queueMap = new Map<string, {
     count: number; totalDuration: number;
     inbound: number; outbound: number; unattended: number; complete: number;
+    totalHandleTime: number; totalQueueTime: number; totalAlertTime: number;
+    totalAlertSegments: number; bounceCount: number;
+    abandonQueueCount: number; abandonAlertCount: number;
   }>();
   for (const r of records) {
     const q = r.queue || 'Sin cola';
-    const e = queueMap.get(q) ?? { count: 0, totalDuration: 0, inbound: 0, outbound: 0, unattended: 0, complete: 0 };
+    const e = queueMap.get(q) ?? {
+      count: 0, totalDuration: 0, inbound: 0, outbound: 0, unattended: 0, complete: 0,
+      totalHandleTime: 0, totalQueueTime: 0, totalAlertTime: 0,
+      totalAlertSegments: 0, bounceCount: 0,
+      abandonQueueCount: 0, abandonAlertCount: 0,
+    };
     queueMap.set(q, {
       count: e.count + 1,
       totalDuration: e.totalDuration + r.duration_seconds,
@@ -770,12 +990,26 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
       outbound: e.outbound + (!isInbound(r.call_direction) ? 1 : 0),
       unattended: e.unattended + (!r.attended ? 1 : 0),
       complete: e.complete + (r.export_complete ? 1 : 0),
+      totalHandleTime: e.totalHandleTime + (r.handle_time_seconds ?? 0),
+      totalQueueTime: e.totalQueueTime + (r.queue_time_seconds ?? 0),
+      totalAlertTime: e.totalAlertTime + (r.alert_time_seconds ?? 0),
+      totalAlertSegments: e.totalAlertSegments + (r.alert_segments ?? 0),
+      bounceCount: e.bounceCount + (r.is_bounce ? 1 : 0),
+      abandonQueueCount: e.abandonQueueCount + (r.abandon_type === 'queue' ? 1 : 0),
+      abandonAlertCount: e.abandonAlertCount + (r.abandon_type === 'alert' ? 1 : 0),
     });
   }
   const totalQueueDuration = Array.from(queueMap.values()).reduce((sum, d) => sum + d.totalDuration, 0);
   const queueStats: QueueStat[] = Array.from(queueMap.entries())
     .map(([queue, d]) => {
       const avg = Math.round(d.totalDuration / d.count);
+      const avgHandleTime = Math.round(d.totalHandleTime / d.count);
+      const avgQueueTime = Math.round(d.totalQueueTime / d.count);
+      const avgAlertTime = Math.round(d.totalAlertTime / d.count);
+      const avgAlertSegments = Math.round((d.totalAlertSegments / d.count) * 10) / 10;
+      const bounceRate = Math.round((d.bounceCount / d.count) * 100);
+      const abandonQueueRate = Math.round((d.abandonQueueCount / d.unattended) * 100) || 0;
+      const abandonAlertRate = Math.round((d.abandonAlertCount / d.unattended) * 100) || 0;
       return {
         queue,
         count: d.count,
@@ -789,6 +1023,13 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
         unattendedCount: d.unattended,
         unattendedPercent: Math.round((d.unattended / d.count) * 100),
         completenessRate: Math.round((d.complete / d.count) * 100),
+        avgQueueTimeSeconds: avgQueueTime,
+        avgHandleTimeSeconds: avgHandleTime,
+        avgAlertTimeSeconds: avgAlertTime,
+        avgAlertSegments: avgAlertSegments,
+        bounceRate: bounceRate,
+        abandonQueueRate: abandonQueueRate,
+        abandonAlertRate: abandonAlertRate,
       };
     })
     .sort((a, b) => b.totalDurationSeconds - a.totalDurationSeconds);
@@ -916,6 +1157,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const executiveOccupancy = calculateExecutiveOccupancy(records);
   const hourlyDemand = calculateHourlyDemand(records);
   const topCallers = calculateTopCallers(records, 10);
+  const serviceLevel = calculateServiceLevel(records);
+  const abandonStats = calculateAbandonStats(records);
 
   return {
     totalCalls: total,
@@ -928,6 +1171,12 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     maxDurationFormatted: formatDuration(maxDurationSeconds),
     minDurationSeconds,
     minDurationFormatted: formatDuration(minDurationSeconds),
+    avgQueueTimeSeconds,
+    avgQueueTimeFormatted: formatDuration(avgQueueTimeSeconds),
+    avgHandleTimeSeconds,
+    avgHandleTimeFormatted: formatDuration(avgHandleTimeSeconds),
+    avgAlertTimeSeconds,
+    avgHoldTimeSeconds,
     executiveStats,
     queueStats,
     queuePerformanceHeatmap,
@@ -946,5 +1195,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     topExecutivesByVolume,
     allExecutivesWithData,
     topCallers,
+    serviceLevel,
+    abandonStats,
   };
 }

@@ -70,6 +70,16 @@ export async function saveUpload(
       attended: record.attended,
       export_complete: record.exportComplete,
       is_overlapping: record.isOverlapping,
+      queue_time_seconds: record.queueTimeSeconds,
+      handle_time_seconds: record.handleTimeSeconds,
+      alert_segments: record.alertSegments,
+      alert_time_seconds: record.alertTimeSeconds,
+      flow_exit: record.flowExit,
+      alerted_users: record.alertedUsers || null,
+      abandon_type: record.abandonType,
+      is_bounce: record.isBounce,
+      hold_time_seconds: record.holdTimeSeconds,
+      acw_seconds: record.acwSeconds,
     });
   }
 

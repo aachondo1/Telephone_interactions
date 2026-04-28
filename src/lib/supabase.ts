@@ -31,6 +31,16 @@ export type CallRecord = {
   attended: boolean;
   export_complete: boolean;
   is_overlapping: boolean;
+  queue_time_seconds: number;
+  handle_time_seconds: number;
+  alert_segments: number;
+  alert_time_seconds: number;
+  flow_exit: boolean;
+  alerted_users: string | null;
+  abandon_type: string | null;
+  is_bounce: boolean;
+  hold_time_seconds: number;
+  acw_seconds: number;
 };
 
 export type CallRecordInsert = Omit<CallRecord, 'id'>;
