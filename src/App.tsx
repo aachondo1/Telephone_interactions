@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { PhoneCall, UploadCloud, Users } from 'lucide-react';
+import { PhoneCall, UploadCloud, Users, CheckSquare } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
 import { UploadModal } from './components/UploadModal';
+import { DataAuditPanel } from './components/DataAuditPanel';
 import { parseCSVText, detectColumns, validateColumns, transformRows, calculateDateRangeFromRecords } from './lib/csvParser';
 import { parseAgentStatusCSV } from './lib/agentStatusParser';
 import { saveUpload, getCallRecords, getAllUploads, getAllCallRecords, getProcessedSignatures, saveAgentStatusUpload, getLatestAgentStatusUpload } from './lib/supabaseService';
@@ -26,6 +27,9 @@ export default function App() {
   const [agentStatusProcessing, setAgentStatusProcessing] = useState(false);
   const [agentStatusError, setAgentStatusError] = useState<string | null>(null);
   const [agentStatusProgress, setAgentStatusProgress] = useState('');
+
+  // Audit state
+  const [showAudit, setShowAudit] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -198,6 +202,22 @@ export default function App() {
           {/* Right actions */}
           <div className="flex items-center gap-2">
 
+            {/* Audit button */}
+            {dataState.phase === 'ready' && (
+              <button
+                type="button"
+                onClick={() => setShowAudit(!showAudit)}
+                className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-colors border ${
+                  showAudit
+                    ? 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800'
+                }`}
+              >
+                <CheckSquare size={15} />
+                <span className="hidden sm:inline">Auditoría</span>
+              </button>
+            )}
+
             {/* Agent status upload button */}
             <button
               type="button"
@@ -266,7 +286,11 @@ export default function App() {
           </div>
         )}
 
-        {dataState.phase === 'ready' && (
+        {dataState.phase === 'ready' && showAudit && (
+          <DataAuditPanel />
+        )}
+
+        {dataState.phase === 'ready' && !showAudit && (
           <Dashboard
             records={dataState.records}
             upload={dataState.upload}
