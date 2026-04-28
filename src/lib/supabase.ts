@@ -48,6 +48,7 @@ export type DeduplicationStats = {
   newRecords: number;
   duplicateRecords: number;
   totalAttempted: number;
+  canceledOverlappingCalls: number;
 };
 
 export type AgentStatusUpload = {

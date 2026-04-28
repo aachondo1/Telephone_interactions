@@ -92,7 +92,13 @@ export default function App() {
       const { records: parsed, duplicateCount } = await transformRows(rows, columnMap, processedSignatures);
 
       setProgress(`Guardando ${parsed.length.toLocaleString('es-CL')} registros nuevos${duplicateCount > 0 ? ` (${duplicateCount} duplicados omitidos)` : ''}...`);
-      const { upload, savedCount } = await saveUpload(file.name, parsed);
+      const { upload, savedCount, stats } = await saveUpload(file.name, parsed);
+
+      let successMessage = `✓ Se guardaron ${savedCount.toLocaleString('es-CL')} registros`;
+      if (stats.canceledOverlappingCalls > 0) {
+        successMessage += ` (${stats.canceledOverlappingCalls} llamadas superpuestas canceladas)`;
+      }
+      setProgress(successMessage);
 
       setProgress(`Recargando histórico completo...`);
       const allRecords = await getAllCallRecords();
