@@ -1,4 +1,4 @@
-import { BarChart2, Clock, AlertCircle, Layers } from 'lucide-react';
+import { BarChart2, Clock, AlertCircle, Layers, TrendingDown, Zap } from 'lucide-react';
 import type { QueueStat } from '../lib/kpi';
 import { formatDuration } from '../lib/kpi';
 
@@ -13,6 +13,11 @@ export function QueueKPICards({ stats, totalCalls }: Props) {
     ? Math.round(stats.reduce((acc, q) => acc + q.avgDurationSeconds * q.count, 0) / totalCalls)
     : 0;
   const totalUnattended = stats.reduce((acc, q) => acc + q.unattendedCount, 0);
+  const totalAbandonedInQueue = stats.reduce((acc, q) => acc + q.abandonQueueRate * q.unattendedCount / 100, 0);
+  const totalAbandonedInAlert = stats.reduce((acc, q) => acc + q.abandonAlertRate * q.unattendedCount / 100, 0);
+  const avgBounceRate = stats.length > 0
+    ? Math.round(stats.reduce((acc, q) => acc + q.bounceRate, 0) / stats.length)
+    : 0;
 
   const cards = [
     {
@@ -47,10 +52,26 @@ export function QueueKPICards({ stats, totalCalls }: Props) {
       color: 'bg-red-50 text-red-500',
       border: 'border-red-100',
     },
+    {
+      label: 'Abandonos en cola',
+      value: Math.round(totalAbandonedInQueue).toLocaleString('es-CL'),
+      sub: totalUnattended > 0 ? `${Math.round((totalAbandonedInQueue / totalUnattended) * 100)}% de abandonos` : '',
+      icon: TrendingDown,
+      color: 'bg-orange-50 text-orange-600',
+      border: 'border-orange-100',
+    },
+    {
+      label: 'Tasa de rebote',
+      value: `${avgBounceRate}%`,
+      sub: 'Promedio entre colas',
+      icon: Zap,
+      color: 'bg-purple-50 text-purple-600',
+      border: 'border-purple-100',
+    },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
       {cards.map(({ label, value, sub, icon: Icon, color, border }) => (
         <div key={label} className={`bg-white rounded-2xl p-5 shadow-sm border ${border} flex items-start gap-4`}>
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>

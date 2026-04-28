@@ -1,5 +1,6 @@
-import { Trophy, Clock, Phone, Users } from 'lucide-react';
+import { Trophy, Clock, Phone, Users, Zap, AlertOctagon } from 'lucide-react';
 import type { ExecutiveStat } from '../lib/kpi';
+import { formatDuration } from '../lib/kpi';
 
 type Props = {
   stats: ExecutiveStat[];
@@ -14,7 +15,16 @@ export function ExecutiveKPICards({ stats }: Props) {
   const topTotalTime = attended.length > 1
     ? attended.reduce((best, e) => e.totalDurationSeconds > best.totalDurationSeconds ? e : best, attended[0])
     : null;
+  const topHandleTime = attended.length > 0
+    ? attended.reduce((best, e) => e.avgHandleTimeSeconds > best.avgHandleTimeSeconds ? e : best, attended[0])
+    : null;
+  const topBounceRate = attended.length > 0
+    ? attended.reduce((best, e) => e.bounceRate > best.bounceRate ? e : best, attended[0])
+    : null;
   const totalActive = attended.length;
+  const avgBounceRate = attended.length > 0
+    ? Math.round(attended.reduce((a, b) => a + b.bounceRate, 0) / attended.length)
+    : 0;
 
   const cards = [
     {
@@ -49,10 +59,26 @@ export function ExecutiveKPICards({ stats }: Props) {
       color: 'bg-slate-100 text-slate-600',
       border: 'border-slate-100',
     },
+    {
+      label: 'Mayor tiempo manejo',
+      value: topHandleTime ? formatDuration(topHandleTime.avgHandleTimeSeconds) : '—',
+      sub: topHandleTime ? `${topHandleTime.executive}` : '',
+      icon: Zap,
+      color: 'bg-purple-50 text-purple-600',
+      border: 'border-purple-100',
+    },
+    {
+      label: 'Rebote promedio',
+      value: `${avgBounceRate}%`,
+      sub: topBounceRate ? `Max: ${topBounceRate.executive}` : '',
+      icon: AlertOctagon,
+      color: 'bg-orange-50 text-orange-600',
+      border: 'border-orange-100',
+    },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
       {cards.map(({ label, value, sub, icon: Icon, color, border }) => (
         <div key={label} className={`bg-white rounded-2xl p-5 shadow-sm border ${border} flex items-start gap-4`}>
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
