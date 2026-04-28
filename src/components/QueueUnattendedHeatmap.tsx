@@ -1,8 +1,16 @@
 import { useState, useMemo } from 'react';
 import type { QueueUnattendedHeatmapData } from '../lib/kpi';
 
-const WEEKDAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-const TAB_LABELS = ['Todos', ...WEEKDAY_LABELS];
+const WEEKDAY_TABS = [
+  { label: 'Todos', weekday: -1 },
+  { label: 'Lun', weekday: 1 },
+  { label: 'Mar', weekday: 2 },
+  { label: 'Mié', weekday: 3 },
+  { label: 'Jue', weekday: 4 },
+  { label: 'Vie', weekday: 5 },
+];
+
+const HOURS = Array.from({ length: 11 }, (_, i) => i + 8); // 8..18
 
 function getRateColor(rate: number): string {
   if (rate < 0) return '#f8fafc'; // sin datos
@@ -42,7 +50,7 @@ export default function QueueUnattendedHeatmap({ data }: { data: QueueUnattended
       };
     }
 
-    const weekday = selectedTab - 1;
+    const weekday = WEEKDAY_TABS[selectedTab].weekday;
     return {
       data: data.data.map(row => ({
         ...row,
@@ -62,11 +70,12 @@ export default function QueueUnattendedHeatmap({ data }: { data: QueueUnattended
     );
   }
 
+  const numHours = HOURS.length; // 11
   const cellSize = 20;
   const gap = 1;
   const leftMargin = 220;
   const topMargin = 50;
-  const gridWidth = leftMargin + (24 * cellSize) + (23 * gap) + 20;
+  const gridWidth = leftMargin + (numHours * cellSize) + ((numHours - 1) * gap) + 20;
   const gridHeight = topMargin + (filteredData.data.length * cellSize) + ((filteredData.data.length - 1) * gap) + 40;
 
   const getHourLabel = (hour: number) => `${String(hour).padStart(2, '0')}:00`;
@@ -80,7 +89,7 @@ export default function QueueUnattendedHeatmap({ data }: { data: QueueUnattended
         <p className="text-xs text-slate-400 mb-4">% de llamadas no atendidas por franja horaria</p>
 
         <div className="flex gap-2 flex-wrap">
-          {TAB_LABELS.map((label, index) => (
+          {WEEKDAY_TABS.map((tab, index) => (
             <button
               key={index}
               onClick={() => setSelectedTab(index)}
@@ -90,7 +99,7 @@ export default function QueueUnattendedHeatmap({ data }: { data: QueueUnattended
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
-              {label}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -99,16 +108,16 @@ export default function QueueUnattendedHeatmap({ data }: { data: QueueUnattended
       <div className="overflow-x-auto">
         <svg width={gridWidth} height={gridHeight} className="mx-auto">
           {/* Hour labels */}
-          {Array.from({ length: 24 }).map((_, h) => (
+          {HOURS.map((h, idx) => (
             <text
               key={`hour-${h}`}
-              x={leftMargin + h * (cellSize + gap) + cellSize / 2}
+              x={leftMargin + idx * (cellSize + gap) + cellSize / 2}
               y={topMargin - 8}
               textAnchor="middle"
               fontSize={12}
               fill="#475569"
             >
-              {h % 4 === 0 ? getHourLabel(h) : ''}
+              {(h - 8) % 2 === 0 ? getHourLabel(h) : ''}
             </text>
           ))}
 
@@ -128,12 +137,12 @@ export default function QueueUnattendedHeatmap({ data }: { data: QueueUnattended
                   {queueName}
                 </text>
 
-                {Array.from({ length: 24 }).map((_, hour) => {
+                {HOURS.map((hour, idx) => {
                   const cell = row.cells.find(c => c.hour === hour);
                   const rate = cell?.rate ?? -1;
                   const total = cell?.total ?? 0;
                   const unattended = cell?.unattended ?? 0;
-                  const x = leftMargin + hour * (cellSize + gap);
+                  const x = leftMargin + idx * (cellSize + gap);
                   const y = topMargin + queueIndex * (cellSize + gap);
                   const tooltipText = rate < 0
                     ? `${row.queue}, ${getHourLabel(hour)}: sin datos`
