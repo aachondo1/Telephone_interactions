@@ -132,10 +132,10 @@ export type QueueAttendanceEvolutionData = {
 export type ExecutiveOccupancyEntry = {
   executive: string;
   avgOccupancyPct: number;
-  avgDailyTalkMinutes: number;
-  avgDailyFreeMinutes: number;
-  avgShiftMinutes: number;
-  daysWithCalls: number;
+  weeklyTalkMinutes: number;
+  weeklyFreeMinutes: number;
+  weeklyShiftMinutes: number;
+  weeksWithCalls: number;
 };
 
 export type ExecutiveOccupancyData = {
@@ -498,11 +498,12 @@ export function calculateQueueAttendanceEvolution(records: CallRecord[]): QueueA
   };
 }
 
-function getShiftMinutes(dateStr: string): number {
-  const day = new Date(dateStr + 'T00:00:00').getDay();
-  if (day === 5) return 300;        // Viernes 9-14
-  if (day >= 1 && day <= 4) return 540; // Lun-Jue 9-18
-  return 0;
+function getMondayOfWeek(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().split('T')[0];
 }
 
 function timeStringToMinutes(timeStr: string | null): number | null {
@@ -541,62 +542,61 @@ function calculateTotalDuration(intervals: Array<[number, number]>): number {
 export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOccupancyData {
   if (records.length === 0) return { entries: [] };
 
-  const execDateMap = new Map<string, Map<string, CallRecord[]>>();
+  const execWeekMap = new Map<string, Map<string, CallRecord[]>>();
   for (const r of records) {
     if (!r.executive || r.executive === 'SIN ATENDER' || !r.call_date || !r.attended) continue;
-    if (!execDateMap.has(r.executive)) execDateMap.set(r.executive, new Map());
-    const dm = execDateMap.get(r.executive)!;
-    if (!dm.has(r.call_date)) dm.set(r.call_date, []);
-    dm.get(r.call_date)!.push(r);
+    const weekKey = getMondayOfWeek(r.call_date);
+    if (!execWeekMap.has(r.executive)) execWeekMap.set(r.executive, new Map());
+    const wm = execWeekMap.get(r.executive)!;
+    if (!wm.has(weekKey)) wm.set(weekKey, []);
+    wm.get(weekKey)!.push(r);
   }
 
-  const entries: ExecutiveOccupancyEntry[] = Array.from(execDateMap.entries())
-    .map(([executive, dateMap]) => {
-      let totalTalkSec = 0;
-      let totalShiftMin = 0;
-      let validDays = 0;
+  const WEEKLY_SHIFT_MINUTES = 2280;
 
-      for (const [date, callsOnDate] of dateMap.entries()) {
-        const shiftMin = getShiftMinutes(date);
-        if (shiftMin === 0) continue;
+  const entries: ExecutiveOccupancyEntry[] = Array.from(execWeekMap.entries())
+    .map(([executive, weekMap]) => {
+      let totalWeeklyTalkMin = 0;
+      let validWeeks = 0;
 
-        // Build intervals for this date (in minutes)
-        // Include: handle_time + alert_time (not queue_time, which is before agent pickup)
-        const intervals: Array<[number, number]> = [];
-        for (const call of callsOnDate) {
-          const callTime = timeStringToMinutes(call.call_time);
-          if (callTime === null) continue;
-
-          // Total time agent is occupied:
-          // - handle_time: duration + ACW (45s) + hold (client on hold with agent)
-          // - alert_time: system attempting to connect with agents
-          // NOTE: queue_time is NOT included (that's before agent answers)
-          const handleMin = Math.ceil((call.handle_time_seconds ?? call.duration_seconds) / 60);
-          const alertMin = Math.ceil((call.alert_time_seconds ?? 0) / 60);
-          const totalMin = handleMin + alertMin;
-
-          intervals.push([callTime, callTime + totalMin]);
+      for (const [, callsInWeek] of weekMap.entries()) {
+        const dateToCallsMap = new Map<string, CallRecord[]>();
+        for (const call of callsInWeek) {
+          if (!call.call_date) continue;
+          if (!dateToCallsMap.has(call.call_date)) dateToCallsMap.set(call.call_date, []);
+          dateToCallsMap.get(call.call_date)!.push(call);
         }
 
-        // Merge overlapping intervals
-        const mergedIntervals = mergeIntervals(intervals);
-        const dayTalkMin = calculateTotalDuration(mergedIntervals);
+        let weekTalkMin = 0;
+        for (const [, callsOnDate] of dateToCallsMap.entries()) {
+          const intervals: Array<[number, number]> = [];
+          for (const call of callsOnDate) {
+            const callTime = timeStringToMinutes(call.call_time);
+            if (callTime === null) continue;
 
-        totalTalkSec += dayTalkMin * 60;
-        totalShiftMin += shiftMin;
-        validDays++;
+            const handleMin = Math.ceil((call.handle_time_seconds ?? call.duration_seconds) / 60);
+            const alertMin = Math.ceil((call.alert_time_seconds ?? 0) / 60);
+            const totalMin = handleMin + alertMin;
+
+            intervals.push([callTime, callTime + totalMin]);
+          }
+
+          const mergedIntervals = mergeIntervals(intervals);
+          weekTalkMin += calculateTotalDuration(mergedIntervals);
+        }
+
+        totalWeeklyTalkMin += weekTalkMin;
+        validWeeks++;
       }
 
-      if (validDays < 3) return null;
-      const avgDailyTalkMin = Math.round(totalTalkSec / 60 / validDays);
-      const avgShiftMin = Math.round(totalShiftMin / validDays);
+      if (validWeeks < 1) return null;
       return {
         executive,
-        avgOccupancyPct: Math.min(100, Math.round((totalTalkSec / 60) / totalShiftMin * 100)),
-        avgDailyTalkMinutes: avgDailyTalkMin,
-        avgDailyFreeMinutes: Math.max(0, avgShiftMin - avgDailyTalkMin),
-        avgShiftMinutes: avgShiftMin,
-        daysWithCalls: validDays,
+        avgOccupancyPct: Math.min(100, Math.round((totalWeeklyTalkMin / WEEKLY_SHIFT_MINUTES) * 100)),
+        weeklyTalkMinutes: Math.round(totalWeeklyTalkMin / validWeeks),
+        weeklyFreeMinutes: Math.max(0, WEEKLY_SHIFT_MINUTES - Math.round(totalWeeklyTalkMin / validWeeks)),
+        weeklyShiftMinutes: WEEKLY_SHIFT_MINUTES,
+        weeksWithCalls: validWeeks,
       };
     })
     .filter((e): e is ExecutiveOccupancyEntry => e !== null)
