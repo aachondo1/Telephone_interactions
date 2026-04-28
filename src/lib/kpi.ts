@@ -561,12 +561,21 @@ export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOcc
         if (shiftMin === 0) continue;
 
         // Build intervals for this date (in minutes)
+        // Include: handle_time + alert_time (not queue_time, which is before agent pickup)
         const intervals: Array<[number, number]> = [];
         for (const call of callsOnDate) {
           const callTime = timeStringToMinutes(call.call_time);
           if (callTime === null) continue;
-          const durationMin = Math.ceil((call.handle_time_seconds ?? call.duration_seconds) / 60);
-          intervals.push([callTime, callTime + durationMin]);
+
+          // Total time agent is occupied:
+          // - handle_time: duration + ACW (45s) + hold (client on hold with agent)
+          // - alert_time: system attempting to connect with agents
+          // NOTE: queue_time is NOT included (that's before agent answers)
+          const handleMin = Math.ceil((call.handle_time_seconds ?? call.duration_seconds) / 60);
+          const alertMin = Math.ceil((call.alert_time_seconds ?? 0) / 60);
+          const totalMin = handleMin + alertMin;
+
+          intervals.push([callTime, callTime + totalMin]);
         }
 
         // Merge overlapping intervals
@@ -899,7 +908,9 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const queueTimes = records.map(r => r.queue_time_seconds ?? 0);
   const handleTimes = records.map(r => r.handle_time_seconds ?? 0);
   const alertTimes = records.map(r => r.alert_time_seconds ?? 0);
-  const holdTimes = records.map(r => r.hold_time_seconds ?? 0);
+
+  // Recalculate hold time dynamically to ensure consistency: hold_time = handle_time - 45 - duration
+  const holdTimes = records.map(r => Math.max(0, (r.handle_time_seconds ?? 0) - 45 - (r.duration_seconds ?? 0)));
 
   const avgQueueTimeSeconds = queueTimes.length > 0
     ? Math.round(queueTimes.reduce((a, b) => a + b, 0) / queueTimes.length)
