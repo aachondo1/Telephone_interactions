@@ -542,59 +542,48 @@ function calculateTotalDuration(intervals: Array<[number, number]>): number {
 export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOccupancyData {
   if (records.length === 0) return { entries: [] };
 
-  const execWeekMap = new Map<string, Map<string, CallRecord[]>>();
+  const execDayMap = new Map<string, Set<string>>();
+  const execDayTalkMap = new Map<string, Map<string, number>>();
+
   for (const r of records) {
     if (!r.executive || r.executive === 'SIN ATENDER' || !r.call_date || !r.attended) continue;
-    const weekKey = getMondayOfWeek(r.call_date);
-    if (!execWeekMap.has(r.executive)) execWeekMap.set(r.executive, new Map());
-    const wm = execWeekMap.get(r.executive)!;
-    if (!wm.has(weekKey)) wm.set(weekKey, []);
-    wm.get(weekKey)!.push(r);
+
+    if (!execDayMap.has(r.executive)) {
+      execDayMap.set(r.executive, new Set());
+      execDayTalkMap.set(r.executive, new Map());
+    }
+
+    execDayMap.get(r.executive)!.add(r.call_date);
+
+    const dayMap = execDayTalkMap.get(r.executive)!;
+    if (!dayMap.has(r.call_date)) dayMap.set(r.call_date, 0);
+
+    const callTime = timeStringToMinutes(r.call_time);
+    if (callTime === null) continue;
+
+    const handleMin = Math.ceil((r.handle_time_seconds || r.duration_seconds) / 60);
+    dayMap.set(r.call_date, dayMap.get(r.call_date)! + handleMin);
   }
 
   const WEEKLY_SHIFT_MINUTES = 2280;
 
-  const entries: ExecutiveOccupancyEntry[] = Array.from(execWeekMap.entries())
-    .map(([executive, weekMap]) => {
-      let totalWeeklyTalkMin = 0;
-      let validWeeks = 0;
+  const entries: ExecutiveOccupancyEntry[] = Array.from(execDayMap.entries())
+    .map(([executive, uniqueDays]) => {
+      const daysWithActivity = uniqueDays.size;
+      if (daysWithActivity < 3) return null;
 
-      for (const [, callsInWeek] of weekMap.entries()) {
-        const dateToCallsMap = new Map<string, CallRecord[]>();
-        for (const call of callsInWeek) {
-          if (!call.call_date) continue;
-          if (!dateToCallsMap.has(call.call_date)) dateToCallsMap.set(call.call_date, []);
-          dateToCallsMap.get(call.call_date)!.push(call);
-        }
+      const dayTalkMap = execDayTalkMap.get(executive)!;
+      const totalTalkMin = Array.from(dayTalkMap.values()).reduce((sum, min) => sum + min, 0);
+      const avgDailyTalkMin = Math.round(totalTalkMin / daysWithActivity);
+      const weeklyAvgTalkMin = avgDailyTalkMin * 5;
 
-        let weekTalkMin = 0;
-        for (const [, callsOnDate] of dateToCallsMap.entries()) {
-          const intervals: Array<[number, number]> = [];
-          for (const call of callsOnDate) {
-            const callTime = timeStringToMinutes(call.call_time);
-            if (callTime === null) continue;
-
-            const handleMin = Math.ceil((call.handle_time_seconds || call.duration_seconds) / 60);
-
-            intervals.push([callTime, callTime + handleMin]);
-          }
-
-          const mergedIntervals = mergeIntervals(intervals);
-          weekTalkMin += calculateTotalDuration(mergedIntervals);
-        }
-
-        totalWeeklyTalkMin += weekTalkMin;
-        validWeeks++;
-      }
-
-      if (validWeeks < 1) return null;
       return {
         executive,
-        avgOccupancyPct: Math.min(100, Math.round((totalWeeklyTalkMin / WEEKLY_SHIFT_MINUTES) * 100)),
-        weeklyTalkMinutes: Math.round(totalWeeklyTalkMin / validWeeks),
-        weeklyFreeMinutes: Math.max(0, WEEKLY_SHIFT_MINUTES - Math.round(totalWeeklyTalkMin / validWeeks)),
+        avgOccupancyPct: Math.min(100, Math.round((weeklyAvgTalkMin / WEEKLY_SHIFT_MINUTES) * 100)),
+        weeklyTalkMinutes: weeklyAvgTalkMin,
+        weeklyFreeMinutes: Math.max(0, WEEKLY_SHIFT_MINUTES - weeklyAvgTalkMin),
         weeklyShiftMinutes: WEEKLY_SHIFT_MINUTES,
-        weeksWithCalls: validWeeks,
+        weeksWithCalls: daysWithActivity,
       };
     })
     .filter((e): e is ExecutiveOccupancyEntry => e !== null)
