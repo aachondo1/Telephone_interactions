@@ -741,9 +741,9 @@ export function calculateServiceLevel(records: CallRecord[]): ServiceLevelData {
     // CRITICAL: Only inbound calls. Outbound calls (agente initiated) bypass queue.
     // Including outbound artificially lowers Service Level metric.
     if (!isInbound(r.call_direction)) continue;
+    if (!r.attended) continue;
     if (r.call_hour === null || r.call_hour === undefined) continue;
     if (r.queue_time_seconds === null || r.queue_time_seconds === undefined || r.queue_time_seconds < 0) continue;
-    if (r.queue_time_seconds === 0 && !r.attended) continue;
 
     const h = r.call_hour;
     const hourData = hourMap.get(h)!;

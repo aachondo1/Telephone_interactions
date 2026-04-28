@@ -97,9 +97,6 @@ export function QueuesDetailTable({ stats }: Props) {
                   {q.avgDurationFormatted}
                 </td>
                 <td className="px-4 py-3 text-right text-slate-600 font-mono text-xs">
-                  {q.totalDurationFormatted}
-                </td>
-                <td className="px-4 py-3 text-right text-slate-600 font-mono text-xs">
                   {formatDuration(q.avgQueueTimeSeconds)}
                 </td>
                 <td className="px-4 py-3 text-right text-slate-600 font-mono text-xs">
