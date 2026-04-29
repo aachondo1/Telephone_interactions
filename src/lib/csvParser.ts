@@ -390,9 +390,25 @@ export async function transformRows(
     }
 
     // Parse Genesys fields
-    const queueTimeSeconds = columnMap.queueTime
+    const rawQueueTime = columnMap.queueTime
       ? parseNumericField(row[columnMap.queueTime] ?? '0')
       : 0;
+
+    // CAMBIO 3: Corregir automáticamente salientes con queue_time
+    const queueTimeSeconds = (() => {
+      if (isOutbound && rawQueueTime > 0) {
+        anomalies.push({
+          type: 'outbound_has_queue_time',
+          callId: originalCallId,
+          queueTimeSeconds: rawQueueTime,
+          actionTaken: 'auto_corrected_to_zero',
+          severity: 'WARNING',
+          timestamp: new Date(),
+        });
+        return 0;  // Corregir automáticamente a 0
+      }
+      return rawQueueTime;
+    })();
 
     // CAMBIO 1: Validar handle_time >= duration
     const rawHandleTime = columnMap.handleTime
@@ -419,9 +435,6 @@ export async function transformRows(
       }
       return rawHandleTime > 0 ? rawHandleTime : durationSeconds;
     })();
-
-    // CAMBIO 3: Validar que salientes NO tengan queue_time
-    validateOutboundLogic(direction, queueTimeSeconds, originalCallId, anomalies);
     const alertSegments = columnMap.alertSegments
       ? parseNumericField(row[columnMap.alertSegments] ?? '1')
       : 1;
@@ -617,27 +630,6 @@ function calculateAbandonType(
   return null;
 }
 
-// CAMBIO 3: Validar que salientes NO tengan queue_time
-function validateOutboundLogic(
-  callDirection: string,
-  queueTimeSeconds: number,
-  callId: string,
-  anomalies: AnomalyEntry[]
-): void {
-  const isOutbound = callDirection?.toLowerCase().includes('saliente') ||
-                     callDirection?.toLowerCase().includes('outbound');
-
-  if (isOutbound && queueTimeSeconds > 0) {
-    anomalies.push({
-      type: 'outbound_has_queue_time',
-      callId,
-      queueTimeSeconds,
-      actionTaken: 'flagged_for_review',
-      severity: 'WARNING',
-      timestamp: new Date(),
-    });
-  }
-}
 
 function calculateIsBounce(
   alertSegments: number,
