@@ -74,8 +74,23 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   alertedUsers: ['usuarios - alertados', 'alerted users', 'agentes alertados', 'usuarios alertados'],
 };
 
+function normalizeHeader(header: string): string {
+  return header
+    .toLowerCase()
+    .trim()
+    // Fix UTF-8 encoding issues: Ã³ → o, Ã± → n, etc.
+    .replace(/Ã³/g, 'o')
+    .replace(/Ã±/g, 'n')
+    .replace(/Ã©/g, 'e')
+    .replace(/Ã¡/g, 'a')
+    .replace(/Ãº/g, 'u')
+    .replace(/Ã­/g, 'i')
+    // Remove extra whitespace
+    .replace(/\s+/g, ' ');
+}
+
 function findColumn(headers: string[], aliases: string[]): string | null {
-  const normalized = headers.map(h => h.toLowerCase().trim());
+  const normalized = headers.map(normalizeHeader);
   for (const alias of aliases) {
     const idx = normalized.findIndex(h => h === alias || h.includes(alias));
     if (idx !== -1) return headers[idx];
