@@ -561,7 +561,8 @@ export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOcc
     const callTime = timeStringToMinutes(r.call_time);
     if (callTime === null) continue;
 
-    const handleMin = Math.ceil((r.handle_time_seconds || r.duration_seconds) / 60);
+    const handleTimeSeconds = Math.max(r.handle_time_seconds || 0, r.duration_seconds + 45);
+    const handleMin = Math.ceil(handleTimeSeconds / 60);
     dayMap.set(r.call_date, dayMap.get(r.call_date)! + handleMin);
   }
 
@@ -623,7 +624,7 @@ export function calculateHourlyDemand(records: CallRecord[]): HourlyDemandData {
     if (day < 1 || day > 5) continue;
     if (!durationMap.has(day)) durationMap.set(day, new Map());
     const hm = durationMap.get(day)!;
-    hm.set(r.call_hour, (hm.get(r.call_hour) ?? 0) + (r.handle_time_seconds ?? r.duration_seconds));
+    hm.set(r.call_hour, (hm.get(r.call_hour) ?? 0) + r.duration_seconds);
   }
 
   const dayKeys = [1, 2, 3, 4, 5] as const;
@@ -1122,7 +1123,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     if (!r.attended || !r.executive || !topExecSet.has(r.executive) || !r.call_date) continue;
     if (!execDayMap.has(r.call_date)) execDayMap.set(r.call_date, new Map());
     const dayMap = execDayMap.get(r.call_date)!;
-    dayMap.set(r.executive, (dayMap.get(r.executive) ?? 0) + (r.handle_time_seconds ?? r.duration_seconds));
+    const handleTimeSeconds = Math.max(r.handle_time_seconds || 0, r.duration_seconds + 45);
+    dayMap.set(r.executive, (dayMap.get(r.executive) ?? 0) + handleTimeSeconds);
   }
   const allDates = Array.from(dateMap.keys()).sort();
   const executiveDailyTalkTime: ExecutiveDailyTalkTime[] = allDates.map(date => {
@@ -1140,7 +1142,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     if (r.call_hour === null || r.call_hour === undefined) continue;
     if (!execHourMap.has(r.call_hour)) execHourMap.set(r.call_hour, new Map());
     const hMap = execHourMap.get(r.call_hour)!;
-    hMap.set(r.executive, (hMap.get(r.executive) ?? 0) + (r.handle_time_seconds ?? r.duration_seconds));
+    const handleTimeSeconds = Math.max(r.handle_time_seconds || 0, r.duration_seconds + 45);
+    hMap.set(r.executive, (hMap.get(r.executive) ?? 0) + handleTimeSeconds);
   }
   const allExecutivesWithData = Array.from(
     new Set(records.filter(r => r.attended && r.executive).map(r => r.executive))
@@ -1163,7 +1166,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     const weekday = d.getDay();
     if (!execWeekdayMap.has(weekday)) execWeekdayMap.set(weekday, new Map());
     const wdMap = execWeekdayMap.get(weekday)!;
-    wdMap.set(r.executive, (wdMap.get(r.executive) ?? 0) + (r.handle_time_seconds ?? r.duration_seconds));
+    const handleTimeSeconds = Math.max(r.handle_time_seconds || 0, r.duration_seconds + 45);
+    wdMap.set(r.executive, (wdMap.get(r.executive) ?? 0) + handleTimeSeconds);
   }
   const executiveWeekdayTalkTime: ExecutiveWeekdayTalkTime[] = [1, 2, 3, 4, 5].map(day => {
     const row: ExecutiveWeekdayTalkTime = { day, label: weekdayLabels[day] };
