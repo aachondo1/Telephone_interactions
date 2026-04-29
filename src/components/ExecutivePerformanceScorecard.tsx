@@ -23,64 +23,147 @@ const TRAFFIC_LIGHT_BG: Record<TrafficLight, string> = {
 };
 
 /**
- * Metric descriptions with icons for quick reference
+ * Comprehensive metric descriptions with extended information
  */
-const METRIC_DESCRIPTIONS: Record<string, { icon: string; shortDesc: string; type: 'efficacy' | 'availability' | 'productivity' }> = {
+const METRIC_DESCRIPTIONS: Record<string, {
+  icon: string;
+  shortDesc: string;
+  type: 'efficacy' | 'availability' | 'productivity';
+  fullName: string;
+  whatMeasures: string;
+  greenRange: string;
+  yellowRange: string;
+  redRange: string;
+  example: string;
+  impact: string;
+  diagnostic: string;
+}> = {
   holdRate: {
     icon: '📏',
     shortDesc: '% cliente en espera → Falta conocimiento',
     type: 'efficacy',
+    fullName: 'Tasa de Hold (Hold Rate)',
+    whatMeasures: 'Porcentaje de llamadas donde el ejecutivo puso al cliente en espera',
+    greenRange: '🟢 ≤ 20%: Excelente conocimiento, responde sin consultar',
+    yellowRange: '🟡 20-35%: Consulta ocasionalmente, es normal',
+    redRange: '🔴 > 35%: No conoce las respuestas, necesita capacitación',
+    example: 'Juan: 12% → Sabe responder. María: 45% → Pone clientes en espera constantemente',
+    impact: 'Cliente en espera = cliente molesto. Alto hold degrada CSAT (satisfacción)',
+    diagnostic: '¿Cuáles son los 3 temas que más consulta? ¿Necesita capacitación específica?',
   },
   netAHT: {
     icon: '⏱️',
     shortDesc: 'Velocidad vs equipo → Lento/eficiente',
     type: 'efficacy',
+    fullName: 'AHT Neto (Net After-Handle Time)',
+    whatMeasures: 'Tiempo de manejo (handle_time - 45s ACW) comparado con el promedio del equipo',
+    greenRange: '🟢 -10% a +15%: Dentro del rango normal, eficiente',
+    yellowRange: '🟡 +15% a +25%: Un poco más lento que el promedio',
+    redRange: '🔴 > +25%: Muy lento, revisar si es complejidad o ineficiencia',
+    example: 'Equipo: 5min AHT. Carlos: 6:30min (30% más lento) → Necesita coaching en agilidad',
+    impact: 'Más lento = menos llamadas atendidas / más costo operativo',
+    diagnostic: '¿Las llamadas son genuinamente complejas? ¿O está siendo ineficiente?',
   },
   fcr: {
     icon: '✅',
     shortDesc: 'Clientes resueltos 1ª vez → Calidad',
     type: 'efficacy',
+    fullName: 'First Contact Resolution (FCR) Estimado',
+    whatMeasures: '% de clientes únicos que NO vuelven a llamar en 24h después de hablar con este ejecutivo',
+    greenRange: '🟢 ≥ 92%: Resuelve muy bien, clientes satisfechos',
+    yellowRange: '🟡 85-92%: Buena resolución, aceptable',
+    redRange: '🔴 < 85%: Muchos clientes vuelven a llamar',
+    example: 'Roberto: 95% FCR → 95 de 100 clientes no vuelven. Laura: 82% FCR → 18 clientes que vuelven',
+    impact: 'Bajo FCR = trabajo duplicado, cliente frustrado, costo adicional',
+    diagnostic: '¿Las llamadas que resuelve son más simples? ¿Hay patrón de qué temas vuelven?',
   },
   bounceRate: {
     icon: '🔴',
     shortDesc: '% alertas ignoradas → Cherry-picking',
     type: 'availability',
+    fullName: 'Individual Bounce Rate ⭐ LA MÁS IMPORTANTE',
+    whatMeasures: '% de llamadas donde fue PRIMER ejecutivo alertado pero NO la atendió (otro la respondió)',
+    greenRange: '🟢 ≤ 5%: Excelente disponibilidad, muy enfocado',
+    yellowRange: '🟡 5-12%: Aceptable, pequeñas distracciones',
+    redRange: '🔴 > 12%: Deja pasar llamadas frecuentemente (cherry-picking)',
+    example: 'Diego: 5% bounce (responde 95/100 alertas) 🟢. Pepe: 20% bounce (responde 80/100) 🔴 Está ignorando',
+    impact: 'Alto bounce = no está disponible / no está enfocado / cherry-picking',
+    diagnostic: '¿Está en el escritorio cuando suena? ¿Elige ignorar las complejas? ¿Problemas técnicos?',
   },
   avgAlertTime: {
     icon: '📞',
     shortDesc: 'Segundos respuesta → Enfoque',
     type: 'availability',
+    fullName: 'Tiempo de Timbrado Promedio (Alert Time)',
+    whatMeasures: 'Promedio de segundos desde que suena la alerta hasta que el ejecutivo responde',
+    greenRange: '🟢 ≤ 3s: Responde muy rápido, excelente',
+    yellowRange: '🟡 3-6s: Normal, aceptable',
+    redRange: '🔴 > 6s: Lento para responder, degrada SLA',
+    example: 'Cristina: 2s respuesta 🟢 (muy rápida). Felipe: 8s respuesta 🔴 (muy lento, cliente molesto)',
+    impact: 'Cada segundo cuenta en experiencia del cliente. Alto degrada SLA (acuerdo de nivel de servicio)',
+    diagnostic: '¿Está enfocado cuando suena la alerta? ¿Problemas con headset/sistema?',
   },
   acwAdherence: {
     icon: '🔧',
     shortDesc: 'Consistencia wrap-up → Disciplina',
     type: 'availability',
+    fullName: 'Factor de Adherencia ACW',
+    whatMeasures: 'Qué tan consistente es el After-Call Work (wrap-up). Esperado: 45 segundos fijos',
+    greenRange: '🟢 ≥ 90%: ACW muy consistente, disciplinado',
+    yellowRange: '🟡 80-90%: Variación aceptable',
+    redRange: '🔴 < 80%: Mucha variación, uso inconsistente',
+    example: 'Gabriela: ACW variable (40s, 60s, 55s) 🔴. Roberto: ACW consistente (45s±3s) 🟢',
+    impact: 'Bajo = falta de proceso / inconsistencia / ejecutivo no sigue procedimientos',
+    diagnostic: '¿Está guardando notas en el sistema? ¿A veces olvida el wrap-up?',
   },
   erlangContribution: {
     icon: '📊',
     shortDesc: '% carga que lleva → Equitativo',
     type: 'productivity',
+    fullName: 'Contribución al Erlang',
+    whatMeasures: '% de la duración total de la cola que este ejecutivo maneja (equilibrio de carga)',
+    greenRange: '🟢 ≈ Promedio: Carga equilibrada, equitativo',
+    yellowRange: '🟡 ±5% del promedio: Pequeña variación, normal',
+    redRange: '🔴 < promedio-15%: Baja carga, revisar disponibilidad',
+    example: 'Cola 10 personas → promedio 10% cada uno. Julio: 9.5% 🟡. Arturo: 4% 🔴 (muy bajo)',
+    impact: 'Bajo = posible inactividad / problemas de disponibilidad. No es indicador de calidad por sí solo',
+    diagnostic: '¿Está disponible? ¿Por qué baja carga? Revisar junto con bounce rate',
   },
   realOccupancy: {
     icon: '⚙️',
     shortDesc: '% jornada ocupado → Productividad',
     type: 'productivity',
+    fullName: 'Ocupación Real Individual',
+    whatMeasures: '% de su jornada de 38 horas/semana que estuvo realmente ocupado con llamadas',
+    greenRange: '🟢 ≥ 80%: Muy productivo, casi toda la jornada en llamadas',
+    yellowRange: '🟡 60-80%: Normal, aceptable, hay tiempo para pausa',
+    redRange: '🔴 < 60%: Mucho tiempo libre/ocioso, revisar si está en sistema',
+    example: 'Roxana: 88% ocupada (1800min handle + 200min alert) 🟢. Ícaro: 31% ocupado 🔴',
+    impact: 'Bajo = posible inactividad / problemas técnicos / no está realmente trabajando',
+    diagnostic: '¿Está realmente conectado? ¿Problemas de sistema? ¿Tiempo de descanso excesivo?',
   },
 };
 
 /**
- * Tooltip component for metric descriptions
+ * Detailed tooltip component for metric descriptions
  */
-function MetricTooltip({ metricKey }: { metricKey: string }) {
+function MetricTooltip({ metricKey, triggerElement = 'icon' }: { metricKey: string; triggerElement?: 'icon' | 'label' | 'both' }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const desc = METRIC_DESCRIPTIONS[metricKey];
 
   if (!desc) return null;
 
+  const getTrafficLightColor = (range: string): string => {
+    if (range.includes('🟢')) return '#d1fae5';
+    if (range.includes('🟡')) return '#fef3c7';
+    if (range.includes('🔴')) return '#fee2e2';
+    return '#f3f4f6';
+  };
+
   return (
     <div className="relative inline-block">
       <button
-        className="text-gray-400 hover:text-gray-600 cursor-help"
+        className="text-gray-400 hover:text-gray-600 cursor-help transition-colors"
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
         onClick={() => setShowTooltip(!showTooltip)}
@@ -88,12 +171,56 @@ function MetricTooltip({ metricKey }: { metricKey: string }) {
         <span className="text-xs font-bold">ⓘ</span>
       </button>
       {showTooltip && (
-        <div className="absolute z-50 w-48 p-2 text-xs text-white bg-gray-800 rounded-lg bottom-full left-0 mb-2 whitespace-normal">
-          <div className="flex items-start gap-2">
-            <span className="text-lg">{desc.icon}</span>
-            <span>{desc.shortDesc}</span>
+        <div className="absolute z-50 w-96 p-4 bg-white rounded-lg border border-gray-300 shadow-xl bottom-full right-0 mb-2 text-gray-900">
+          {/* Header */}
+          <div className="mb-4 border-b border-gray-200 pb-3">
+            <div className="flex items-start gap-3">
+              <span className="text-3xl">{desc.icon}</span>
+              <div className="flex-1">
+                <h4 className="text-lg font-bold text-gray-900">{desc.fullName}</h4>
+                <p className="text-xs text-gray-600 mt-1 italic">{desc.shortDesc}</p>
+              </div>
+            </div>
           </div>
-          <div className="absolute bottom-0 left-4 w-2 h-2 bg-gray-800 transform rotate-45 translate-y-1"></div>
+
+          {/* What it measures */}
+          <div className="mb-4">
+            <p className="text-sm text-gray-700 leading-relaxed">{desc.whatMeasures}</p>
+          </div>
+
+          {/* Thresholds */}
+          <div className="space-y-2 mb-4">
+            <div className="p-2 rounded border-l-4 border-green-500" style={{ backgroundColor: getTrafficLightColor(desc.greenRange) }}>
+              <p className="text-sm font-medium text-green-900">{desc.greenRange}</p>
+            </div>
+            <div className="p-2 rounded border-l-4 border-yellow-500" style={{ backgroundColor: getTrafficLightColor(desc.yellowRange) }}>
+              <p className="text-sm font-medium text-yellow-900">{desc.yellowRange}</p>
+            </div>
+            <div className="p-2 rounded border-l-4 border-red-500" style={{ backgroundColor: getTrafficLightColor(desc.redRange) }}>
+              <p className="text-sm font-medium text-red-900">{desc.redRange}</p>
+            </div>
+          </div>
+
+          {/* Example */}
+          <div className="mb-4 bg-gray-50 p-3 rounded">
+            <p className="text-xs font-semibold text-gray-700 mb-1">Ejemplo Real:</p>
+            <p className="text-xs text-gray-600 italic">{desc.example}</p>
+          </div>
+
+          {/* Impact */}
+          <div className="mb-4 bg-orange-50 p-3 rounded border-l-4 border-orange-400">
+            <p className="text-xs font-semibold text-orange-900 mb-1">⚡ Por qué importa:</p>
+            <p className="text-xs text-orange-800">{desc.impact}</p>
+          </div>
+
+          {/* Diagnostic */}
+          <div className="bg-blue-50 p-3 rounded border-l-4 border-blue-400">
+            <p className="text-xs font-semibold text-blue-900 mb-1">❓ Si está bajo/mal:</p>
+            <p className="text-xs text-blue-800">{desc.diagnostic}</p>
+          </div>
+
+          {/* Arrow pointer */}
+          <div className="absolute top-0 right-4 w-3 h-3 bg-white rounded-sm transform rotate-45 -translate-y-1.5 border-t border-l border-gray-300"></div>
         </div>
       )}
     </div>
@@ -116,12 +243,25 @@ function MetricCard({
   trafficLight: TrafficLight;
   metricKey: string;
 }) {
+  const [showHoverTooltip, setShowHoverTooltip] = useState(false);
   const desc = METRIC_DESCRIPTIONS[metricKey];
 
   return (
-    <div className="border rounded-lg p-4 bg-white hover:shadow-md transition-shadow">
+    <div
+      className="border rounded-lg p-4 bg-white hover:shadow-md transition-shadow relative"
+      onMouseEnter={() => setShowHoverTooltip(true)}
+      onMouseLeave={() => setShowHoverTooltip(false)}
+    >
+      {/* Quick hover tooltip */}
+      {showHoverTooltip && desc && (
+        <div className="absolute -top-16 left-0 right-0 bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap text-center z-40">
+          Pasa el ratón o haz clic en ⓘ para detalles
+          <div className="absolute -bottom-1 left-1/2 w-2 h-2 bg-gray-900 transform -translate-x-1/2 rotate-45"></div>
+        </div>
+      )}
+
       <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2 flex-1">
+        <div className="flex items-center gap-2 flex-1 cursor-help">
           {desc && <span className="text-lg">{desc.icon}</span>}
           <div>
             <span className="text-sm font-medium text-gray-700">{label}</span>
