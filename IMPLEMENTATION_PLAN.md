@@ -60,27 +60,48 @@ f5d39d2: Fix Erlang occupancy KPI calculations
 
 ---
 
-### ⏳ PHASE 2A: BASE DE DATOS (PENDIENTE)
+### ⏳ PHASE 2A: BASE DE DATOS (COMPLETADO)
 
-**Acciones requeridas:**
+**Acciones realizadas:**
 
-1. Aplicar migration SQL:
-   ```bash
-   # Esperar archivo: 20260428_data_integrity_migration.sql
+1. ✅ Archivo de migración SQL creado:
+   ```
+   supabase/migrations/20260428_add_data_integrity_constraints.sql
    ```
 
-2. Verificar constraints creados:
-   ```sql
-   SELECT constraint_name FROM information_schema.table_constraints 
-   WHERE table_name = 'call_records' AND constraint_type = 'CHECK';
+2. ✅ Tablas creadas:
+   - `import_audit_log` - Registra anomalías de cada importación
+   - `data_quality_metrics` - Métricas de calidad por período
+
+3. ✅ Constraints implementados:
+   - `check_handle_time_vs_duration` - Valida handle_time >= duration
+   - `check_attended_requires_duration` - Duration > 0 para atendidas
+   - `check_outbound_no_queue` - Salientes sin queue_time
+   - `check_attended_has_alert_time` - Atendidas con alert_time >= 0
+
+4. ✅ Funciones de base de datos:
+   - `calculate_data_quality_score(date)` - Calcula métricas de calidad
+   - `log_import_anomaly()` - Registra anomalías
+   - `detect_call_record_anomalies()` - Trigger para marcar datos sospechosos
+
+5. ✅ Vistas de integridad de datos:
+   - `v_daily_anomalies` - Resumen diario
+   - `v_monthly_data_quality` - Tendencias mensuales
+   - `v_data_integrity_summary` - Reporte detallado
+
+6. ✅ Instrucciones de aplicación creadas:
+   ```
+   APPLY_MIGRATION.md - Guía paso a paso
    ```
 
-3. Verificar tablas nuevas:
-   ```sql
-   SELECT * FROM import_audit_log LIMIT 1;
-   ```
+**Commits realizados:**
+```
+d06121f: Add data integrity constraints and audit logging schema
+```
 
-**Estado:** ⏳ Esperando archivo parche `20260428_data_integrity_migration.sql`
+**PRÓXIMO PASO:** Aplicar la migración en Supabase Studio
+
+Ver: `APPLY_MIGRATION.md` para instrucciones detalladas
 
 ---
 
@@ -182,7 +203,7 @@ DESPUÉS:
 ```
 PHASE 1: ✅ PREPARACIÓN
     ↓
-PHASE 2A: ⏳ BD (Esperar SQL migration)
+PHASE 2A: ⏳ BD (LISTA - Esperar aplicación en Supabase)
     ↓
 PHASE 2B: ✅ KPI.TS (COMPLETADO)
     ↓
@@ -206,11 +227,15 @@ PHASE 6: ⏳ VALIDACIÓN FINAL
 - [x] Erlang calculation actualizada (duration directo)
 - [x] Executive occupancy con fallback MAX()
 - [x] Daily/hourly/weekday talk time actualizado
-- [x] Commit con mensaje descriptivo
+- [x] Commit kpi.ts con mensaje descriptivo
+- [x] Plan de implementación documentado
+- [x] Migration SQL creada (tables, constraints, functions, views)
+- [x] Instrucciones de aplicación (APPLY_MIGRATION.md)
+- [x] Commits phase 2A pusheados
 
 ### Pendiente - Próximos pasos
-- [ ] Recibir `20260428_data_integrity_migration.sql`
-- [ ] Aplicar constraints en BD
+- [ ] **MANUAL:** Aplicar migration SQL en Supabase Studio
+- [ ] **MANUAL:** Ejecutar tests de verificación (5 queries de test)
 - [ ] Recibir `csvParser.ts.patch`
 - [ ] Implementar validaciones de importación
 - [ ] Recibir `Dashboard.tsx.patch`
@@ -243,13 +268,29 @@ Para BD:
 
 ## 📞 PRÓXIMOS PASOS
 
-**Para continuar, solicitar:**
+### 🔴 Acción inmediata (MANUAL)
 
-1. **`20260428_data_integrity_migration.sql`** - Constraints y tablas de auditoría
-2. **`csvParser.ts.patch`** - Validaciones en importación
-3. **`Dashboard.tsx.patch`** - UI de data quality
+**Aplicar migración SQL en Supabase:**
 
-Una vez recibidos, ejecutar Phase 2A, 3A y 3B en secuencia.
+1. Abre: `APPLY_MIGRATION.md`
+2. Sigue las instrucciones en "Opción 1: Supabase Studio"
+3. Ejecuta los 5 tests de verificación
+4. Confirma que todo pasó (5 tests = ✅)
+
+### 📥 Para continuar con Phase 3A y 3B, solicitar:
+
+1. **`csvParser.ts.patch`** - Validaciones en importación
+   - Validación handle_time
+   - Clasificación de abandons
+   - Detección de anomalías
+   - Logging a import_audit_log
+
+2. **`Dashboard.tsx.patch`** - UI de data quality
+   - DataQualityBanner component
+   - Tab de Auditoría
+   - Indicadores visuales
+
+Una vez se aplique la migración y se reciban los parches, ejecutar Phase 3A y 3B en secuencia.
 
 ---
 
@@ -260,4 +301,4 @@ Una vez recibidos, ejecutar Phase 2A, 3A y 3B en secuencia.
 - Las métricas del dashboard cambiarán notablemente una vez se completen todas las fases
 - El sistema de auditoría rastreará todos los problemas detectados
 
-**Última actualización:** 2026-04-29
+**Última actualización:** 2026-04-29 (Phase 2A completada, migration lista)
