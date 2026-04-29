@@ -13,8 +13,11 @@ import { TopBottomRankings } from './TopBottomRankings';
 type NavigateTab = 'colas' | 'ejecutivos' | 'planificacion';
 type TrafficLight = 'green' | 'yellow' | 'red';
 
+import type { CallRecord } from '../lib/supabase';
+
 type Props = {
   kpis: KPISummary;
+  records: CallRecord[];
   onNavigate: (tab: NavigateTab) => void;
 };
 
@@ -75,7 +78,7 @@ function TrendTooltip({ active, payload, label }: { active?: boolean; payload?: 
   );
 }
 
-export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
+export function ExecutiveDashboard({ kpis, records, onNavigate }: Props) {
   const attendedPercent = useMemo(
     () => kpis.totalCalls > 0
       ? Math.round(((kpis.totalCalls - kpis.unattendedCount) / kpis.totalCalls) * 100)
@@ -83,7 +86,7 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
     [kpis],
   );
 
-  const topBottomData = useMemo(() => calculateTopBottom(kpis), [kpis]);
+  const topBottomData = useMemo(() => calculateTopBottom(records, kpis), [records, kpis]);
 
   const activeQueues     = kpis.queueStats.filter(q => q.queue !== 'Sin cola').length;
   const activeExecutives = kpis.executiveStats.filter(e => e.executive !== 'SIN ATENDER').length;

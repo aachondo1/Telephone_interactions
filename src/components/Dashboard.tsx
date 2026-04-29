@@ -454,6 +454,7 @@ export function Dashboard({ records, upload, agentStatusRecords }: Props) {
       {activeTab === 'resumen' && (
         <ExecutiveDashboard
           kpis={kpis}
+          records={filteredRecords}
           onNavigate={(tab) => setActiveTab(tab)}
         />
       )}

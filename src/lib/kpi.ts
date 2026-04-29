@@ -1310,83 +1310,105 @@ function calculateTrend(current: number, _previous: number | null): TrendDirecti
   return 'stable';
 }
 
-export function calculateTopBottom(kpis: KPISummary): TopBottomData {
-  const execStats = kpis.executiveStats.filter(e => e.executive !== 'SIN ATENDER');
-  const queueStats = kpis.queueStats.filter(q => q.queue !== 'Sin cola');
+export function calculateTopBottom(records: CallRecord[], kpis: KPISummary): TopBottomData {
+  // Recalcular desde cero usando registros originales
+  const execMap = new Map<string, { total: number; attended: number; avgQueueTime: number; totalQueueTime: number }>();
+  const queueMap = new Map<string, { total: number; attended: number; avgQueueTime: number; totalQueueTime: number }>();
+
+  for (const r of records) {
+    if (!r.executive) continue;
+
+    const exec = r.executive;
+    const queue = r.queue || 'Sin cola';
+    const attended = r.attended ? 1 : 0;
+    const queueTime = r.queue_time_seconds ?? 0;
+
+    // Por ejecutivo
+    if (!execMap.has(exec)) {
+      execMap.set(exec, { total: 0, attended: 0, avgQueueTime: 0, totalQueueTime: 0 });
+    }
+    const execData = execMap.get(exec)!;
+    execData.total += 1;
+    execData.attended += attended;
+    execData.totalQueueTime += queueTime;
+
+    // Por cola
+    if (!queueMap.has(queue)) {
+      queueMap.set(queue, { total: 0, attended: 0, avgQueueTime: 0, totalQueueTime: 0 });
+    }
+    const queueData = queueMap.get(queue)!;
+    queueData.total += 1;
+    queueData.attended += attended;
+    queueData.totalQueueTime += queueTime;
+  }
 
   const teamAverageAttendance = kpis.totalCalls > 0
     ? Math.round(((kpis.totalCalls - kpis.unattendedCount) / kpis.totalCalls) * 100)
     : 0;
 
-  // Debug: Log para entender qué datos tenemos
-  if (execStats.length > 0) {
-    console.log('DEBUG calculateTopBottom:', {
-      firstExec: execStats[0].executive,
-      count: execStats[0].count,
-      unattendedCount: execStats[0].unattendedCount,
-      unattendedPercent: execStats[0].unattendedPercent,
-      teamAverage: teamAverageAttendance,
-      totalCalls: kpis.totalCalls,
-      totalUnattended: kpis.unattendedCount,
-    });
-  }
+  // Convertir a formato de ranking para ejecutivos
+  const executiveAttendance = Array.from(execMap.entries())
+    .filter(([name]) => name !== 'SIN ATENDER')
+    .map(([executive, data]) => {
+      const attendanceRate = data.total > 0 ? Math.round((data.attended / data.total) * 100) : 0;
+      const avgQueueTime = data.total > 0 ? Math.round(data.totalQueueTime / data.total) : 0;
+      return {
+        executive,
+        attendanceRate,
+        callCount: data.total,
+        avgQueueTime,
+        trend: calculateTrend(attendanceRate, null) as TrendDirection,
+      };
+    })
+    .sort((a, b) => b.attendanceRate - a.attendanceRate);
 
-  // Calcular tasa de atención por ejecutivo usando unattendedPercent correctamente
-  const executiveAttendance = execStats.map((e, idx) => {
-    // Tasa de atención = 100% - unattendedPercent
-    const attendanceRate = 100 - e.unattendedPercent;
-    return {
-      ...e,
-      attendanceRate,
-      rank: idx + 1,
-      trend: calculateTrend(e.percentage, null),
-    };
-  });
-
-  const sortedByAttendance = [...executiveAttendance].sort((a, b) => b.attendanceRate - a.attendanceRate);
-  const topExecutives: TopBottomExecutive[] = sortedByAttendance.slice(0, 5).map((e, idx) => ({
+  const topExecutives: TopBottomExecutive[] = executiveAttendance.slice(0, 5).map((e, idx) => ({
     executive: e.executive,
     attendanceRate: e.attendanceRate,
-    callCount: e.count,
+    callCount: e.callCount,
     rank: idx + 1,
     trend: e.trend,
   }));
 
-  const bottomExecutives: TopBottomExecutive[] = sortedByAttendance.slice(-5).reverse().map((e, idx) => ({
+  const bottomExecutives: TopBottomExecutive[] = executiveAttendance.slice(-5).reverse().map((e, idx) => ({
     executive: e.executive,
     attendanceRate: e.attendanceRate,
-    callCount: e.count,
-    rank: sortedByAttendance.length - 4 + idx,
+    callCount: e.callCount,
+    rank: executiveAttendance.length - 4 + idx,
     trend: e.trend,
   }));
 
-  // Calcular tasa de atención por cola
-  const queueAttendance = queueStats.map((q, idx) => {
-    const attendanceRate = 100 - Math.round((q.unattendedCount / q.count) * 100);
-    return {
-      ...q,
-      attendanceRate,
-      rank: idx + 1,
-      trend: calculateTrend(q.percentage, null),
-    };
-  });
+  // Convertir a formato de ranking para colas
+  const queueAttendance = Array.from(queueMap.entries())
+    .filter(([name]) => name !== 'Sin cola')
+    .map(([queue, data]) => {
+      const attendanceRate = data.total > 0 ? Math.round((data.attended / data.total) * 100) : 0;
+      const avgQueueTime = data.total > 0 ? Math.round(data.totalQueueTime / data.total) : 0;
+      return {
+        queue,
+        attendanceRate,
+        callCount: data.total,
+        avgQueueTime,
+        trend: calculateTrend(attendanceRate, null) as TrendDirection,
+      };
+    })
+    .sort((a, b) => b.attendanceRate - a.attendanceRate);
 
-  const sortedQueuesByAttendance = [...queueAttendance].sort((a, b) => b.attendanceRate - a.attendanceRate);
-  const topQueues: TopBottomQueue[] = sortedQueuesByAttendance.slice(0, 5).map((q, idx) => ({
+  const topQueues: TopBottomQueue[] = queueAttendance.slice(0, 5).map((q, idx) => ({
     queue: q.queue,
     attendanceRate: q.attendanceRate,
-    callCount: q.count,
-    avgQueueTime: Math.round(q.avgQueueTimeSeconds),
+    callCount: q.callCount,
+    avgQueueTime: q.avgQueueTime,
     rank: idx + 1,
     trend: q.trend,
   }));
 
-  const bottomQueues: TopBottomQueue[] = sortedQueuesByAttendance.slice(-5).reverse().map((q, idx) => ({
+  const bottomQueues: TopBottomQueue[] = queueAttendance.slice(-5).reverse().map((q, idx) => ({
     queue: q.queue,
     attendanceRate: q.attendanceRate,
-    callCount: q.count,
-    avgQueueTime: Math.round(q.avgQueueTimeSeconds),
-    rank: sortedQueuesByAttendance.length - 4 + idx,
+    callCount: q.callCount,
+    avgQueueTime: q.avgQueueTime,
+    rank: queueAttendance.length - 4 + idx,
     trend: q.trend,
   }));
 
