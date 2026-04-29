@@ -7,6 +7,7 @@ import {
   PhoneIncoming, PhoneOutgoing, TrendingUp,
 } from 'lucide-react';
 import type { KPISummary } from '../lib/kpi';
+import { ExecutivePerformanceComparison } from './ExecutivePerformanceComparison';
 
 type TrafficLight = 'green' | 'yellow' | 'red';
 
@@ -385,6 +386,11 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
 
         </div>
       </div>
+
+      {/* ── Comparación de rendimiento ──────────────────────────── */}
+      {kpis.executiveStats.filter(e => e.executive !== 'SIN ATENDER').length > 0 && (
+        <ExecutivePerformanceComparison stats={kpis.executiveStats} />
+      )}
 
       {/* ── Tarjetas de navegación ────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

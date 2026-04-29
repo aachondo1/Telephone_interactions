@@ -273,6 +273,30 @@ export function formatDuration(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+export function calculateExecutivePerformanceScore(stats: ExecutiveStat[]): Array<ExecutiveStat & { performanceScore: number }> {
+  const attended = stats.filter(e => e.executive !== 'SIN ATENDER');
+  if (attended.length === 0) return [];
+
+  const scores = attended.map(e => {
+    const avgDuration = attended.reduce((sum, ex) => sum + ex.avgDurationSeconds, 0) / attended.length;
+    const avgHandleTime = attended.reduce((sum, ex) => sum + ex.avgHandleTimeSeconds, 0) / attended.length;
+    const avgQueueTime = attended.reduce((sum, ex) => sum + ex.avgQueueTimeSeconds, 0) / attended.length;
+    const avgBounceRate = attended.reduce((sum, ex) => sum + ex.bounceRate, 0) / attended.length;
+
+    const volumeScore = (e.count / Math.max(...attended.map(ex => ex.count))) * 20;
+    const durationScore = Math.max(0, 20 * (1 - Math.min(1, e.avgDurationSeconds / avgDuration)));
+    const handleTimeScore = Math.max(0, 20 * (1 - Math.min(1, e.avgHandleTimeSeconds / avgHandleTime)));
+    const bounceScore = Math.max(0, 20 * (1 - Math.min(1, e.bounceRate / Math.max(avgBounceRate, 1))));
+    const queueScore = Math.max(0, 20 * (1 - Math.min(1, e.avgQueueTimeSeconds / avgQueueTime)));
+
+    const performanceScore = Math.round(volumeScore + durationScore + handleTimeScore + bounceScore + queueScore);
+
+    return { ...e, performanceScore };
+  });
+
+  return scores;
+}
+
 function isInbound(direction: string): boolean {
   const d = (direction || '').toLowerCase();
   return d === 'inbound' || d === 'entrante';
