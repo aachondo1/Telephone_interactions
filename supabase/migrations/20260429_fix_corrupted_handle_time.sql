@@ -3,7 +3,16 @@
 -- Esto debe ejecutarse ANTES de 20260428_add_data_integrity_constraints.sql
 
 -- ============================================================================
--- FIX 1: Actualizar handle_time corrupto (handle_time < duration)
+-- STEP 1: Crear columnas de data quality si no existen
+-- ============================================================================
+
+ALTER TABLE call_records
+ADD COLUMN IF NOT EXISTS data_quality_flags jsonb DEFAULT '{}',
+ADD COLUMN IF NOT EXISTS handle_time_is_corrected boolean DEFAULT false,
+ADD COLUMN IF NOT EXISTS was_excluded_from_kpi boolean DEFAULT false;
+
+-- ============================================================================
+-- STEP 2: Actualizar handle_time corrupto (handle_time < duration)
 -- ============================================================================
 
 UPDATE call_records
@@ -16,13 +25,8 @@ WHERE
   AND handle_time_seconds > 0
   AND handle_time_seconds < duration_seconds;
 
--- Log cuántos registros fueron corregidos
-SELECT COUNT(*) as corrected_records
-FROM call_records
-WHERE data_quality_flags -> 'handle_time_corrupted' = 'true';
-
 -- ============================================================================
--- FIX 2: Corregir attended=true con duration=0
+-- STEP 3: Corregir attended=true con duration=0
 -- ============================================================================
 
 UPDATE call_records
@@ -34,7 +38,7 @@ WHERE
   AND duration_seconds = 0;
 
 -- ============================================================================
--- FIX 3: Marcar salientes con queue_time (anomalía)
+-- STEP 4: Marcar salientes con queue_time (anomalía)
 -- ============================================================================
 
 UPDATE call_records
