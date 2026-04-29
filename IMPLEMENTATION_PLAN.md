@@ -40,6 +40,8 @@ git push -u origin claude/fix-erlang-occupancy-kpi-l1pAd
 
 **Cambios realizados:**
 
+**Parte 1 - Erlang y Ocupación (Commit f5d39d2):**
+
 1. **Erlang (Network Load)** - Línea 626
    - ✅ Cambio: Usar `duration_seconds` directamente (sin ACW)
    - Antes: `(r.handle_time_seconds ?? r.duration_seconds)`
@@ -53,9 +55,31 @@ git push -u origin claude/fix-erlang-occupancy-kpi-l1pAd
    - ✅ Weekday talk time (línea 1166-1169)
    - Fórmula: `MAX(handle_time_seconds || 0, duration_seconds + 45)`
 
-**Commit realizado:**
+**Parte 2 - Filtrado y Data Quality (Commit e92265d):**
+
+3. **Filter outbound calls from KPI**
+   - ✅ Nuevo: Filtrar solo inbound en calculateKPIs()
+   - ✅ Excluir salientes del cálculo de KPIs
+   - ✅ Log de filtrado: total, inbound, outbound excluidos
+
+4. **Filter technical cuts (1-5s sin alertas)**
+   - ✅ Nueva función: isCorruptedTechnicalCall()
+   - ✅ Detecta llamadas "atendidas" de 1-5s sin alertas
+   - ✅ Excluidas de ocupancy metrics
+
+5. **Data Quality Reporting**
+   - ✅ getDataQualityReport() - Reportar estado de datos
+   - ✅ DataQualityReport interface
+   - ✅ Trackear: corrupted, technicalcuts, unclassified
+
+6. **KPI Debug Logging**
+   - ✅ logKPIDebugInfo() - Para integración con Dashboard
+   - ✅ Exportable para UI display
+
+**Commits realizados:**
 ```
 f5d39d2: Fix Erlang occupancy KPI calculations
+e92265d: Add KPI filtering and data quality reporting
 ```
 
 ---
@@ -245,23 +269,28 @@ PHASE 6: ⏳ VALIDACIÓN FINAL
 - [x] Erlang calculation actualizada (duration directo)
 - [x] Executive occupancy con fallback MAX()
 - [x] Daily/hourly/weekday talk time actualizado
-- [x] Commit kpi.ts con mensaje descriptivo
+- [x] Commit kpi.ts con mensaje descriptivo (f5d39d2)
 - [x] Plan de implementación documentado
 - [x] Migration SQL creada (tables, constraints, functions, views)
 - [x] Instrucciones de aplicación (APPLY_MIGRATION.md)
-- [x] Commits phase 2A pusheados
+- [x] Commits phase 2A pusheados (d06121f)
 - [x] Validaciones CSV Parser implementadas (7 cambios)
 - [x] Global anomalies tracking
 - [x] saveImportAudit() function
-- [x] Commit phase 3A pusheado
+- [x] Commit phase 3A pusheado (d0576b2)
+- [x] KPI filtering (outbound, technical cuts)
+- [x] Data quality reporting functions
+- [x] KPI debug logging
+- [x] Commit phase 3B-extended pusheado (e92265d)
 
 ### Pendiente - Próximos pasos
 - [ ] **MANUAL:** Aplicar migration SQL en Supabase Studio (APPLY_MIGRATION.md)
-- [ ] **MANUAL:** Ejecutar tests de verificación (5 queries de test en APPLY_MIGRATION.md)
+- [ ] **MANUAL:** Ejecutar tests de verificación (5 queries en APPLY_MIGRATION.md)
 - [ ] Recibir `Dashboard.tsx.patch` para UI de data quality
-- [ ] Implementar Dashboard data quality features
-- [ ] Ejecutar tests end-to-end
-- [ ] Mergear a main y deploy
+- [ ] Implementar Dashboard data quality features (Phase 3B final)
+- [ ] Ejecutar tests end-to-end (Phase 4)
+- [ ] Mergear a main y deploy (Phase 5)
+- [ ] Validación final (Phase 6)
 
 ---
 
