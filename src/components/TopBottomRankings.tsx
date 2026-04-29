@@ -1,5 +1,6 @@
-import { TrendingUp, TrendingDown, Minus, Trophy, AlertCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Trophy, AlertCircle, Info } from 'lucide-react';
 import type { TopBottomExecutive, TopBottomQueue } from '../lib/kpi';
+import { useState } from 'react';
 
 type Props = {
   topExecutives: TopBottomExecutive[];
@@ -23,8 +24,33 @@ function getAttendanceColor(rate: number, teamAvg: number): { badge: string; bgC
 }
 
 export function TopBottomRankings({ topExecutives, bottomExecutives, topQueues, bottomQueues, teamAverage }: Props) {
+  const [showInfo, setShowInfo] = useState(false);
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="space-y-4">
+      {/* Información sobre cálculo */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+        <button
+          onClick={() => setShowInfo(!showInfo)}
+          className="flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-800 transition-colors w-full text-left"
+        >
+          <Info size={16} className="flex-shrink-0" />
+          <span>¿Cómo se calcula?</span>
+        </button>
+        {showInfo && (
+          <div className="mt-3 pt-3 border-t border-blue-200 space-y-2">
+            <p className="text-xs text-blue-700">
+              <span className="font-semibold">Tasa de Atención:</span> (Llamadas Atendidas ÷ Total de Llamadas) × 100
+            </p>
+            <p className="text-xs text-blue-600">
+              Los ejecutivos y colas se clasifican por su tasa de atención. El color del porcentaje indica su desempeño relativo al promedio del equipo.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Rankings grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Ejecutivos */}
       <div className="space-y-4">
         {/* Top Ejecutivos */}
@@ -177,6 +203,7 @@ export function TopBottomRankings({ topExecutives, bottomExecutives, topQueues, 
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }
