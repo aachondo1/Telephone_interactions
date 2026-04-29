@@ -1318,12 +1318,17 @@ export function calculateTopBottom(kpis: KPISummary): TopBottomData {
     ? Math.round(((kpis.totalCalls - kpis.unattendedCount) / kpis.totalCalls) * 100)
     : 0;
 
-  const executiveAttendance = execStats.map((e, idx) => ({
-    ...e,
-    attendanceRate: e.count > 0 ? Math.round(((e.count - e.unattendedCount) / e.count) * 100) : 0,
-    rank: idx + 1,
-    trend: calculateTrend(e.percentage, null),
-  }));
+  // Calcular tasa de atención por ejecutivo usando unattendedPercent correctamente
+  const executiveAttendance = execStats.map((e, idx) => {
+    // Tasa de atención = 100% - unattendedPercent
+    const attendanceRate = 100 - e.unattendedPercent;
+    return {
+      ...e,
+      attendanceRate,
+      rank: idx + 1,
+      trend: calculateTrend(e.percentage, null),
+    };
+  });
 
   const sortedByAttendance = [...executiveAttendance].sort((a, b) => b.attendanceRate - a.attendanceRate);
   const topExecutives: TopBottomExecutive[] = sortedByAttendance.slice(0, 5).map((e, idx) => ({
@@ -1342,12 +1347,16 @@ export function calculateTopBottom(kpis: KPISummary): TopBottomData {
     trend: e.trend,
   }));
 
-  const queueAttendance = queueStats.map((q, idx) => ({
-    ...q,
-    attendanceRate: q.count > 0 ? Math.round(((q.count - q.unattendedCount) / q.count) * 100) : 0,
-    rank: idx + 1,
-    trend: calculateTrend(q.percentage, null),
-  }));
+  // Calcular tasa de atención por cola
+  const queueAttendance = queueStats.map((q, idx) => {
+    const attendanceRate = 100 - Math.round((q.unattendedCount / q.count) * 100);
+    return {
+      ...q,
+      attendanceRate,
+      rank: idx + 1,
+      trend: calculateTrend(q.percentage, null),
+    };
+  });
 
   const sortedQueuesByAttendance = [...queueAttendance].sort((a, b) => b.attendanceRate - a.attendanceRate);
   const topQueues: TopBottomQueue[] = sortedQueuesByAttendance.slice(0, 5).map((q, idx) => ({
