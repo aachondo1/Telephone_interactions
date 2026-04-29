@@ -7,6 +7,8 @@ import {
   PhoneIncoming, PhoneOutgoing,
 } from 'lucide-react';
 import type { KPISummary } from '../lib/kpi';
+import { calculateTopBottom } from '../lib/kpi';
+import { TopBottomRankings } from './TopBottomRankings';
 
 type NavigateTab = 'colas' | 'ejecutivos' | 'planificacion';
 type TrafficLight = 'green' | 'yellow' | 'red';
@@ -80,6 +82,8 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
       : 0,
     [kpis],
   );
+
+  const topBottomData = useMemo(() => calculateTopBottom(kpis), [kpis]);
 
   const activeQueues     = kpis.queueStats.filter(q => q.queue !== 'Sin cola').length;
   const activeExecutives = kpis.executiveStats.filter(e => e.executive !== 'SIN ATENDER').length;
@@ -213,6 +217,15 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
         </div>
 
       </div>
+
+      {/* ── Top / Bottom Ejecutivos y Colas ──────────────────────── */}
+      <TopBottomRankings
+        topExecutives={topBottomData.topExecutives}
+        bottomExecutives={topBottomData.bottomExecutives}
+        topQueues={topBottomData.topQueues}
+        bottomQueues={topBottomData.bottomQueues}
+        teamAverage={topBottomData.teamAverageAttendance}
+      />
 
       {/* ── Evolución diaria ─────────────────────────────────────── */}
       {trendData.length > 0 && (

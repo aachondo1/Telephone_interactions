@@ -1275,7 +1275,108 @@ export function getDataQualityReport(records: CallRecord[]): DataQualityReport {
   return report;
 }
 
-// CAMBIO 7: Exportar función para que Dashboard la use
+export type TrendDirection = 'up' | 'down' | 'stable';
+
+export type TopBottomExecutive = {
+  executive: string;
+  attendanceRate: number;
+  callCount: number;
+  rank: number;
+  trend: TrendDirection;
+};
+
+export type TopBottomQueue = {
+  queue: string;
+  attendanceRate: number;
+  callCount: number;
+  avgQueueTime: number;
+  rank: number;
+  trend: TrendDirection;
+};
+
+export type TopBottomData = {
+  topExecutives: TopBottomExecutive[];
+  bottomExecutives: TopBottomExecutive[];
+  topQueues: TopBottomQueue[];
+  bottomQueues: TopBottomQueue[];
+  teamAverageAttendance: number;
+};
+
+function calculateTrend(current: number, _previous: number | null): TrendDirection {
+  if (_previous === null) return 'stable';
+  const diff = current - _previous;
+  if (diff > 2) return 'up';
+  if (diff < -2) return 'down';
+  return 'stable';
+}
+
+export function calculateTopBottom(kpis: KPISummary): TopBottomData {
+  const execStats = kpis.executiveStats.filter(e => e.executive !== 'SIN ATENDER');
+  const queueStats = kpis.queueStats.filter(q => q.queue !== 'Sin cola');
+
+  const teamAverageAttendance = kpis.totalCalls > 0
+    ? Math.round(((kpis.totalCalls - kpis.unattendedCount) / kpis.totalCalls) * 100)
+    : 0;
+
+  const executiveAttendance = execStats.map((e, idx) => ({
+    ...e,
+    attendanceRate: e.count > 0 ? Math.round(((e.count - e.unattendedCount) / e.count) * 100) : 0,
+    rank: idx + 1,
+    trend: calculateTrend(e.percentage, null),
+  }));
+
+  const sortedByAttendance = [...executiveAttendance].sort((a, b) => b.attendanceRate - a.attendanceRate);
+  const topExecutives: TopBottomExecutive[] = sortedByAttendance.slice(0, 5).map((e, idx) => ({
+    executive: e.executive,
+    attendanceRate: e.attendanceRate,
+    callCount: e.count,
+    rank: idx + 1,
+    trend: e.trend,
+  }));
+
+  const bottomExecutives: TopBottomExecutive[] = sortedByAttendance.slice(-5).reverse().map((e, idx) => ({
+    executive: e.executive,
+    attendanceRate: e.attendanceRate,
+    callCount: e.count,
+    rank: sortedByAttendance.length - 4 + idx,
+    trend: e.trend,
+  }));
+
+  const queueAttendance = queueStats.map((q, idx) => ({
+    ...q,
+    attendanceRate: q.count > 0 ? Math.round(((q.count - q.unattendedCount) / q.count) * 100) : 0,
+    rank: idx + 1,
+    trend: calculateTrend(q.percentage, null),
+  }));
+
+  const sortedQueuesByAttendance = [...queueAttendance].sort((a, b) => b.attendanceRate - a.attendanceRate);
+  const topQueues: TopBottomQueue[] = sortedQueuesByAttendance.slice(0, 5).map((q, idx) => ({
+    queue: q.queue,
+    attendanceRate: q.attendanceRate,
+    callCount: q.count,
+    avgQueueTime: Math.round(q.avgQueueTimeSeconds),
+    rank: idx + 1,
+    trend: q.trend,
+  }));
+
+  const bottomQueues: TopBottomQueue[] = sortedQueuesByAttendance.slice(-5).reverse().map((q, idx) => ({
+    queue: q.queue,
+    attendanceRate: q.attendanceRate,
+    callCount: q.count,
+    avgQueueTime: Math.round(q.avgQueueTimeSeconds),
+    rank: sortedQueuesByAttendance.length - 4 + idx,
+    trend: q.trend,
+  }));
+
+  return {
+    topExecutives,
+    bottomExecutives,
+    topQueues,
+    bottomQueues,
+    teamAverageAttendance,
+  };
+}
+
 export function logKPIDebugInfo(records: CallRecord[]): void {
   const quality = getDataQualityReport(records);
   const demand = calculateHourlyDemand(records);
