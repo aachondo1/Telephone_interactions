@@ -36,7 +36,7 @@ git push -u origin claude/fix-erlang-occupancy-kpi-l1pAd
 
 ---
 
-### ✅ PHASE 2B: CÓDIGO - KPI.TS (COMPLETADO)
+### ✅ PHASE 2B: CÓDIGO - KPI.TS (COMPLETADO - Commit e92265d)
 
 **Cambios realizados:**
 
@@ -163,18 +163,26 @@ d0576b2: Add CSV parser validations for data integrity
 
 ---
 
-### ⏳ PHASE 3B: CÓDIGO - DASHBOARD.TSX (PENDIENTE)
+### ✅ PHASE 3B: CÓDIGO - DASHBOARD.TSX (COMPLETADO)
 
-**Cambios requeridos:**
+**Cambios realizados:**
 
 | Cambio | Descripción | Estado |
 |--------|-------------|--------|
-| DataQualityBanner | Mostrar avisos de integridad de datos | ⏳ PENDIENTE |
-| Tab Auditoría | Mostrar anomalías detectadas | ⏳ PENDIENTE |
-| getDataQualityReport() | Importar y usar función | ⏳ PENDIENTE |
-| Indicador de data quality en header | Badge mostrando estado | ⏳ PENDIENTE |
+| ✅ Importaciones | getDataQualityReport, DataQualityReport, logKPIDebugInfo | ✅ COMPLETADO |
+| ✅ State + useEffect | dataQuality state, calculateQuality on record load | ✅ COMPLETADO |
+| ✅ DataQualityBanner | 3 banners: success (green), issues (amber), outbound (blue) | ✅ COMPLETADO |
+| ✅ AuditTab | Componente que carga import_audit_log y muestra anomalías | ✅ COMPLETADO |
+| ✅ Tab navigation | Agregada pestaña 'audit' a TABS array | ✅ COMPLETADO |
+| ✅ DataQualityIndicator | Badge en header mostrando estado de integridad | ✅ COMPLETADO |
+| ✅ JSX integration | DataQualityBanner después de FilterBar, indicador en header, audit tab | ✅ COMPLETADO |
 
-**Estado:** ⏳ Esperando archivo parche `Dashboard.tsx.patch`
+**Commit realizado:**
+```
+de6b6b6: Add data quality reporting UI components to Dashboard
+```
+
+**Estado:** ✅ COMPLETADO
 
 ---
 
@@ -245,13 +253,13 @@ DESPUÉS:
 ```
 PHASE 1: ✅ PREPARACIÓN
     ↓
-PHASE 2A: ⏳ BD (LISTA - Esperar aplicación manual en Supabase)
+PHASE 2A: ✅ BD (LISTA - Esperar aplicación manual en Supabase)
     ↓
 PHASE 2B: ✅ KPI.TS (COMPLETADO)
     ↓
 PHASE 3A: ✅ CSVPARSER.TS (COMPLETADO)
     ↓
-PHASE 3B: ⏳ DASHBOARD.TSX (Esperar parche)
+PHASE 3B: ✅ DASHBOARD.TSX (COMPLETADO)
     ↓
 PHASE 4: ⏳ TESTING
     ↓
@@ -282,12 +290,18 @@ PHASE 6: ⏳ VALIDACIÓN FINAL
 - [x] Data quality reporting functions
 - [x] KPI debug logging
 - [x] Commit phase 3B-extended pusheado (e92265d)
+- [x] Dashboard imports añadidos
+- [x] Dashboard dataQuality state + useEffect
+- [x] DataQualityBanner component
+- [x] AuditTab component
+- [x] DataQualityIndicator component
+- [x] Audit tab navigation
+- [x] JSX integration
+- [x] Commit phase 3B pusheado (de6b6b6)
 
 ### Pendiente - Próximos pasos
 - [ ] **MANUAL:** Aplicar migration SQL en Supabase Studio (APPLY_MIGRATION.md)
 - [ ] **MANUAL:** Ejecutar tests de verificación (5 queries en APPLY_MIGRATION.md)
-- [ ] Recibir `Dashboard.tsx.patch` para UI de data quality
-- [ ] Implementar Dashboard data quality features (Phase 3B final)
 - [ ] Ejecutar tests end-to-end (Phase 4)
 - [ ] Mergear a main y deploy (Phase 5)
 - [ ] Validación final (Phase 6)
@@ -328,15 +342,18 @@ Para BD:
 
 **Tiempo estimado:** 5 minutos
 
-### 📥 Acción 2 - Próxima fase
+### 🧪 Acción 2 - Phase 4: TESTING
 
-**Solicitar:**
-1. **`Dashboard.tsx.patch`** - UI de data quality
-   - DataQualityBanner component para mostrar estado
-   - Tab de Auditoría para anomalías detectadas
-   - Indicadores visuales de integridad
+**Tests requeridos:**
+1. Unit tests para csvParser (handle_time validation)
+2. Unit tests para abandon type classification
+3. Unit tests para outbound logic
+4. E2E test con datos sucios
+5. Constraint validation tests en BD
+6. Data quality report tests
+7. Dashboard data quality UI tests
 
-Una vez aplicada la migración SQL y recibido el parche de Dashboard, procederemos a Phase 3B.
+Una vez aplicada la migración SQL, ejecutaremos la suite de tests para validar que todo funciona correctamente.
 
 ---
 
@@ -347,4 +364,4 @@ Una vez aplicada la migración SQL y recibido el parche de Dashboard, procederem
 - Las métricas del dashboard cambiarán notablemente una vez se completen todas las fases
 - El sistema de auditoría rastreará todos los problemas detectados
 
-**Última actualización:** 2026-04-29 (Phase 2A y 3A completadas, migration + parser validations lista)
+**Última actualización:** 2026-04-29 (Phase 1-3B completadas, 2/3 parches aplicados, SQL migración pendiente manual)
