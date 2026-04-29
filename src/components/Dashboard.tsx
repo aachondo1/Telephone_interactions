@@ -25,22 +25,25 @@ import { ExecutiveTalkTimeByDay } from './ExecutiveTalkTimeByDay';
 import { ExecutiveTalkTimeByWeekday } from './ExecutiveTalkTimeByWeekday';
 import { ExecutivesDetailTable } from './ExecutivesDetailTable';
 import { ExecutiveDashboard } from './ExecutiveDashboard';
-import { calculateKPIs, getDataQualityReport, logKPIDebugInfo } from '../lib/kpi';
+import { SectionHeader } from './SectionHeader';
+import { calculateKPIs, logKPIDebugInfo } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
-import { LayoutDashboard, Layers, Users, Target, Activity, TrendingUp, Zap, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
+import type { Section } from './Sidebar';
+import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users, Zap } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
 import type { AgentStatusRecord } from '../lib/supabase';
 import { InterventionImpact } from './InterventionImpact';
 import { supabase } from '../lib/supabase';
 
-type Tab = 'resumen' | 'general' | 'colas' | 'ejecutivos' | 'planificacion' | 'conectividad' | 'intervencion' | 'audit';
-
 type Props = {
   records: CallRecord[];
   upload: CallUpload;
   agentStatusRecords: AgentStatusRecord[];
+  activeSection: Section;
+  onUploadAgentStatus: () => void;
+  dataQuality: DataQualityReport | null;
 };
 
 function formatDateRange(start: string | null, end: string | null): string {
@@ -350,30 +353,20 @@ function DataQualityIndicator({ quality }: { quality: DataQualityReport | null }
   );
 }
 
-const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: 'resumen',       label: 'Vista Directiva', icon: TrendingUp      },
-  { id: 'general',       label: 'General',          icon: LayoutDashboard },
-  { id: 'colas',         label: 'Colas',            icon: Layers          },
-  { id: 'ejecutivos',    label: 'Ejecutivos',       icon: Users           },
-  { id: 'planificacion', label: 'Planificación',    icon: Target          },
-  { id: 'conectividad',  label: 'Conectividad',     icon: Activity        },
-  { id: 'intervencion',  label: 'Intervención',     icon: Zap             },
-  { id: 'audit',         label: 'Auditoría',        icon: AlertTriangle   },
-];
-
-export function Dashboard({ records, upload, agentStatusRecords }: Props) {
+export function Dashboard({ records, upload, agentStatusRecords, activeSection, onUploadAgentStatus, dataQuality }: Props) {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [activeTab, setActiveTab] = useState<Tab>('resumen');
-  const [dataQuality, setDataQuality] = useState<DataQualityReport | null>(null);
 
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
   const kpis = useMemo(() => calculateKPIs(filteredRecords), [filteredRecords]);
 
   useEffect(() => {
-    const quality = getDataQualityReport(records);
-    setDataQuality(quality);
     logKPIDebugInfo(records);
   }, [records]);
+
+  // Scroll to top when section changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeSection]);
 
   const dateRange = formatDateRange(upload.date_range_start, upload.date_range_end);
 
@@ -420,46 +413,20 @@ export function Dashboard({ records, upload, agentStatusRecords }: Props) {
         filteredCount={filteredRecords.length}
       />
 
-      {/* Tab navigation */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-1.5 flex gap-1 flex-wrap">
-        {TABS.map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          const showBadge = tab.id === 'conectividad' && agentStatusRecords.length > 0;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all relative ${
-                isActive
-                  ? 'bg-slate-800 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <Icon size={15} />
-              {tab.label}
-              {showBadge && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
-                  isActive ? 'bg-emerald-400 text-white' : 'bg-emerald-100 text-emerald-700'
-                }`}>
-                  {agentStatusRecords.length}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
 
-      {/* Tab content */}
-      {activeTab === 'resumen' && (
-        <ExecutiveDashboard
-          kpis={kpis}
-          onNavigate={(tab) => setActiveTab(tab)}
-        />
+      {/* Section content — driven by sidebar */}
+      <div key={activeSection} className="animate-section-enter">
+      {activeSection === 'inicio' && (
+        <ExecutiveDashboard kpis={kpis} onNavigate={() => {}} />
       )}
 
-      {activeTab === 'general' && (
+      {activeSection === 'llamadas' && (
         <div className="space-y-6">
+          <SectionHeader
+            icon={PhoneCall}
+            title="Análisis de Llamadas"
+            description="Distribución horaria, dirección y duración de las llamadas"
+          />
           <KPICards kpis={kpis} />
           <HourlyChart data={kpis.hourlyDistribution} />
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -473,8 +440,13 @@ export function Dashboard({ records, upload, agentStatusRecords }: Props) {
         </div>
       )}
 
-      {activeTab === 'colas' && (
+      {activeSection === 'colas' && (
         <div className="space-y-6">
+          <SectionHeader
+            icon={Layers}
+            title="Análisis de Colas"
+            description="Rendimiento, ocupación y patrones de atención por cola"
+          />
           <QueueKPICards stats={kpis.queueStats} totalCalls={kpis.totalCalls} />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <QueueBarChart stats={kpis.queueStats} />
@@ -489,23 +461,13 @@ export function Dashboard({ records, upload, agentStatusRecords }: Props) {
         </div>
       )}
 
-      {activeTab === 'planificacion' && (
+      {activeSection === 'ejecutivos' && (
         <div className="space-y-6">
-          <div className="bg-sky-50 border border-sky-100 rounded-2xl px-6 py-4 text-sm text-sky-800">
-            <p className="font-semibold mb-1">¿Cómo leer esta sección?</p>
-            <p className="text-sky-700 text-xs leading-relaxed">
-              <strong>Ocupación telefónica</strong>: % del turno que cada ejecutiva pasa en llamadas. El tiempo restante está disponible para atención presencial, correo u otras gestiones.
-              <br />
-              <strong>Demanda en Erlangs</strong>: cuántas personas necesitas simultáneamente en teléfono a cada hora. Ajusta el número de personas asignadas y verás en qué franjas hay déficit o exceso.
-            </p>
-          </div>
-          <StaffingDemandChart data={kpis.hourlyDemand} />
-          <PhoneOccupancyChart data={kpis.executiveOccupancy} />
-        </div>
-      )}
-
-      {activeTab === 'ejecutivos' && (
-        <div className="space-y-6">
+          <SectionHeader
+            icon={Users}
+            title="Análisis de Ejecutivos"
+            description="Rendimiento individual, tiempo de habla y conectividad"
+          />
           <ExecutiveKPICards stats={kpis.executiveStats} />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ExecutiveBarChart stats={kpis.executiveStats} />
@@ -528,51 +490,95 @@ export function Dashboard({ records, upload, agentStatusRecords }: Props) {
             executives={kpis.topExecutivesByVolume}
           />
           <ExecutivesDetailTable stats={kpis.executiveStats} />
+
+          {/* Conectividad integrada como sub-sección */}
+          <div className="border-t border-slate-200 pt-6 mt-6">
+            <SectionHeader
+              icon={Activity}
+              title="Conectividad de Agentes"
+              description="Tiempo en cola, fuera de cola y ocupación real"
+            />
+            {agentStatusRecords.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center py-12 gap-4 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center">
+                  <Activity size={28} className="text-slate-300" />
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-600">Sin datos de conectividad</p>
+                  <p className="text-sm text-slate-400 mt-1 max-w-sm">
+                    Carga el reporte "Estado de Agentes" para ver la conectividad.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onUploadAgentStatus}
+                  className="flex items-center gap-2 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+                >
+                  <Upload size={15} />
+                  Cargar Estado de Agentes
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="bg-sky-50 border border-sky-100 rounded-2xl px-6 py-4 text-sm text-sky-800 mb-4">
+                  <p className="font-semibold mb-1">¿Cómo leer esta sección?</p>
+                  <p className="text-sky-700 text-xs leading-relaxed">
+                    <strong>Conectado</strong> = En la cola + Fuera de la cola.{' '}
+                    <strong>En la cola</strong>: la agente está disponible para recibir llamados.{' '}
+                    <strong>Fuera de la cola</strong>: está conectada al sistema pero no recibe llamados (otras gestiones).
+                    {kpis.executiveStats.length > 0 && (
+                      <> La <strong>ocupación real</strong> cruza el tiempo efectivo en llamadas con el tiempo en cola.</>
+                    )}
+                  </p>
+                </div>
+                <AgentConnectivityChart
+                  agentRecords={agentStatusRecords}
+                  executiveStats={kpis.executiveStats}
+                />
+              </>
+            )}
+          </div>
         </div>
       )}
 
-      {activeTab === 'conectividad' && (
+      {activeSection === 'planificacion' && (
         <div className="space-y-6">
-          {agentStatusRecords.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center py-16 gap-4 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center">
-                <Activity size={28} className="text-slate-300" />
-              </div>
-              <div>
-                <p className="font-semibold text-slate-600">Sin datos de conectividad</p>
-                <p className="text-sm text-slate-400 mt-1 max-w-sm">
-                  Carga el reporte "Estado de Agentes" usando el botón <strong>Estado agentes</strong> en la barra superior.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="bg-sky-50 border border-sky-100 rounded-2xl px-6 py-4 text-sm text-sky-800">
-                <p className="font-semibold mb-1">¿Cómo leer esta sección?</p>
-                <p className="text-sky-700 text-xs leading-relaxed">
-                  <strong>Conectado</strong> = En la cola + Fuera de la cola.{' '}
-                  <strong>En la cola</strong>: la agente está disponible para recibir llamados.{' '}
-                  <strong>Fuera de la cola</strong>: está conectada al sistema pero no recibe llamados (otras gestiones).
-                  {kpis.executiveStats.length > 0 && (
-                    <> La <strong>ocupación real</strong> cruza el tiempo efectivo en llamadas con el tiempo en cola.</>
-                  )}
-                </p>
-              </div>
-              <AgentConnectivityChart
-                agentRecords={agentStatusRecords}
-                executiveStats={kpis.executiveStats}
-              />
-            </>
-          )}
+          <SectionHeader
+            icon={Calendar}
+            title="Planificación de Personal"
+            description="Ocupación telefónica y demanda para dimensionamiento de equipos"
+          />
+          <div className="bg-sky-50 border border-sky-100 rounded-2xl px-6 py-4 text-sm text-sky-800">
+            <p className="font-semibold mb-1">¿Cómo leer esta sección?</p>
+            <p className="text-sky-700 text-xs leading-relaxed">
+              <strong>Ocupación telefónica</strong>: % del turno que cada ejecutiva pasa en llamadas. El tiempo restante está disponible para atención presencial, correo u otras gestiones.
+              <br />
+              <strong>Demanda en Erlangs</strong>: cuántas personas necesitas simultáneamente en teléfono a cada hora. Ajusta el número de personas asignadas y verás en qué franjas hay déficit o exceso.
+            </p>
+          </div>
+          <StaffingDemandChart data={kpis.hourlyDemand} />
+          <PhoneOccupancyChart data={kpis.executiveOccupancy} />
         </div>
       )}
 
-      {activeTab === 'intervencion' && (
-        <InterventionImpact records={filteredRecords} />
+      {activeSection === 'intervencion' && (
+        <div className="space-y-6">
+          <SectionHeader
+            icon={Zap}
+            title="Intervención"
+            description="Impacto de intervenciones en las métricas de atención"
+          />
+          <InterventionImpact records={filteredRecords} />
+        </div>
       )}
 
-      {activeTab === 'audit' && (
+      {activeSection === 'audit' && (
         <div className="space-y-6">
+          <SectionHeader
+            icon={Shield}
+            title="Auditoría de Datos"
+            description="Registro de anomalías detectadas durante las importaciones"
+          />
           <div className="bg-blue-50 border border-blue-200 rounded-2xl px-6 py-4 text-sm text-blue-800">
             <p className="font-semibold mb-1">¿Qué es esta sección?</p>
             <p className="text-blue-700 text-xs leading-relaxed">
@@ -586,6 +592,7 @@ export function Dashboard({ records, upload, agentStatusRecords }: Props) {
           <AuditTab />
         </div>
       )}
+      </div>
     </div>
   );
 }

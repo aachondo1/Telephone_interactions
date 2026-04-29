@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Filter, X, ChevronDown, Calendar } from 'lucide-react';
+import { Filter, X, ChevronDown, ChevronRight, Calendar } from 'lucide-react';
 import type { CallRecord } from '../lib/supabase';
 
 export function getDateRangeForRelative(range: FilterState['dateRange']): { start: string; end: string } {
@@ -349,8 +349,13 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
     })
   );
 
+  const [expanded, setExpanded] = useState(false);
+
+  const activeFilterCount = activeChips.length;
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-5 py-4 space-y-3">
+      {/* Collapsed bar: always visible */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 text-slate-500 mr-1">
           <Filter size={15} />
@@ -369,56 +374,24 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
           }
         />
 
-        {/* Departments multi-select */}
-        <MultiSelect
-          label="Departamento"
-          options={allDepartments}
-          selected={filters.departments}
-          onChange={departments => onChange({ ...filters, departments, queues: [] })}
-        />
-
-        {/* Queues multi-select */}
-        <MultiSelect
-          label="Cola"
-          options={filteredQueues}
-          selected={filters.queues}
-          onChange={queues => onChange({ ...filters, queues })}
-        />
-
-        {/* Executives multi-select */}
-        <MultiSelect
-          label="Ejecutivo"
-          options={allExecutives}
-          selected={filters.executives}
-          onChange={executives => onChange({ ...filters, executives })}
-        />
-
-        {/* Direction multi-select */}
-        <MultiSelect
-          label="Dirección"
-          options={['inbound', 'outbound']}
-          selected={filters.direction}
-          onChange={direction => onChange({ ...filters, direction: direction as ('inbound' | 'outbound')[] })}
-          renderOption={(opt) => opt === 'inbound' ? 'Entrantes' : 'Salientes'}
-        />
-
-        {/* Attended Status multi-select */}
-        <MultiSelect
-          label="Estado"
-          options={['attended', 'unattended', 'unassigned']}
-          selected={filters.attendedStatus}
-          onChange={attendedStatus => onChange({ ...filters, attendedStatus: attendedStatus as ('attended' | 'unattended' | 'unassigned')[] })}
-          renderOption={(opt) => opt === 'attended' ? 'Atendidas' : opt === 'unattended' ? 'No atendidas' : 'No asignada'}
-        />
-
-        {/* Abandon Type multi-select */}
-        <MultiSelect
-          label="Tipo Abandono"
-          options={['queue', 'alert', 'ivr']}
-          selected={filters.abandonType}
-          onChange={abandonType => onChange({ ...filters, abandonType: abandonType as ('queue' | 'alert' | 'ivr')[] })}
-          renderOption={(opt) => opt === 'queue' ? 'En cola' : opt === 'alert' ? 'En alerta' : 'En IVR'}
-        />
+        {/* Toggle expand button */}
+        <button
+          type="button"
+          onClick={() => setExpanded(e => !e)}
+          className={`flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border transition-colors ${
+            activeFilterCount > 0
+              ? 'border-sky-400 bg-sky-50 text-sky-700'
+              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+          }`}
+        >
+          <span>Más filtros</span>
+          {activeFilterCount > 0 && (
+            <span className="bg-sky-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
+              {activeFilterCount}
+            </span>
+          )}
+          <ChevronRight size={14} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
+        </button>
 
         {/* Clear all */}
         {hasActiveFilters && (
@@ -441,6 +414,62 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
           registros
         </span>
       </div>
+
+      {/* Expanded filters */}
+      {expanded && (
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+          {/* Departments multi-select */}
+          <MultiSelect
+            label="Departamento"
+            options={allDepartments}
+            selected={filters.departments}
+            onChange={departments => onChange({ ...filters, departments, queues: [] })}
+          />
+
+          {/* Queues multi-select */}
+          <MultiSelect
+            label="Cola"
+            options={filteredQueues}
+            selected={filters.queues}
+            onChange={queues => onChange({ ...filters, queues })}
+          />
+
+          {/* Executives multi-select */}
+          <MultiSelect
+            label="Ejecutivo"
+            options={allExecutives}
+            selected={filters.executives}
+            onChange={executives => onChange({ ...filters, executives })}
+          />
+
+          {/* Direction multi-select */}
+          <MultiSelect
+            label="Dirección"
+            options={['inbound', 'outbound']}
+            selected={filters.direction}
+            onChange={direction => onChange({ ...filters, direction: direction as ('inbound' | 'outbound')[] })}
+            renderOption={(opt) => opt === 'inbound' ? 'Entrantes' : 'Salientes'}
+          />
+
+          {/* Attended Status multi-select */}
+          <MultiSelect
+            label="Estado"
+            options={['attended', 'unattended', 'unassigned']}
+            selected={filters.attendedStatus}
+            onChange={attendedStatus => onChange({ ...filters, attendedStatus: attendedStatus as ('attended' | 'unattended' | 'unassigned')[] })}
+            renderOption={(opt) => opt === 'attended' ? 'Atendidas' : opt === 'unattended' ? 'No atendidas' : 'No asignada'}
+          />
+
+          {/* Abandon Type multi-select */}
+          <MultiSelect
+            label="Tipo Abandono"
+            options={['queue', 'alert', 'ivr']}
+            selected={filters.abandonType}
+            onChange={abandonType => onChange({ ...filters, abandonType: abandonType as ('queue' | 'alert' | 'ivr')[] })}
+            renderOption={(opt) => opt === 'queue' ? 'En cola' : opt === 'alert' ? 'En alerta' : 'En IVR'}
+          />
+        </div>
+      )}
 
       {/* Active chips */}
       {activeChips.length > 0 && (

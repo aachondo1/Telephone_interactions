@@ -8,12 +8,11 @@ import {
 } from 'lucide-react';
 import type { KPISummary } from '../lib/kpi';
 
-type NavigateTab = 'colas' | 'ejecutivos' | 'planificacion';
 type TrafficLight = 'green' | 'yellow' | 'red';
 
 type Props = {
   kpis: KPISummary;
-  onNavigate: (tab: NavigateTab) => void;
+  onNavigate?: (tab: string) => void;
 };
 
 const LIGHT_BORDER: Record<TrafficLight, string> = {
@@ -109,11 +108,11 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 
         {/* Total llamadas */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total llamadas</p>
-            <div className="w-8 h-8 bg-sky-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Phone size={15} className="text-sky-600" />
+            <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Phone size={20} className="text-sky-600" />
             </div>
           </div>
           <p className="text-3xl font-bold text-slate-800 leading-none">
@@ -123,7 +122,7 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
         </div>
 
         {/* Tasa de atención — semaphore */}
-        <div className={`bg-white rounded-2xl p-5 shadow-sm border border-slate-100 border-l-4 ${LIGHT_BORDER[attLight]}`}>
+        <div className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-100 border-l-4 ${LIGHT_BORDER[attLight]}`}>
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tasa de atención</p>
             <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${LIGHT_BADGE[attLight].bg} ${LIGHT_BADGE[attLight].text}`}>
@@ -137,7 +136,7 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
         </div>
 
         {/* Sin atender — semaphore */}
-        <div className={`bg-white rounded-2xl p-5 shadow-sm border border-slate-100 border-l-4 ${LIGHT_BORDER[unattLight]}`}>
+        <div className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-100 border-l-4 ${LIGHT_BORDER[unattLight]}`}>
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Sin atender</p>
             <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${LIGHT_BADGE[unattLight].bg} ${LIGHT_BADGE[unattLight].text}`}>
@@ -151,11 +150,11 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
         </div>
 
         {/* Duración promedio */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Duración promedio</p>
-            <div className="w-8 h-8 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Clock size={15} className="text-emerald-600" />
+            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Clock size={20} className="text-emerald-600" />
             </div>
           </div>
           <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.avgDurationFormatted}</p>
@@ -163,11 +162,11 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
         </div>
 
         {/* Colas activas */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Colas activas</p>
-            <div className="w-8 h-8 bg-violet-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Layers size={15} className="text-violet-600" />
+            <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Layers size={20} className="text-violet-600" />
             </div>
           </div>
           <p className="text-3xl font-bold text-slate-800 leading-none">{activeQueues}</p>
@@ -177,7 +176,7 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
         </div>
 
         {/* Completitud — semaphore */}
-        <div className={`bg-white rounded-2xl p-5 shadow-sm border border-slate-100 border-l-4 ${LIGHT_BORDER[compLight]}`}>
+        <div className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-100 border-l-4 ${LIGHT_BORDER[compLight]}`}>
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Completitud</p>
             <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${LIGHT_BADGE[compLight].bg} ${LIGHT_BADGE[compLight].text}`}>
@@ -189,11 +188,11 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
         </div>
 
         {/* Service Level */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Service Level</p>
-            <div className="w-8 h-8 bg-indigo-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Target size={15} className="text-indigo-600" />
+            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Target size={20} className="text-indigo-600" />
             </div>
           </div>
           <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.serviceLevel.overallSL}%</p>
@@ -201,11 +200,11 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
         </div>
 
         {/* Tiempo promedio en cola */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Espera promedio</p>
-            <div className="w-8 h-8 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Clock size={15} className="text-orange-600" />
+            <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Clock size={20} className="text-orange-600" />
             </div>
           </div>
           <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.avgQueueTimeFormatted}</p>
@@ -400,7 +399,7 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
 
         <button
           type="button"
-          onClick={() => onNavigate('colas')}
+          onClick={() => onNavigate?.('colas')}
           className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-left hover:border-sky-200 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between mb-4">
@@ -431,7 +430,7 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
 
         <button
           type="button"
-          onClick={() => onNavigate('ejecutivos')}
+          onClick={() => onNavigate?.('ejecutivos')}
           className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-left hover:border-violet-200 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between mb-4">
@@ -460,7 +459,7 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
 
         <button
           type="button"
-          onClick={() => onNavigate('planificacion')}
+          onClick={() => onNavigate?.('planificacion')}
           className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-left hover:border-emerald-200 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between mb-4">

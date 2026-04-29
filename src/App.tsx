@@ -1,12 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
-import { PhoneCall, UploadCloud, Users, CheckSquare } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { PhoneCall, UploadCloud } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
+import { Sidebar } from './components/Sidebar';
+import type { Section } from './components/Sidebar';
 import { UploadModal } from './components/UploadModal';
-import { DataAuditPanel } from './components/DataAuditPanel';
 import { parseCSVText, detectColumns, validateColumns, transformRows, calculateDateRangeFromRecords } from './lib/csvParser';
 import { parseAgentStatusCSV } from './lib/agentStatusParser';
 import { saveUpload, getAllUploads, getAllCallRecords, getProcessedSignatures, saveAgentStatusUpload, getLatestAgentStatusUpload } from './lib/supabaseService';
+import { getDataQualityReport } from './lib/kpi';
 import type { CallRecord, CallUpload, AgentStatusRecord } from './lib/supabase';
+import type { DataQualityReport } from './lib/kpi';
 
 type DataState =
   | { phase: 'loading' }
@@ -28,8 +31,16 @@ export default function App() {
   const [agentStatusError, setAgentStatusError] = useState<string | null>(null);
   const [agentStatusProgress, setAgentStatusProgress] = useState('');
 
-  // Audit state
-  const [showAudit, setShowAudit] = useState(false);
+  // Navigation
+  const [activeSection, setActiveSection] = useState<Section>('inicio');
+
+  // Data quality (computed at App level for sidebar footer)
+  const dataQuality: DataQualityReport | null = useMemo(() => {
+    if (dataState.phase === 'ready') {
+      return getDataQualityReport(dataState.records);
+    }
+    return null;
+  }, [dataState]);
 
   useEffect(() => {
     Promise.all([
@@ -182,122 +193,86 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-screen-xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          {/* Logo + title */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-sky-600 flex items-center justify-center flex-shrink-0">
-              <PhoneCall size={18} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold text-slate-800 leading-none">
-                Dashboard de Llamadas
-              </h1>
-              <p className="text-xs text-slate-400 mt-0.5">Análisis de interacciones telefónicas</p>
+    <div className="min-h-screen bg-slate-50 flex">
+      {/* Sidebar navigation */}
+      <Sidebar
+        activeSection={activeSection}
+        onNavigate={setActiveSection}
+        agentStatusCount={agentStatusRecords.length}
+        dataQuality={dataQuality}
+        onUploadClick={openModal}
+      />
+
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Simplified header */}
+        <header className="bg-white border-b border-slate-100 sticky top-0 z-20 shadow-sm">
+          <div className="px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-sky-600 flex items-center justify-center flex-shrink-0">
+                <PhoneCall size={18} className="text-white" />
+              </div>
+              <div>
+                <h1 className="text-base font-bold text-slate-800 leading-none">
+                  Dashboard de Llamadas
+                </h1>
+                <p className="text-xs text-slate-400 mt-0.5">Análisis de interacciones telefónicas</p>
+              </div>
             </div>
           </div>
 
-          {/* Right actions */}
-          <div className="flex items-center gap-2">
+          {/* Processing bar */}
+          {isProcessing && (
+            <div className="h-0.5 bg-slate-100 overflow-hidden">
+              <div className="h-full w-1/3 bg-sky-400 animate-[slide_1.5s_ease-in-out_infinite]" />
+            </div>
+          )}
+        </header>
 
-            {/* Audit button */}
-            {dataState.phase === 'ready' && (
+        <main className="flex-1 max-w-screen-xl mx-auto w-full px-6 py-8">
+          {dataState.phase === 'loading' && (
+            <div className="flex items-center justify-center h-64">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-sky-300 border-t-sky-600 rounded-full animate-spin" />
+                <p className="text-sm text-slate-400">Cargando datos...</p>
+              </div>
+            </div>
+          )}
+
+          {dataState.phase === 'empty' && (
+            <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-sky-50 flex items-center justify-center">
+                <UploadCloud size={32} className="text-sky-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-700">Bienvenido al Dashboard</h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  Carga tu primer archivo CSV para comenzar el análisis
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => setShowAudit(!showAudit)}
-                className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-colors border ${
-                  showAudit
-                    ? 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
-                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800'
-                }`}
+                onClick={openModal}
+                className="flex items-center gap-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-xl transition-colors shadow-sm"
               >
-                <CheckSquare size={15} />
-                <span className="hidden sm:inline">Auditoría</span>
+                <UploadCloud size={16} />
+                Cargar CSV
               </button>
-            )}
-
-            {/* Agent status upload button */}
-            <button
-              type="button"
-              onClick={openAgentStatusModal}
-              className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-colors border ${
-                agentStatusRecords.length > 0
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
-                  : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800'
-              }`}
-            >
-              <Users size={15} />
-              <span className="hidden sm:inline">
-                {agentStatusRecords.length > 0 ? `${agentStatusRecords.length} agentes` : 'Estado agentes'}
-              </span>
-            </button>
-
-            {/* Calls upload button */}
-            <button
-              type="button"
-              onClick={openModal}
-              className="flex items-center gap-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
-            >
-              <UploadCloud size={15} />
-              <span>Cargar CSV</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Processing bar */}
-        {isProcessing && (
-          <div className="h-0.5 bg-slate-100 overflow-hidden">
-            <div className="h-full w-1/3 bg-sky-400 animate-[slide_1.5s_ease-in-out_infinite]" />
-          </div>
-        )}
-      </header>
-
-      <main className="max-w-screen-xl mx-auto px-6 py-8">
-        {dataState.phase === 'loading' && (
-          <div className="flex items-center justify-center h-64">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-2 border-sky-300 border-t-sky-600 rounded-full animate-spin" />
-              <p className="text-sm text-slate-400">Cargando datos...</p>
             </div>
-          </div>
-        )}
+          )}
 
-        {dataState.phase === 'empty' && (
-          <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-sky-50 flex items-center justify-center">
-              <UploadCloud size={32} className="text-sky-400" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-slate-700">Bienvenido al Dashboard</h2>
-              <p className="text-sm text-slate-400 mt-1">
-                Carga tu primer archivo CSV para comenzar el análisis
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={openModal}
-              className="flex items-center gap-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-xl transition-colors shadow-sm"
-            >
-              <UploadCloud size={16} />
-              Cargar CSV
-            </button>
-          </div>
-        )}
-
-        {dataState.phase === 'ready' && showAudit && (
-          <DataAuditPanel />
-        )}
-
-        {dataState.phase === 'ready' && !showAudit && (
-          <Dashboard
-            records={dataState.records}
-            upload={dataState.upload}
-            agentStatusRecords={agentStatusRecords}
-          />
-        )}
-      </main>
+          {dataState.phase === 'ready' && (
+            <Dashboard
+              records={dataState.records}
+              upload={dataState.upload}
+              agentStatusRecords={agentStatusRecords}
+              activeSection={activeSection}
+              onUploadAgentStatus={openAgentStatusModal}
+              dataQuality={dataQuality}
+            />
+          )}
+        </main>
+      </div>
 
       {/* Calls upload modal */}
       <UploadModal

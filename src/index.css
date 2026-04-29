@@ -12,6 +12,15 @@
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes sectionFadeIn {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-section-enter {
+  animation: sectionFadeIn 0.25s ease-out;
+}
+
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
