@@ -4,7 +4,7 @@ import {
 } from 'recharts';
 import {
   Phone, Clock, Layers, Users, Target, ArrowRight,
-  PhoneIncoming, PhoneOutgoing,
+  PhoneIncoming, PhoneOutgoing, TrendingUp,
 } from 'lucide-react';
 import type { KPISummary } from '../lib/kpi';
 
@@ -80,6 +80,16 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
     [kpis],
   );
 
+  const globalBounceRate = useMemo(
+    () => {
+      const execs = kpis.executiveStats.filter(e => e.executive !== 'SIN ATENDER');
+      if (execs.length === 0) return 0;
+      const total = execs.reduce((sum, e) => sum + e.bounceRate, 0);
+      return Math.round(total / execs.length);
+    },
+    [kpis],
+  );
+
   const activeQueues     = kpis.queueStats.filter(q => q.queue !== 'Sin cola').length;
   const activeExecutives = kpis.executiveStats.filter(e => e.executive !== 'SIN ATENDER').length;
 
@@ -96,18 +106,16 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
   const tickInterval = Math.max(0, Math.floor(trendData.length / 10) - 1);
 
   const attLight  = attendanceLight(attendedPercent);
-  const unattLight = unattendedLight(kpis.unattendedPercent);
-  const compLight = completenessLight(kpis.completenessRate);
 
   const topExec = kpis.executiveStats.find(e => e.executive !== 'SIN ATENDER');
 
   return (
     <div className="space-y-6">
 
-      {/* ── 8 KPI cards ─────────────────────────────────────────── */}
+      {/* ── 7 KPI cards (prioritarios) ────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 
-        {/* Total llamadas */}
+        {/* 1. Total llamadas */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total llamadas</p>
@@ -121,7 +129,7 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
           <p className="text-xs text-slate-400 mt-1.5">Registros en el período</p>
         </div>
 
-        {/* Tasa de atención — semaphore */}
+        {/* 2. Tasa de atención */}
         <div className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-100 border-l-4 ${LIGHT_BORDER[attLight]}`}>
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tasa de atención</p>
@@ -135,21 +143,7 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
           </p>
         </div>
 
-        {/* Sin atender — semaphore */}
-        <div className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-100 border-l-4 ${LIGHT_BORDER[unattLight]}`}>
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Sin atender</p>
-            <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${LIGHT_BADGE[unattLight].bg} ${LIGHT_BADGE[unattLight].text}`}>
-              {LIGHT_BADGE[unattLight].label}
-            </span>
-          </div>
-          <p className={`text-3xl font-bold leading-none ${LIGHT_VALUE[unattLight]}`}>{kpis.unattendedPercent}%</p>
-          <p className="text-xs text-slate-400 mt-1.5">
-            {kpis.unattendedCount.toLocaleString('es-CL')} llamadas perdidas
-          </p>
-        </div>
-
-        {/* Duración promedio */}
+        {/* 3. Duración promedio */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Duración promedio</p>
@@ -161,33 +155,19 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
           <p className="text-xs text-slate-400 mt-1.5">Por llamada</p>
         </div>
 
-        {/* Colas activas */}
+        {/* 4. Tasa de rebotes */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Colas activas</p>
-            <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Layers size={20} className="text-violet-600" />
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tasa de rebotes</p>
+            <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center flex-shrink-0">
+              <TrendingUp size={20} className="text-rose-600" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">{activeQueues}</p>
-          <p className="text-xs text-slate-400 mt-1.5 truncate">
-            Top: {kpis.queueStats.find(q => q.queue !== 'Sin cola')?.queue ?? '—'}
-          </p>
+          <p className="text-3xl font-bold text-slate-800 leading-none">{globalBounceRate}%</p>
+          <p className="text-xs text-slate-400 mt-1.5">Promedio de ejecutivos</p>
         </div>
 
-        {/* Completitud — semaphore */}
-        <div className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-100 border-l-4 ${LIGHT_BORDER[compLight]}`}>
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Completitud</p>
-            <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${LIGHT_BADGE[compLight].bg} ${LIGHT_BADGE[compLight].text}`}>
-              {LIGHT_BADGE[compLight].label}
-            </span>
-          </div>
-          <p className={`text-3xl font-bold leading-none ${LIGHT_VALUE[compLight]}`}>{kpis.completenessRate}%</p>
-          <p className="text-xs text-slate-400 mt-1.5">Exportación completa</p>
-        </div>
-
-        {/* Service Level */}
+        {/* 5. Service Level */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Service Level</p>
@@ -199,7 +179,7 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
           <p className="text-xs text-slate-400 mt-1.5">Atendidas en ≤20s</p>
         </div>
 
-        {/* Tiempo promedio en cola */}
+        {/* 6. Espera promedio */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-start justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Espera promedio</p>
@@ -209,6 +189,18 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
           </div>
           <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.avgQueueTimeFormatted}</p>
           <p className="text-xs text-slate-400 mt-1.5">En cola</p>
+        </div>
+
+        {/* 7. Tiempo de manejo */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+          <div className="flex items-start justify-between mb-3">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tiempo de manejo</p>
+            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Clock size={20} className="text-purple-600" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.avgHandleTimeFormatted}</p>
+          <p className="text-xs text-slate-400 mt-1.5">Duración total promedio</p>
         </div>
 
       </div>
