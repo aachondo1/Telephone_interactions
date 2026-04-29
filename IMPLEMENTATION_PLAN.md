@@ -105,19 +105,37 @@ Ver: `APPLY_MIGRATION.md` para instrucciones detalladas
 
 ---
 
-### ⏳ PHASE 3A: CÓDIGO - CSVPARSER.TS (PENDIENTE)
+### ✅ PHASE 3A: CÓDIGO - CSVPARSER.TS (COMPLETADO)
 
-**Cambios requeridos:**
+**Cambios realizados:**
 
 | Cambio | Línea | Descripción | Estado |
 |--------|-------|-------------|--------|
-| Validación handle_time | ~370 | Validar que handle_time >= duration | ⏳ PENDIENTE |
-| calculateAbandonType mejorado | ~480 | Incluir clasificación ivr-transition | ⏳ PENDIENTE |
-| validateOutboundLogic | Nueva | Validar que salientes no tengan queue_time | ⏳ PENDIENTE |
-| Crear anomalies array | Global | Rastrear problemas de integridad | ⏳ PENDIENTE |
-| Exportar saveImportAudit() | Global | Guardar registros en BD | ⏳ PENDIENTE |
+| ✅ Validación handle_time | ~370 | Validar que handle_time >= duration, fallback a duration+45 | ✅ COMPLETADO |
+| ✅ calculateAbandonType mejorado | ~480 | Incluir clasificación 'ivr-transition', mejor edge case handling | ✅ COMPLETADO |
+| ✅ validateOutboundLogic() | Nueva | Detectar salientes con queue_time, flag WARNING | ✅ COMPLETADO |
+| ✅ Validación attended+duration | Línea | Validar que atendidas tengan duration > 0, corregir automáticamente | ✅ COMPLETADO |
+| ✅ Anomalies array global | Global | Rastrear todos los problemas detectados, severidad incluida | ✅ COMPLETADO |
+| ✅ saveImportAudit() | Función nueva | Guardar anomalías en import_audit_log con resumen | ✅ COMPLETADO |
+| ✅ Devolver anomalías | transformRows() | Incluir anomalías en resultado para UI y auditoría | ✅ COMPLETADO |
 
-**Estado:** ⏳ Esperando archivo parche `csvParser.ts.patch`
+**Commit realizados:**
+```
+d0576b2: Add CSV parser validations for data integrity
+```
+
+**Funcionalidad implementada:**
+
+- ✅ Detección automática de handle_time corrupto
+- ✅ Corrección automática con fallback a duration+45
+- ✅ Nueva clasificación de abandonos: 'ivr-transition'
+- ✅ Detección de anomalías outbound+queue_time
+- ✅ Corrección automática: attended=true con duration=0 → unattended
+- ✅ Array global para rastrear todas las anomalías
+- ✅ Función para guardar auditoría en BD
+- ✅ Return de anomalías en ParseResult
+
+**Estado:** ✅ COMPLETADO
 
 ---
 
@@ -203,11 +221,11 @@ DESPUÉS:
 ```
 PHASE 1: ✅ PREPARACIÓN
     ↓
-PHASE 2A: ⏳ BD (LISTA - Esperar aplicación en Supabase)
+PHASE 2A: ⏳ BD (LISTA - Esperar aplicación manual en Supabase)
     ↓
 PHASE 2B: ✅ KPI.TS (COMPLETADO)
     ↓
-PHASE 3A: ⏳ CSVPARSER.TS (Esperar parche)
+PHASE 3A: ✅ CSVPARSER.TS (COMPLETADO)
     ↓
 PHASE 3B: ⏳ DASHBOARD.TSX (Esperar parche)
     ↓
@@ -232,15 +250,17 @@ PHASE 6: ⏳ VALIDACIÓN FINAL
 - [x] Migration SQL creada (tables, constraints, functions, views)
 - [x] Instrucciones de aplicación (APPLY_MIGRATION.md)
 - [x] Commits phase 2A pusheados
+- [x] Validaciones CSV Parser implementadas (7 cambios)
+- [x] Global anomalies tracking
+- [x] saveImportAudit() function
+- [x] Commit phase 3A pusheado
 
 ### Pendiente - Próximos pasos
-- [ ] **MANUAL:** Aplicar migration SQL en Supabase Studio
-- [ ] **MANUAL:** Ejecutar tests de verificación (5 queries de test)
-- [ ] Recibir `csvParser.ts.patch`
-- [ ] Implementar validaciones de importación
-- [ ] Recibir `Dashboard.tsx.patch`
-- [ ] Agregar UI de data quality
-- [ ] Ejecutar tests completos
+- [ ] **MANUAL:** Aplicar migration SQL en Supabase Studio (APPLY_MIGRATION.md)
+- [ ] **MANUAL:** Ejecutar tests de verificación (5 queries de test en APPLY_MIGRATION.md)
+- [ ] Recibir `Dashboard.tsx.patch` para UI de data quality
+- [ ] Implementar Dashboard data quality features
+- [ ] Ejecutar tests end-to-end
 - [ ] Mergear a main y deploy
 
 ---
@@ -268,29 +288,26 @@ Para BD:
 
 ## 📞 PRÓXIMOS PASOS
 
-### 🔴 Acción inmediata (MANUAL)
+### 🔴 Acción 1 (MANUAL) - CRÍTICA
 
 **Aplicar migración SQL en Supabase:**
 
 1. Abre: `APPLY_MIGRATION.md`
-2. Sigue las instrucciones en "Opción 1: Supabase Studio"
+2. Sigue instrucciones en "Opción 1: Supabase Studio"
 3. Ejecuta los 5 tests de verificación
-4. Confirma que todo pasó (5 tests = ✅)
+4. Confirma que todo pasó (✅ Success)
 
-### 📥 Para continuar con Phase 3A y 3B, solicitar:
+**Tiempo estimado:** 5 minutos
 
-1. **`csvParser.ts.patch`** - Validaciones en importación
-   - Validación handle_time
-   - Clasificación de abandons
-   - Detección de anomalías
-   - Logging a import_audit_log
+### 📥 Acción 2 - Próxima fase
 
-2. **`Dashboard.tsx.patch`** - UI de data quality
-   - DataQualityBanner component
-   - Tab de Auditoría
-   - Indicadores visuales
+**Solicitar:**
+1. **`Dashboard.tsx.patch`** - UI de data quality
+   - DataQualityBanner component para mostrar estado
+   - Tab de Auditoría para anomalías detectadas
+   - Indicadores visuales de integridad
 
-Una vez se aplique la migración y se reciban los parches, ejecutar Phase 3A y 3B en secuencia.
+Una vez aplicada la migración SQL y recibido el parche de Dashboard, procederemos a Phase 3B.
 
 ---
 
@@ -301,4 +318,4 @@ Una vez se aplique la migración y se reciban los parches, ejecutar Phase 3A y 3
 - Las métricas del dashboard cambiarán notablemente una vez se completen todas las fases
 - El sistema de auditoría rastreará todos los problemas detectados
 
-**Última actualización:** 2026-04-29 (Phase 2A completada, migration lista)
+**Última actualización:** 2026-04-29 (Phase 2A y 3A completadas, migration + parser validations lista)
