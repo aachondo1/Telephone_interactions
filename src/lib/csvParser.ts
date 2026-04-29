@@ -36,7 +36,37 @@ export type ParseResult = {
   records: ParsedCallRecord[];
   errors: string[];
   columnMap: Record<string, string>;
+  anomalies?: Array<{
+    type: string;
+    callId?: string;
+    rawHandleTime?: number;
+    durationSeconds?: number;
+    queueTimeSeconds?: number;
+    alertedUsers?: string;
+    flowExit?: boolean;
+    actionTaken: string;
+    severity?: 'CRITICAL' | 'WARNING' | 'INFO';
+    timestamp: Date;
+  }>;
+  auditSummary?: {
+    totalAnomalies: number;
+    critical: number;
+  };
 };
+
+// CAMBIO 5: Global anomalies tracking
+let anomalies: Array<{
+  type: string;
+  callId?: string;
+  rawHandleTime?: number;
+  durationSeconds?: number;
+  queueTimeSeconds?: number;
+  alertedUsers?: string;
+  flowExit?: boolean;
+  actionTaken: string;
+  severity?: 'CRITICAL' | 'WARNING' | 'INFO';
+  timestamp: Date;
+}> = [];
 
 // Known column name variants
 const COLUMN_ALIASES: Record<string, string[]> = {
@@ -281,7 +311,9 @@ export async function transformRows(
   rows: RawCallRecord[],
   columnMap: Record<string, string>,
   processedSignatures?: Set<string>
-): Promise<{ records: ParsedCallRecord[]; duplicateCount: number }> {
+): Promise<{ records: ParsedCallRecord[]; duplicateCount: number; anomalies: typeof anomalies }> {
+  // Reset anomalies for this batch
+  anomalies = [];
   const results: ParsedCallRecord[] = [];
   let duplicateCount = 0;
 
@@ -298,8 +330,26 @@ export async function transformRows(
     const rawUser = columnMap.users ? (row[columnMap.users] ?? '') : '';
     const allUsers = parseExecutives(rawUser);
     // Only the last user in the list actually handled the call
-    const executives = allUsers.length > 0 ? [allUsers[allUsers.length - 1]] : [];
-    const attended = executives.length > 0;
+    let executives = allUsers.length > 0 ? [allUsers[allUsers.length - 1]] : [];
+    let attended = executives.length > 0;
+
+    // CAMBIO 4: Validar que duraciones > 0 para llamadas atendidas
+    const originalCallId = columnMap.callId
+      ? (row[columnMap.callId] ?? String(i))
+      : String(i);
+
+    if (attended && durationSeconds <= 0) {
+      anomalies.push({
+        type: 'attended_call_zero_duration',
+        callId: originalCallId,
+        durationSeconds,
+        actionTaken: 'marking_as_unattended',
+        severity: 'CRITICAL',
+        timestamp: new Date(),
+      });
+      attended = false;  // Corregir automáticamente
+      executives = ['SIN ATENDER'];
+    }
 
     const rawPhone = columnMap.phone ? (row[columnMap.phone] ?? '') : '';
     const cleanPhone = cleanPhoneNumber(rawPhone);
@@ -340,18 +390,39 @@ export async function transformRows(
       continue;
     }
 
-    // Use row index as original call id if no dedicated field
-    const originalCallId = columnMap.callId
-      ? (row[columnMap.callId] ?? String(i))
-      : String(i);
-
     // Parse Genesys fields
     const queueTimeSeconds = columnMap.queueTime
       ? parseNumericField(row[columnMap.queueTime] ?? '0')
       : 0;
-    const handleTimeSeconds = columnMap.handleTime
+
+    // CAMBIO 1: Validar handle_time >= duration
+    const rawHandleTime = columnMap.handleTime
       ? parseNumericField(row[columnMap.handleTime] ?? '0')
       : 0;
+
+    const handleTimeSeconds = (() => {
+      // Si handle_time < duration y ambos son > 0, es un error del CSV
+      if (rawHandleTime < durationSeconds && rawHandleTime > 0 && durationSeconds > 0) {
+        const effectiveHandleTime = durationSeconds + 45; // duration + ACW promedio
+
+        // Guardar para auditoría
+        anomalies.push({
+          type: 'handle_time_lt_duration',
+          callId: originalCallId,
+          rawHandleTime,
+          durationSeconds,
+          actionTaken: `usar ${effectiveHandleTime}s (duration + 45s ACW)`,
+          severity: 'CRITICAL',
+          timestamp: new Date(),
+        });
+
+        return effectiveHandleTime;
+      }
+      return rawHandleTime > 0 ? rawHandleTime : durationSeconds;
+    })();
+
+    // CAMBIO 3: Validar que salientes NO tengan queue_time
+    validateOutboundLogic(direction, queueTimeSeconds, originalCallId);
     const alertSegments = columnMap.alertSegments
       ? parseNumericField(row[columnMap.alertSegments] ?? '1')
       : 1;
@@ -368,7 +439,7 @@ export async function transformRows(
     // Calculate derived fields
     const acwSeconds = 45;
     const holdTimeSeconds = Math.max(0, handleTimeSeconds - acwSeconds - durationSeconds);
-    const abandonType = calculateAbandonType(attended, flowExit, queueTimeSeconds, alertedUsers);
+    const abandonType = calculateAbandonType(attended, flowExit, queueTimeSeconds, alertedUsers, originalCallId);
     const isBounce = calculateIsBounce(alertSegments, alertedUsers, allUsers);
 
     const record: ParsedCallRecord = {
@@ -404,7 +475,7 @@ export async function transformRows(
     results.push(record);
   }
 
-  return { records: results, duplicateCount };
+  return { records: results, duplicateCount, anomalies: [...anomalies] };
 }
 
 function timeStringToMinutes(timeStr: string | null): number | null {
@@ -507,17 +578,64 @@ function calculateAbandonType(
   attended: boolean,
   flowExit: boolean,
   queueTime: number,
-  alertedUsers: string
+  alertedUsers: string,
+  callId?: string
 ): string | null {
   if (attended) return null;
 
+  // IVR - colgó dentro del IVR
   if (!flowExit) return 'ivr';
-  if (alertedUsers.trim() !== '') return 'alert';
 
-  // Fallback: if exited the flow (flowExit=true) but no alert was sent,
-  // the call spent time in queue before abandonment, or was an "instant abandon"
-  // (hung up 2-3s in IVR/queue). Classify as queue to avoid orphaned records.
-  return 'queue';
+  // Queue - esperó en cola
+  if (queueTime > 0) {
+    if (alertedUsers?.trim()) return 'alert';  // Fue alertado pero no respondió
+    return 'queue';  // Esperó pero nunca fue alertado
+  }
+
+  // Edge case: salió del IVR pero ANTES de entrar a cola
+  // flowExit=true, queueTime=0, sin alertas = colgó en el transition point
+  if (flowExit && queueTime === 0 && !alertedUsers?.trim()) {
+    // Esto es válido (usuario colgó al salir del IVR)
+    return 'ivr-transition';
+  }
+
+  // Si ningún caso aplica, loguear como anomalía
+  if (!flowExit && queueTime === 0) {
+    anomalies.push({
+      type: 'abandon_type_unclassified',
+      callId,
+      flowExit,
+      queueTime,
+      alertedUsers: alertedUsers?.trim() || 'none',
+      actionTaken: 'marked_as_unknown_abandon',
+      severity: 'WARNING',
+      timestamp: new Date(),
+    });
+    return 'unknown';
+  }
+
+  return null;
+}
+
+// CAMBIO 3: Validar que salientes NO tengan queue_time
+function validateOutboundLogic(
+  callDirection: string,
+  queueTimeSeconds: number,
+  callId: string
+): void {
+  const isOutbound = callDirection?.toLowerCase().includes('saliente') ||
+                     callDirection?.toLowerCase().includes('outbound');
+
+  if (isOutbound && queueTimeSeconds > 0) {
+    anomalies.push({
+      type: 'outbound_has_queue_time',
+      callId,
+      queueTimeSeconds,
+      actionTaken: 'flagged_for_review',
+      severity: 'WARNING',
+      timestamp: new Date(),
+    });
+  }
 }
 
 function calculateIsBounce(
@@ -535,4 +653,44 @@ function calculateIsBounce(
   const lastExecutive = executives[executives.length - 1].toUpperCase();
 
   return firstAlerted !== lastExecutive;
+}
+
+// CAMBIO 6: Exportar función para guardar auditoría en BD
+export async function saveImportAudit(
+  uploadId: string,
+  anomaliesToSave: typeof anomalies,
+  supabaseClient: any
+): Promise<void> {
+  if (anomaliesToSave.length === 0) {
+    console.log('✓ Sin anomalías detectadas');
+    return;
+  }
+
+  // Agrupar anomalías por tipo
+  const grouped = anomaliesToSave.reduce((acc, anom) => {
+    const type = anom.type;
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Crear resumen
+  const summary = {
+    upload_id: uploadId,
+    total_anomalies: anomaliesToSave.length,
+    critical_count: anomaliesToSave.filter(a => a.severity === 'CRITICAL').length,
+    warning_count: anomaliesToSave.filter(a => a.severity === 'WARNING').length,
+    anomaly_breakdown: grouped,
+    details_json: anomaliesToSave,
+    created_at: new Date().toISOString(),
+  };
+
+  try {
+    await supabaseClient
+      .from('import_audit_log')
+      .insert([summary]);
+
+    console.log('✓ Auditoría guardada:', summary);
+  } catch (error) {
+    console.error('✗ Error guardando auditoría:', error);
+  }
 }
