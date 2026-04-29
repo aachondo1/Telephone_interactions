@@ -1318,6 +1318,19 @@ export function calculateTopBottom(kpis: KPISummary): TopBottomData {
     ? Math.round(((kpis.totalCalls - kpis.unattendedCount) / kpis.totalCalls) * 100)
     : 0;
 
+  // Debug: Log para entender qué datos tenemos
+  if (execStats.length > 0) {
+    console.log('DEBUG calculateTopBottom:', {
+      firstExec: execStats[0].executive,
+      count: execStats[0].count,
+      unattendedCount: execStats[0].unattendedCount,
+      unattendedPercent: execStats[0].unattendedPercent,
+      teamAverage: teamAverageAttendance,
+      totalCalls: kpis.totalCalls,
+      totalUnattended: kpis.unattendedCount,
+    });
+  }
+
   // Calcular tasa de atención por ejecutivo usando unattendedPercent correctamente
   const executiveAttendance = execStats.map((e, idx) => {
     // Tasa de atención = 100% - unattendedPercent
