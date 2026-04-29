@@ -6,25 +6,40 @@
 
 ## ✅ Opción 1: Supabase Studio (RECOMENDADO - Más fácil)
 
+### ⚠️ IMPORTANTE: Orden de ejecución
+
+Hay **DOS migraciones** que deben ejecutarse en este orden:
+
+1. **PRIMERO:** `20260429_fix_corrupted_handle_time.sql` ← Corrige datos existentes
+2. **DESPUÉS:** `20260428_add_data_integrity_constraints.sql` ← Agrega constraints
+
+---
+
 ### Paso 1: Acceder a Supabase Dashboard
 
 1. Ir a: https://app.supabase.com
 2. Seleccionar tu proyecto
 3. Ir a **SQL Editor** (panel lateral izquierdo)
 
-### Paso 2: Crear nueva query
+### Paso 2A: PRIMERO - Corregir datos corruptos
+
+1. Haz clic en **+ New query**
+2. Dale un nombre: `Fix Corrupted Data`
+3. Abre el archivo: `supabase/migrations/20260429_fix_corrupted_handle_time.sql`
+4. Copia TODO el contenido y pega en el editor SQL
+5. Haz clic en **▶️ Run**
+6. Verifica que vea al pie: `✓ X statements executed successfully`
+
+### Paso 2B: DESPUÉS - Agregar constraints
 
 1. Haz clic en **+ New query**
 2. Dale un nombre: `Data Integrity Constraints Migration`
+3. Abre el archivo: `supabase/migrations/20260428_add_data_integrity_constraints.sql`
+4. Copia TODO el contenido (desde `--` hasta el final)
+5. Pega en el editor SQL de Supabase
+6. Haz clic en **▶️ Run** (esquina inferior derecha)
 
-### Paso 3: Copiar y ejecutar SQL
-
-1. Abre el archivo: `supabase/migrations/20260428_add_data_integrity_constraints.sql`
-2. Copia TODO el contenido (desde `--` hasta el final)
-3. Pega en el editor SQL de Supabase
-4. Haz clic en **▶️ Run** (esquina inferior derecha)
-
-### Paso 4: Verificar ejecución
+### Paso 3: Verificar ejecución
 
 Debería ver al pie:
 ```
@@ -43,12 +58,28 @@ npm install -g supabase
 # Desde el directorio raíz del proyecto
 cd /home/user/Telephone_interactions
 
-# Ejecutar migración
+# Las migraciones se ejecutarán en orden alfabético:
+# 1. 20260429_fix_corrupted_handle_time.sql (primero)
+# 2. 20260428_add_data_integrity_constraints.sql (después)
+
+# Ejecutar todas las migraciones pendientes
 supabase migration up
 
 # O específicamente:
 supabase db push
 ```
+
+---
+
+## 📋 ¿Qué hace la migración previa?
+
+La migración `20260429_fix_corrupted_handle_time.sql` corrige automáticamente:
+
+1. **Handle_time corrupto** — Registros donde `handle_time < duration` se actualizan a `duration + 45`
+2. **Attended sin duration** — Registros con `attended=true` y `duration=0` se marcan como `attended=false`
+3. **Salientes con queue_time** — Se detectan y se marcan para auditoría
+
+Esto asegura que los datos existentes cumplan con los nuevos constraints antes de agregarlos.
 
 ---
 
