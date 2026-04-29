@@ -25,12 +25,13 @@ import { ExecutiveTalkTimeByDay } from './ExecutiveTalkTimeByDay';
 import { ExecutiveTalkTimeByWeekday } from './ExecutiveTalkTimeByWeekday';
 import { ExecutivesDetailTable } from './ExecutivesDetailTable';
 import { ExecutiveDashboard } from './ExecutiveDashboard';
+import { ExecutivePerformanceScorecardComponent, TeamPerformanceReportComponent } from './ExecutivePerformanceScorecard';
 import { SectionHeader } from './SectionHeader';
 import { calculateKPIs, logKPIDebugInfo } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
-import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users, Zap } from 'lucide-react';
+import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users, Zap, TrendingUp } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
 import type { AgentStatusRecord } from '../lib/supabase';
@@ -491,6 +492,16 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
           />
           <ExecutivesDetailTable stats={kpis.executiveStats} />
 
+          {/* Performance Scorecard - Ranking del Equipo */}
+          <div className="border-t border-slate-200 pt-6 mt-6">
+            <SectionHeader
+              icon={TrendingUp}
+              title="Ranking de Performance"
+              description="Puntuación de desempeño individual por ejecutivo"
+            />
+            <TeamPerformanceReportComponent records={records} queue={filters.queue} />
+          </div>
+
           {/* Conectividad integrada como sub-sección */}
           <div className="border-t border-slate-200 pt-6 mt-6">
             <SectionHeader
@@ -537,6 +548,54 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
                 />
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {activeSection === 'performance' && (
+        <div className="space-y-6">
+          <SectionHeader
+            icon={TrendingUp}
+            title="Desempeño Individual"
+            description="Análisis detallado de métricas de performance: eficacia, disponibilidad y productividad"
+          />
+
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl px-6 py-4 text-sm text-blue-800 mb-6">
+            <p className="font-semibold mb-2">📊 Métricas de Desempeño</p>
+            <p className="text-blue-700 text-xs leading-relaxed mb-2">
+              El scorecard de performance evalúa a cada ejecutivo en tres dimensiones:
+            </p>
+            <ul className="text-blue-700 text-xs space-y-1 ml-4">
+              <li><strong>Eficacia (40%)</strong>: Calidad técnica - Hold Rate, AHT Neto, FCR</li>
+              <li><strong>Disponibilidad (35%)</strong>: Enfoque y disciplina - Bounce Rate, Alert Time, ACW Adherence</li>
+              <li><strong>Productividad (25%)</strong>: Aporte al equipo - Erlang Contribution, Real Occupancy</li>
+            </ul>
+            <p className="text-blue-700 text-xs leading-relaxed mt-2">
+              💡 Pasa el ratón sobre el icono ⓘ en cada métrica para ver detalles completos de interpretación.
+            </p>
+          </div>
+
+          {/* Ranking del equipo */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Ranking de Equipo</h3>
+            <TeamPerformanceReportComponent records={records} queue={filters.queue} />
+          </div>
+
+          {/* Individual Scorecards - Allow selection */}
+          <div className="border-t border-slate-200 pt-6 mt-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Scorecard Detallado por Ejecutivo</h3>
+            <div className="space-y-4">
+              {kpis.allExecutivesWithData.slice(0, 5).map(exec => (
+                <div key={exec} className="border-t border-slate-100 pt-4 first:border-t-0 first:pt-0">
+                  <ExecutivePerformanceScorecardComponent records={records} executive={exec} queue={filters.queue} />
+                </div>
+              ))}
+              {kpis.allExecutivesWithData.length > 5 && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center text-slate-600 text-sm">
+                  Mostrando 5 de {kpis.allExecutivesWithData.length} ejecutivos. Usa el filtro de ejecutivos para ver otros.
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
