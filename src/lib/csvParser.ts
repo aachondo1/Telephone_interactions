@@ -74,10 +74,8 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   alertedUsers: ['usuarios - alertados', 'alerted users', 'agentes alertados', 'usuarios alertados'],
 };
 
-function normalizeHeader(header: string): string {
-  return header
-    .toLowerCase()
-    .trim()
+function normalizeText(text: string): string {
+  return text
     // Fix UTF-8 encoding issues: Ã³ → o, Ã± → n, etc.
     .replace(/Ã³/g, 'o')
     .replace(/Ã±/g, 'n')
@@ -85,6 +83,14 @@ function normalizeHeader(header: string): string {
     .replace(/Ã¡/g, 'a')
     .replace(/Ãº/g, 'u')
     .replace(/Ã­/g, 'i')
+    .replace(/Ã/g, 'a')
+    .replace(/Ã§/g, 'c');
+}
+
+function normalizeHeader(header: string): string {
+  return normalizeText(header)
+    .toLowerCase()
+    .trim()
     // Remove extra whitespace
     .replace(/\s+/g, ' ');
 }
@@ -383,9 +389,10 @@ export async function transformRows(
       : false;
 
     const direction = (columnMap.direction ? row[columnMap.direction] : '') ?? '';
+    const normalizedDirection = normalizeText(direction).toLowerCase();
     const rawQueue = ((columnMap.queue ? row[columnMap.queue] : '') ?? '').trim();
-    const isOutbound = direction.toLowerCase() === 'outbound' || direction.toLowerCase() === 'saliente';
-    const isInbound = direction.toLowerCase() === 'inbound' || direction.toLowerCase() === 'entrante';
+    const isOutbound = normalizedDirection === 'outbound' || normalizedDirection === 'saliente';
+    const isInbound = normalizedDirection === 'inbound' || normalizedDirection === 'entrante';
 
     let queue: string;
     if (VALID_QUEUES.has(rawQueue)) {
