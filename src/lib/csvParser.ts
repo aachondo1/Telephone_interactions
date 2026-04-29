@@ -32,30 +32,7 @@ export type ParsedCallRecord = {
   acwSeconds: number;
 };
 
-export type ParseResult = {
-  records: ParsedCallRecord[];
-  errors: string[];
-  columnMap: Record<string, string>;
-  anomalies?: Array<{
-    type: string;
-    callId?: string;
-    rawHandleTime?: number;
-    durationSeconds?: number;
-    queueTimeSeconds?: number;
-    alertedUsers?: string;
-    flowExit?: boolean;
-    actionTaken: string;
-    severity?: 'CRITICAL' | 'WARNING' | 'INFO';
-    timestamp: Date;
-  }>;
-  auditSummary?: {
-    totalAnomalies: number;
-    critical: number;
-  };
-};
-
-// CAMBIO 5: Global anomalies tracking
-let anomalies: Array<{
+export type AnomalyEntry = {
   type: string;
   callId?: string;
   rawHandleTime?: number;
@@ -66,7 +43,18 @@ let anomalies: Array<{
   actionTaken: string;
   severity?: 'CRITICAL' | 'WARNING' | 'INFO';
   timestamp: Date;
-}> = [];
+};
+
+export type ParseResult = {
+  records: ParsedCallRecord[];
+  errors: string[];
+  columnMap: Record<string, string>;
+  anomalies?: AnomalyEntry[];
+  auditSummary?: {
+    totalAnomalies: number;
+    critical: number;
+  };
+};
 
 // Known column name variants
 const COLUMN_ALIASES: Record<string, string[]> = {
@@ -244,9 +232,9 @@ export function cleanPhoneNumber(raw: string): string {
   if (!raw || raw.trim() === '') return '';
   return raw
     .replace(/^tel:/i, '')
-    .replace(/^sip:[^@]*/i, '')  // sip:number@domain -> keep number part
-    .replace(/^sip:/i, '')
-    .replace(/@.*$/, '')          // remove domain part if any
+    .replace(/^sip:([^@]*)@.*$/i, '$1')  // sip:1234@domain → 1234
+    .replace(/^sip:/i, '')               // sip:1234 → 1234
+    .replace(/@.*$/, '')                 // remove domain part if any
     .replace(/[^0-9+]/g, '')
     .replace(/^\+/, '');
 }
@@ -312,8 +300,19 @@ export async function transformRows(
   columnMap: Record<string, string>,
   processedSignatures?: Set<string>
 ): Promise<{ records: ParsedCallRecord[]; duplicateCount: number; anomalies: typeof anomalies }> {
-  // Reset anomalies for this batch
-  anomalies = [];
+  // Local anomalies tracking for this batch (evita race conditions entre uploads concurrentes)
+  const anomalies: Array<{
+    type: string;
+    callId?: string;
+    rawHandleTime?: number;
+    durationSeconds?: number;
+    queueTimeSeconds?: number;
+    alertedUsers?: string;
+    flowExit?: boolean;
+    actionTaken: string;
+    severity?: 'CRITICAL' | 'WARNING' | 'INFO';
+    timestamp: Date;
+  }> = [];
   const results: ParsedCallRecord[] = [];
   let duplicateCount = 0;
 
@@ -422,7 +421,7 @@ export async function transformRows(
     })();
 
     // CAMBIO 3: Validar que salientes NO tengan queue_time
-    validateOutboundLogic(direction, queueTimeSeconds, originalCallId);
+    validateOutboundLogic(direction, queueTimeSeconds, originalCallId, anomalies);
     const alertSegments = columnMap.alertSegments
       ? parseNumericField(row[columnMap.alertSegments] ?? '1')
       : 1;
@@ -439,7 +438,7 @@ export async function transformRows(
     // Calculate derived fields
     const acwSeconds = 45;
     const holdTimeSeconds = Math.max(0, handleTimeSeconds - acwSeconds - durationSeconds);
-    const abandonType = calculateAbandonType(attended, flowExit, queueTimeSeconds, alertedUsers, originalCallId);
+    const abandonType = calculateAbandonType(attended, flowExit, queueTimeSeconds, alertedUsers, originalCallId, anomalies);
     const isBounce = calculateIsBounce(alertSegments, alertedUsers, allUsers);
 
     const record: ParsedCallRecord = {
@@ -521,7 +520,7 @@ export function markOverlappingCalls(records: ParsedCallRecord[]): { records: Pa
         const nextStart = timeStringToMinutes(nextCall.callTime);
 
         if (currentEnd !== null && nextStart !== null && nextStart < currentEnd) {
-          const recordIndex = markedRecords.indexOf(nextCall);
+          const recordIndex = markedRecords.findIndex(r => r.originalCallId === nextCall.originalCallId);
           if (recordIndex !== -1) {
             markedRecords[recordIndex].isOverlapping = true;
             overlapCount++;
@@ -579,7 +578,8 @@ function calculateAbandonType(
   flowExit: boolean,
   queueTime: number,
   alertedUsers: string,
-  callId?: string
+  callId: string,
+  anomalies: AnomalyEntry[]
 ): string | null {
   if (attended) return null;
 
@@ -621,7 +621,8 @@ function calculateAbandonType(
 function validateOutboundLogic(
   callDirection: string,
   queueTimeSeconds: number,
-  callId: string
+  callId: string,
+  anomalies: AnomalyEntry[]
 ): void {
   const isOutbound = callDirection?.toLowerCase().includes('saliente') ||
                      callDirection?.toLowerCase().includes('outbound');
@@ -658,7 +659,7 @@ function calculateIsBounce(
 // CAMBIO 6: Exportar función para guardar auditoría en BD
 export async function saveImportAudit(
   uploadId: string,
-  anomaliesToSave: typeof anomalies,
+  anomaliesToSave: AnomalyEntry[],
   supabaseClient: any
 ): Promise<void> {
   if (anomaliesToSave.length === 0) {

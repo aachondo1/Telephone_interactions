@@ -33,7 +33,7 @@ import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
 import type { AgentStatusRecord } from '../lib/supabase';
 import { InterventionImpact } from './InterventionImpact';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
 type Tab = 'resumen' | 'general' | 'colas' | 'ejecutivos' | 'planificacion' | 'conectividad' | 'intervencion' | 'audit';
 
@@ -157,6 +157,10 @@ function applyFilters(records: CallRecord[], filters: FilterState): CallRecord[]
       if (!dirMatch) return false;
     }
 
+    if (filters.abandonType.length > 0) {
+      if (!r.abandon_type || !filters.abandonType.includes(r.abandon_type as any)) return false;
+    }
+
     return true;
   });
 }
@@ -165,7 +169,7 @@ function applyFilters(records: CallRecord[], filters: FilterState): CallRecord[]
 function DataQualityBanner({ quality }: { quality: DataQualityReport | null }) {
   if (!quality) return null;
 
-  const hasCriticalIssues = quality.criticalIssues > 0;
+  const hasCriticalIssues = quality.criticalIssues.handleTimeCorrupted > 0 || quality.criticalIssues.technicalCutsAsAttended > 0;
   const hasOutboundFiltered = quality.outboundCalls > 0;
   const isClean = !hasCriticalIssues && !hasOutboundFiltered;
 
@@ -222,10 +226,6 @@ function AuditTab() {
   useEffect(() => {
     const loadAuditLogs = async () => {
       try {
-        const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || '';
-        const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY || '';
-        const supabase = createClient(supabaseUrl, supabaseKey);
-
         const { data, error: fetchError } = await supabase
           .from('import_audit_log')
           .select('*')
@@ -321,7 +321,7 @@ function AuditTab() {
 function DataQualityIndicator({ quality }: { quality: DataQualityReport | null }) {
   if (!quality) return null;
 
-  const hasCritical = quality.criticalIssues > 0;
+  const hasCritical = quality.criticalIssues.handleTimeCorrupted > 0 || quality.criticalIssues.technicalCutsAsAttended > 0;
   const hasWarning = quality.handleTimeCorrupted > 0 || quality.technicalCuts > 0;
 
   if (hasCritical) {

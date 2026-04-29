@@ -135,7 +135,7 @@ export type ExecutiveOccupancyEntry = {
   weeklyTalkMinutes: number;
   weeklyFreeMinutes: number;
   weeklyShiftMinutes: number;
-  weeksWithCalls: number;
+  daysWithCalls: number;
 };
 
 export type ExecutiveOccupancyData = {
@@ -584,7 +584,7 @@ export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOcc
         weeklyTalkMinutes: weeklyAvgTalkMin,
         weeklyFreeMinutes: Math.max(0, WEEKLY_SHIFT_MINUTES - weeklyAvgTalkMin),
         weeklyShiftMinutes: WEEKLY_SHIFT_MINUTES,
-        weeksWithCalls: daysWithActivity,
+        daysWithCalls: daysWithActivity,
       };
     })
     .filter((e): e is ExecutiveOccupancyEntry => e !== null)
@@ -928,8 +928,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const durations = validRecords.map(r => r.duration_seconds);
   const totalDuration = durations.reduce((a, b) => a + b, 0);
   const avgDurationSeconds = Math.round(totalDuration / total);
-  const maxDurationSeconds = Math.max(...durations);
-  const minDurationSeconds = Math.min(...durations);
+  const maxDurationSeconds = durations.reduce((a, b) => Math.max(a, b), 0);
+  const minDurationSeconds = durations.reduce((a, b) => Math.min(a, b), Infinity);
 
   // Genesys metrics
   const queueTimes = validRecords.map(r => r.queue_time_seconds ?? 0);
@@ -939,12 +939,12 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   // "Zero Hold" Rule: Recalculate hold time dynamically to protect against Genesys rounding milliseconds.
   // Formula: hold_time = handle_time - 45 (ACW) - duration
   // Math.max(0, ...) prevents "negative hold" (-1s) from millisecond rounding errors in Genesys data.
-  const holdTimes = records.map(r => Math.max(0, (r.handle_time_seconds ?? 0) - 45 - (r.duration_seconds ?? 0)));
+  const holdTimes = validRecords.map(r => Math.max(0, (r.handle_time_seconds ?? 0) - 45 - (r.duration_seconds ?? 0)));
 
   const avgQueueTimeSeconds = queueTimes.length > 0
     ? Math.round(queueTimes.reduce((a, b) => a + b, 0) / queueTimes.length)
     : 0;
-  const maxQueueTimeSeconds = Math.max(...queueTimes);
+  const maxQueueTimeSeconds = queueTimes.reduce((a, b) => Math.max(a, b), 0);
   const avgHandleTimeSeconds = handleTimes.length > 0
     ? Math.round(handleTimes.reduce((a, b) => a + b, 0) / handleTimes.length)
     : 0;
@@ -954,7 +954,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const avgHoldTimeSeconds = holdTimes.length > 0
     ? Math.round(holdTimes.reduce((a, b) => a + b, 0) / holdTimes.length)
     : 0;
-  const maxHoldTimeSeconds = Math.max(...holdTimes);
+  const maxHoldTimeSeconds = holdTimes.reduce((a, b) => Math.max(a, b), 0);
 
   const completeCount = validRecords.filter(r => r.export_complete).length;
   const completenessRate = Math.round((completeCount / total) * 100);
@@ -1152,7 +1152,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
 
   // Executive daily talk time (attended calls only, top 5 execs)
   const execDayMap = new Map<string, Map<string, number>>();
-  for (const r of records) {
+  for (const r of validRecords) {
     if (!r.attended || !r.executive || !topExecSet.has(r.executive) || !r.call_date) continue;
     if (!execDayMap.has(r.call_date)) execDayMap.set(r.call_date, new Map());
     const dayMap = execDayMap.get(r.call_date)!;
@@ -1170,7 +1170,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
 
   // Executive hourly talk time (attended calls only, all executives)
   const execHourMap = new Map<number, Map<string, number>>();
-  for (const r of records) {
+  for (const r of validRecords) {
     if (!r.attended || !r.executive) continue;
     if (r.call_hour === null || r.call_hour === undefined) continue;
     if (!execHourMap.has(r.call_hour)) execHourMap.set(r.call_hour, new Map());
@@ -1193,7 +1193,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   // Executive weekday talk time (attended calls only, all executives)
   const weekdayLabels = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
   const execWeekdayMap = new Map<number, Map<string, number>>();
-  for (const r of records) {
+  for (const r of validRecords) {
     if (!r.attended || !r.executive || !r.call_date) continue;
     const d = new Date(r.call_date + 'T00:00:00');
     const weekday = d.getDay();
