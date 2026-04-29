@@ -21,6 +21,7 @@ export function ExecutivesTable({ stats }: Props) {
               <th className="text-left px-6 py-3 font-medium">Ejecutivo</th>
               <th className="text-right px-4 py-3 font-medium">Llamadas</th>
               <th className="text-right px-4 py-3 font-medium">Dur. Prom.</th>
+              <th className="text-right px-4 py-3 font-medium">% Rebotes</th>
               <th className="px-6 py-3 font-medium text-left w-40">% del total</th>
             </tr>
           </thead>
@@ -55,6 +56,9 @@ export function ExecutivesTable({ stats }: Props) {
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-slate-600">
                   {row.avgDurationFormatted}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <span className="text-rose-600 font-medium">{row.bounceRate}%</span>
                 </td>
                 <td className="px-6 py-3">
                   <div className="flex items-center gap-2">
