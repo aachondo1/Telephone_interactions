@@ -805,6 +805,18 @@ export function calculateAbandonStats(records: CallRecord[]): AbandonStats {
   };
 }
 
+// CAMBIO 4: Detectar cortes técnicos (1-5 seg sin alertas)
+export function isCorruptedTechnicalCall(record: CallRecord): boolean {
+  // Llamada "atendida" de 1-5 segundos sin alertas
+  // = corte técnico registrado como atendida
+  return (
+    record.attended &&
+    record.duration_seconds >= 1 &&
+    record.duration_seconds <= 5 &&
+    (!record.alert_time_seconds || record.alert_time_seconds === 0)
+  );
+}
+
 export function calculateRentryRate(records: CallRecord[], hours: number = 24): { reentries: number; reentryRate: number } {
   const callsByAni = new Map<string, CallRecord[]>();
 
@@ -847,7 +859,28 @@ export function calculateRentryRate(records: CallRecord[], hours: number = 24): 
 }
 
 export function calculateKPIs(records: CallRecord[]): KPISummary {
-  const total = records.length;
+  // CAMBIO 1: Filtrar solo llamadas ENTRANTES para KPIs de servicio
+  const inboundRecords = records.filter(r =>
+    !r.call_direction?.toLowerCase().includes('saliente') &&
+    !r.call_direction?.toLowerCase().includes('outbound')
+  );
+
+  // Excluir cortes técnicos
+  const validRecords = inboundRecords.filter(r => !isCorruptedTechnicalCall(r));
+
+  const technicalCuts = inboundRecords.length - validRecords.length;
+  const outboundCount = records.length - inboundRecords.length;
+
+  if (outboundCount > 0 || technicalCuts > 0) {
+    console.log(
+      `📊 KPI Metrics: ${records.length} total registros, ` +
+      `${validRecords.length} válidas entrantes, ` +
+      `${outboundCount} salientes excluidos, ` +
+      `${technicalCuts} cortes técnicos excluidos`
+    );
+  }
+
+  const total = validRecords.length;
   const empty: KPISummary = {
     totalCalls: 0,
     avgDurationSeconds: 0,
@@ -892,16 +925,16 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   };
   if (total === 0) return empty;
 
-  const durations = records.map(r => r.duration_seconds);
+  const durations = validRecords.map(r => r.duration_seconds);
   const totalDuration = durations.reduce((a, b) => a + b, 0);
   const avgDurationSeconds = Math.round(totalDuration / total);
   const maxDurationSeconds = Math.max(...durations);
   const minDurationSeconds = Math.min(...durations);
 
   // Genesys metrics
-  const queueTimes = records.map(r => r.queue_time_seconds ?? 0);
-  const handleTimes = records.map(r => r.handle_time_seconds ?? 0);
-  const alertTimes = records.map(r => r.alert_time_seconds ?? 0);
+  const queueTimes = validRecords.map(r => r.queue_time_seconds ?? 0);
+  const handleTimes = validRecords.map(r => r.handle_time_seconds ?? 0);
+  const alertTimes = validRecords.map(r => r.alert_time_seconds ?? 0);
 
   // "Zero Hold" Rule: Recalculate hold time dynamically to protect against Genesys rounding milliseconds.
   // Formula: hold_time = handle_time - 45 (ACW) - duration
@@ -923,10 +956,10 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     : 0;
   const maxHoldTimeSeconds = Math.max(...holdTimes);
 
-  const completeCount = records.filter(r => r.export_complete).length;
+  const completeCount = validRecords.filter(r => r.export_complete).length;
   const completenessRate = Math.round((completeCount / total) * 100);
 
-  const unattendedCount = records.filter(r => !r.attended).length;
+  const unattendedCount = validRecords.filter(r => !r.attended).length;
   const unattendedPercent = Math.round((unattendedCount / total) * 100);
 
   // Executive stats
@@ -936,7 +969,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     totalHandleTime: number; totalQueueTime: number; totalAlertTime: number;
     totalAlertSegments: number; bounceCount: number; alertableCount: number;
   }>();
-  for (const r of records) {
+  for (const r of validRecords) {
     const exec = r.executive || 'SIN ATENDER';
     const e = execMap.get(exec) ?? {
       count: 0, totalDuration: 0, inbound: 0, outbound: 0, unattended: 0, complete: 0,
@@ -998,7 +1031,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     totalAlertSegments: number; bounceCount: number; alertableCount: number;
     abandonQueueCount: number; abandonAlertCount: number;
   }>();
-  for (const r of records) {
+  for (const r of validRecords) {
     const q = r.queue || 'Sin cola';
     const e = queueMap.get(q) ?? {
       count: 0, totalDuration: 0, inbound: 0, outbound: 0, unattended: 0, complete: 0,
@@ -1060,7 +1093,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
 
   // Hourly distribution
   const hourMap = new Map<number, number>();
-  for (const r of records) {
+  for (const r of validRecords) {
     if (r.call_hour !== null && r.call_hour !== undefined) {
       hourMap.set(r.call_hour, (hourMap.get(r.call_hour) ?? 0) + 1);
     }
@@ -1072,7 +1105,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
 
   // Daily distribution
   const dateMap = new Map<string, number>();
-  for (const r of records) {
+  for (const r of validRecords) {
     if (r.call_date) {
       dateMap.set(r.call_date, (dateMap.get(r.call_date) ?? 0) + 1);
     }
@@ -1083,7 +1116,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
 
   // Daily attended vs unattended split
   const dailyAttMap = new Map<string, { attended: number; unattended: number }>();
-  for (const r of records) {
+  for (const r of validRecords) {
     if (!r.call_date) continue;
     const cur = dailyAttMap.get(r.call_date) ?? { attended: 0, unattended: 0 };
     dailyAttMap.set(r.call_date, {
@@ -1097,7 +1130,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
 
   // Direction stats
   const dirMap = new Map<string, number>();
-  for (const r of records) {
+  for (const r of validRecords) {
     const dir = r.call_direction || 'Desconocido';
     dirMap.set(dir, (dirMap.get(dir) ?? 0) + 1);
   }
@@ -1177,15 +1210,15 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     return row;
   });
 
-  const queuePerformanceHeatmap = calculateQueuePerformanceHeatmap(records);
-  const queueUnattendedHeatmap = calculateQueueUnattendedHeatmap(records);
-  const queueLoadVariability = calculateQueueLoadVariability(records);
-  const queueAttendanceEvolution = calculateQueueAttendanceEvolution(records);
-  const executiveOccupancy = calculateExecutiveOccupancy(records);
-  const hourlyDemand = calculateHourlyDemand(records);
-  const topCallers = calculateTopCallers(records, 10);
-  const serviceLevel = calculateServiceLevel(records);
-  const abandonStats = calculateAbandonStats(records);
+  const queuePerformanceHeatmap = calculateQueuePerformanceHeatmap(validRecords);
+  const queueUnattendedHeatmap = calculateQueueUnattendedHeatmap(validRecords);
+  const queueLoadVariability = calculateQueueLoadVariability(validRecords);
+  const queueAttendanceEvolution = calculateQueueAttendanceEvolution(validRecords);
+  const executiveOccupancy = calculateExecutiveOccupancy(validRecords);
+  const hourlyDemand = calculateHourlyDemand(validRecords);
+  const topCallers = calculateTopCallers(validRecords, 10);
+  const serviceLevel = calculateServiceLevel(validRecords);
+  const abandonStats = calculateAbandonStats(validRecords);
 
   return {
     totalCalls: total,
@@ -1229,4 +1262,62 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     serviceLevel,
     abandonStats,
   };
+}
+
+// CAMBIO 6: Crear función de reporte de data quality
+export interface DataQualityReport {
+  totalRecords: number;
+  outboundCalls: number;
+  inboundCalls: number;
+  handleTimeCorrupted: number;
+  technicalCuts: number;
+  unclassifiedAbandons: number;
+  criticalIssues: {
+    handleTimeCorrupted: number;
+    technicalCutsAsAttended: number;
+  };
+}
+
+export function getDataQualityReport(records: CallRecord[]): DataQualityReport {
+  const report = {
+    totalRecords: records.length,
+    outboundCalls: records.filter(r =>
+      r.call_direction?.toLowerCase().includes('saliente') ||
+      r.call_direction?.toLowerCase().includes('outbound')
+    ).length,
+    inboundCalls: records.filter(r =>
+      !r.call_direction?.toLowerCase().includes('saliente') &&
+      !r.call_direction?.toLowerCase().includes('outbound')
+    ).length,
+    handleTimeCorrupted: records.filter(r =>
+      r.attended &&
+      r.handle_time_seconds > 0 &&
+      r.handle_time_seconds < r.duration_seconds
+    ).length,
+    technicalCuts: records.filter(r => isCorruptedTechnicalCall(r)).length,
+    unclassifiedAbandons: records.filter(r =>
+      !r.attended && !r.abandon_type
+    ).length,
+    criticalIssues: {
+      handleTimeCorrupted: records.filter(r =>
+        r.attended && r.handle_time_seconds < r.duration_seconds && r.handle_time_seconds > 0
+      ).length,
+      technicalCutsAsAttended: records.filter(r => isCorruptedTechnicalCall(r)).length,
+    },
+  };
+
+  return report;
+}
+
+// CAMBIO 7: Exportar función para que Dashboard la use
+export function logKPIDebugInfo(records: CallRecord[]): void {
+  const quality = getDataQualityReport(records);
+  const demand = calculateHourlyDemand(records);
+
+  console.group('📊 KPI Debug Info');
+  console.log('Data Quality:', quality);
+  console.log('Peak hour Erlang:', demand.points.reduce((max, h) =>
+    h.lun && h.lun > (max.lun ?? 0) ? h : max
+  ));
+  console.groupEnd();
 }
