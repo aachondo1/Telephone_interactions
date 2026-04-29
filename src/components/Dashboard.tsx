@@ -25,6 +25,7 @@ import { ExecutiveTalkTimeByDay } from './ExecutiveTalkTimeByDay';
 import { ExecutiveTalkTimeByWeekday } from './ExecutiveTalkTimeByWeekday';
 import { ExecutivesDetailTable } from './ExecutivesDetailTable';
 import { ExecutiveDashboard } from './ExecutiveDashboard';
+import { QueueHealthDashboard } from './QueueHealthDashboard';
 import { SectionHeader } from './SectionHeader';
 import { calculateKPIs, logKPIDebugInfo } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
@@ -458,6 +459,17 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
           <QueueLoadVariability data={kpis.queueLoadVariability} />
           <QueuesDetailTable stats={kpis.queueStats} />
           <TopCallersTable records={filteredRecords} />
+        </div>
+      )}
+
+      {activeSection === 'salud-colas' && (
+        <div className="space-y-6">
+          <SectionHeader
+            icon={Activity}
+            title="Salud de Colas"
+            description="KPIs críticos, análisis de fugas y alertas automáticas de gestión"
+          />
+          <QueueHealthDashboard records={filteredRecords} />
         </div>
       )}
 

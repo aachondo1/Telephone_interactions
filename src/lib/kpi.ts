@@ -1275,6 +1275,170 @@ export function getDataQualityReport(records: CallRecord[]): DataQualityReport {
   return report;
 }
 
+// Queue Health Dashboard Types
+export type QueueHealthMetric = {
+  queue: string;
+  serviceLevelPercent: number;
+  abandonmentRatePercent: number;
+  awtSeconds: number;
+  awtFormatted: string;
+  erlangC: number;
+  totalCalls: number;
+  attendedCalls: number;
+  abandonedCalls: number;
+};
+
+export type AbandonFunnelData = {
+  ivrFugues: number;
+  queueFugues: number;
+  alertFugues: number;
+  totalAbandons: number;
+};
+
+export type QueueHealthInsight = {
+  type: 'staffing' | 'availability' | 'quality';
+  severity: 'critical' | 'warning' | 'info';
+  queue: string;
+  hour?: number;
+  message: string;
+  metric: string;
+  value: number | string;
+  threshold: number | string;
+};
+
+export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthMetric[] {
+  const queueMap = new Map<string, CallRecord[]>();
+
+  for (const r of records) {
+    const queue = r.queue || 'Sin cola';
+    if (!queueMap.has(queue)) queueMap.set(queue, []);
+    queueMap.get(queue)!.push(r);
+  }
+
+  const metrics: QueueHealthMetric[] = [];
+
+  for (const [queue, queueRecords] of queueMap) {
+    const inboundCalls = queueRecords.filter(r => isInbound(r.call_direction));
+    const attendedCalls = inboundCalls.filter(r => r.attended).length;
+    const abandonedCalls = inboundCalls.filter(r => !r.attended).length;
+
+    const answeredWithin20s = inboundCalls.filter(r =>
+      r.attended && r.queue_time_seconds !== null && r.queue_time_seconds <= 20
+    ).length;
+
+    const serviceLevelPercent = inboundCalls.length > 0
+      ? Math.round((answeredWithin20s / inboundCalls.length) * 100)
+      : 0;
+
+    const abandonmentRatePercent = inboundCalls.length > 0
+      ? Math.round((abandonedCalls / inboundCalls.length) * 100)
+      : 0;
+
+    const queueTimes = inboundCalls
+      .filter(r => r.queue_time_seconds !== null && r.queue_time_seconds >= 0)
+      .map(r => r.queue_time_seconds!);
+
+    const awtSeconds = queueTimes.length > 0
+      ? Math.round(queueTimes.reduce((a, b) => a + b, 0) / queueTimes.length)
+      : 0;
+
+    const handleTimes = inboundCalls
+      .filter(r => r.handle_time_seconds !== null && r.handle_time_seconds >= 0)
+      .map(r => r.handle_time_seconds!);
+
+    // Erlang C: intensidad de tráfico
+    // Aproximación: (total_handle_time en segundos) / 3600
+    const totalHandleTime = handleTimes.reduce((a, b) => a + b, 0);
+    const erlangC = Math.round(totalHandleTime / 3600 * 10) / 10;
+
+    metrics.push({
+      queue,
+      serviceLevelPercent,
+      abandonmentRatePercent,
+      awtSeconds,
+      awtFormatted: formatDuration(awtSeconds),
+      erlangC,
+      totalCalls: inboundCalls.length,
+      attendedCalls,
+      abandonedCalls,
+    });
+  }
+
+  return metrics.sort((a, b) => b.totalCalls - a.totalCalls);
+}
+
+export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData {
+  const ivrFugues = records.filter(r => !r.attended && r.abandon_type === 'ivr').length;
+  const queueFugues = records.filter(r => !r.attended && r.abandon_type === 'queue').length;
+  const alertFugues = records.filter(r => !r.attended && r.abandon_type === 'alert').length;
+  const totalAbandons = records.filter(r => !r.attended).length;
+
+  return { ivrFugues, queueFugues, alertFugues, totalAbandons };
+}
+
+export function generateQueueHealthInsights(
+  metrics: QueueHealthMetric[],
+  funnelData: AbandonFunnelData,
+  records: CallRecord[]
+): QueueHealthInsight[] {
+  const insights: QueueHealthInsight[] = [];
+
+  // Alert 1: Understaffing
+  for (const metric of metrics) {
+    if (metric.serviceLevelPercent < 80 && metric.abandonmentRatePercent > 10) {
+      insights.push({
+        type: 'staffing',
+        severity: 'critical',
+        queue: metric.queue,
+        message: `Falta Personal: La cola ${metric.queue} está subdimensionada. Los clientes cuelgan por exceso de espera.`,
+        metric: 'Service Level & Abandonment Rate',
+        value: `SL: ${metric.serviceLevelPercent}%, Abandonos: ${metric.abandonmentRatePercent}%`,
+        threshold: 'SL > 80%, Abandonos < 10%',
+      });
+    }
+  }
+
+  // Alert 2: Low agent availability
+  const alertAbandons = funnelData.alertFugues;
+  const totalAbandons = funnelData.totalAbandons;
+  if (totalAbandons > 0 && alertAbandons / totalAbandons > 0.05) {
+    insights.push({
+      type: 'availability',
+      severity: 'warning',
+      queue: 'General',
+      message: `Baja Disponibilidad: Las llamadas están llegando a los agentes pero no las están tomando. Revisar estados "Away" o distracciones.`,
+      metric: 'Bounce Rate',
+      value: `${Math.round((alertAbandons / totalAbandons) * 100)}%`,
+      threshold: '< 5%',
+    });
+  }
+
+  // Alert 3: Quality / Re-entry issues
+  const topCallers = new Map<string, number>();
+  for (const r of records) {
+    if (r.ani_hash) {
+      topCallers.set(r.ani_hash, (topCallers.get(r.ani_hash) || 0) + 1);
+    }
+  }
+  const reentryPercent = topCallers.size > 0
+    ? Array.from(topCallers.values()).filter(count => count > 1).length / topCallers.size * 100
+    : 0;
+
+  if (reentryPercent > 15) {
+    insights.push({
+      type: 'quality',
+      severity: 'warning',
+      queue: 'General',
+      message: `Revisar Calidad: Los clientes están volviendo a llamar mucho. Posible falta de resolución o agentes muy dependientes del Hold.`,
+      metric: 'Re-entry %',
+      value: `${Math.round(reentryPercent)}%`,
+      threshold: '< 15%',
+    });
+  }
+
+  return insights;
+}
+
 // CAMBIO 7: Exportar función para que Dashboard la use
 export function logKPIDebugInfo(records: CallRecord[]): void {
   const quality = getDataQualityReport(records);
