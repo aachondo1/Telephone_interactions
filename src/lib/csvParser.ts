@@ -605,7 +605,7 @@ function calculateAbandonType(
       type: 'abandon_type_unclassified',
       callId,
       flowExit,
-      queueTime,
+      queueTimeSeconds: queueTime,
       alertedUsers: alertedUsers?.trim() || 'none',
       actionTaken: 'marked_as_unknown_abandon',
       severity: 'WARNING',

@@ -1,5 +1,16 @@
 # Problema: Cálculo Incorrecto de Ocupación Telefónica
 
+> **⚠️ Estado:** RESUELTO — Las correcciones fueron aplicadas en [CORRECCIONES_APLICADAS.md](CORRECCIONES_APLICADAS.md) y el plan completo en [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+> Este documento se conserva como referencia histórica del diagnóstico.
+
+**Documentos relacionados:**
+- [Correcciones Aplicadas](CORRECCIONES_APLICADAS.md) — Registro de las correcciones implementadas
+- [Auditoría de Métricas](AUDIT_METRICAS.md) — Auditoría que detectó los problemas
+- [Reset de Datos](RESET_DATOS.md) — Procedimiento de limpieza posterior
+- [PR Bugfix](PULL_REQUEST_BUGFIX.md) — Detalle de los 10 bugs corregidos
+
+---
+
 ## Síntoma
 Ejecutivas que están "todo el día hablando" muestran solo 1-2 horas de ocupación promedio.
 - Ana Farías: 1h 25m (debería ser ~7-8 horas)
@@ -33,7 +44,7 @@ const totalMin = handleMin + alertMin;  // ← SUMA AMBOS
 Esto DUPLICA el tiempo si ambos campos están poblados. Debería usarse solo `handleMin`.
 
 ## Cómo Verificar
-Ejecuta el archivo `audit_occupancy.sql` en Supabase:
+Ejecuta el archivo [`scripts/audit_occupancy.sql`](../scripts/audit_occupancy.sql) en Supabase:
 ```sql
 SELECT executive, count(*),
   count(CASE WHEN handle_time_seconds > 0 THEN 1 END) as with_handle_time,

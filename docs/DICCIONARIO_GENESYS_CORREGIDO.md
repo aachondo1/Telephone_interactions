@@ -1,5 +1,11 @@
 # Diccionario de Términos Genesys Cloud - VERSIÓN CORREGIDA
 
+> **📖 Referencia técnica** — Definiciones oficiales de los campos y métricas de Genesys Cloud utilizados en el proyecto.
+
+**Documentos relacionados:**
+- [Auditoría de Métricas](AUDIT_METRICAS.md) — Verificación de que los cálculos cumplen estas definiciones
+- [Correcciones Aplicadas](CORRECCIONES_APLICADAS.md) — Cambios realizados para alinear el código con este diccionario
+
 ## Definiciones Críticas
 
 ### 1. **Duration (Duración)** ⏱️

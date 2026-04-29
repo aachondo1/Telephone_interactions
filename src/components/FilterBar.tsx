@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Filter, X, ChevronDown, Calendar } from 'lucide-react';
 import type { CallRecord } from '../lib/supabase';
 
-function getDateRangeForRelative(range: FilterState['dateRange']): { start: string; end: string } {
+export function getDateRangeForRelative(range: FilterState['dateRange']): { start: string; end: string } {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -270,15 +270,6 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
     };
   }, [records]);
 
-  const effectiveDateStart = useMemo(() => {
-    if (filters.dateRange === 'custom') return filters.dateStart;
-    return getDateRangeForRelative(filters.dateRange).start;
-  }, [filters.dateStart, filters.dateRange]);
-
-  const effectiveDateEnd = useMemo(() => {
-    if (filters.dateRange === 'custom') return filters.dateEnd;
-    return getDateRangeForRelative(filters.dateRange).end;
-  }, [filters.dateEnd, filters.dateRange]);
 
   const filteredQueues = useMemo(() => {
     if (filters.departments.length === 0) return allQueues;
@@ -407,7 +398,7 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
           label="Dirección"
           options={['inbound', 'outbound']}
           selected={filters.direction}
-          onChange={direction => onChange({ ...filters, direction })}
+          onChange={direction => onChange({ ...filters, direction: direction as ('inbound' | 'outbound')[] })}
           renderOption={(opt) => opt === 'inbound' ? 'Entrantes' : 'Salientes'}
         />
 
@@ -416,7 +407,7 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
           label="Estado"
           options={['attended', 'unattended', 'unassigned']}
           selected={filters.attendedStatus}
-          onChange={attendedStatus => onChange({ ...filters, attendedStatus })}
+          onChange={attendedStatus => onChange({ ...filters, attendedStatus: attendedStatus as ('attended' | 'unattended' | 'unassigned')[] })}
           renderOption={(opt) => opt === 'attended' ? 'Atendidas' : opt === 'unattended' ? 'No atendidas' : 'No asignada'}
         />
 
@@ -425,7 +416,7 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
           label="Tipo Abandono"
           options={['queue', 'alert', 'ivr']}
           selected={filters.abandonType}
-          onChange={abandonType => onChange({ ...filters, abandonType })}
+          onChange={abandonType => onChange({ ...filters, abandonType: abandonType as ('queue' | 'alert' | 'ivr')[] })}
           renderOption={(opt) => opt === 'queue' ? 'En cola' : opt === 'alert' ? 'En alerta' : 'En IVR'}
         />
 

@@ -1,5 +1,12 @@
 # Reset de Datos y Reimportación - 2026-04-28
 
+> **✅ Estado:** COMPLETADO — Base de datos limpiada y lista para reimportar con código corregido.
+
+**Documentos relacionados:**
+- [Correcciones Aplicadas](CORRECCIONES_APLICADAS.md) — Cambios en el código previos al reset
+- [Issue de Ocupación](OCCUPANCY_ISSUE.md) — Diagnóstico original que motivó el reset
+- [Aplicar Migraciones](APPLY_MIGRATION.md) — Instrucciones para aplicar migraciones post-reset
+
 ## ✅ Acciones Realizadas
 
 **Estado:** Base de datos completamente limpia ✓

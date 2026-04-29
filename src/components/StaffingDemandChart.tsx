@@ -173,7 +173,7 @@ export function StaffingDemandChart({ data }: Props) {
                       const val = p.value as number;
                       const over = val > staffOnPhone;
                       return (
-                        <div key={p.dataKey} className="flex items-center justify-between gap-4 py-0.5">
+                        <div key={String(p.dataKey)} className="flex items-center justify-between gap-4 py-0.5">
                           <div className="flex items-center gap-1.5">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
                             <span className="text-slate-600">{p.name}</span>

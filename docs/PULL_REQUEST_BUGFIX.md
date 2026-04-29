@@ -1,7 +1,14 @@
 # 🐛 PR: Corrección de 10 bugs — Críticos, Moderados y Menores
 
-> **Archivos modificados:** `src/lib/csvParser.ts`, `src/lib/kpi.ts`, `src/components/Dashboard.tsx`  
-> **TypeScript:** `npx tsc --noEmit` compila sin errores ✅  
+> **✅ Estado:** MERGEADO — Todos los bugs fueron corregidos y el código compila sin errores.
+
+**Documentos relacionados:**
+- [Correcciones Aplicadas](CORRECCIONES_APLICADAS.md) — Registro de correcciones (solapamiento parcial)
+- [Auditoría de Métricas](AUDIT_METRICAS.md) — Auditoría que detectó varios de estos bugs
+- [Issue de Ocupación](OCCUPANCY_ISSUE.md) — Diagnóstico original del bug de ocupación
+
+> **Archivos modificados:** `src/lib/csvParser.ts`, `src/lib/kpi.ts`, `src/components/Dashboard.tsx`
+> **TypeScript:** `npx tsc --noEmit` compila sin errores ✅
 > **Breaking changes:** Ninguno
 
 ---

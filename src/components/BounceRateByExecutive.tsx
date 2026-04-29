@@ -55,9 +55,9 @@ export function BounceRateByExecutive({ executives }: Props) {
                 width={95}
               />
               <Tooltip
-                formatter={(value: number, name: string) => {
-                  if (name === 'bounceRate') return [`${value}%`, 'Tasa'];
-                  if (name === 'bounceCount') return [(value).toLocaleString('es-CL'), 'Rebotes'];
+                formatter={(value, name) => {
+                  if (name === 'bounceRate') return [`${Number(value)}%`, 'Tasa'];
+                  if (name === 'bounceCount') return [Number(value).toLocaleString('es-CL'), 'Rebotes'];
                   return [value, name];
                 }}
                 contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}

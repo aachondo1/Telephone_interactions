@@ -498,45 +498,11 @@ export function calculateQueueAttendanceEvolution(records: CallRecord[]): QueueA
   };
 }
 
-function getMondayOfWeek(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().split('T')[0];
-}
-
 function timeStringToMinutes(timeStr: string | null): number | null {
   if (!timeStr) return null;
   const [hours, minutes] = timeStr.split(':').map(Number);
   if (isNaN(hours) || isNaN(minutes)) return null;
   return hours * 60 + minutes;
-}
-
-function mergeIntervals(intervals: Array<[number, number]>): Array<[number, number]> {
-  if (intervals.length === 0) return [];
-
-  const sorted: Array<[number, number]> = intervals.slice().sort((a, b) => a[0] - b[0]);
-  const merged: Array<[number, number]> = [sorted[0] as [number, number]];
-
-  for (let i = 1; i < sorted.length; i++) {
-    const [prevStart, prevEnd] = merged[merged.length - 1];
-    const curr = sorted[i];
-    const currStart: number = curr[0];
-    const currEnd: number = curr[1];
-
-    if (currStart <= prevEnd) {
-      merged[merged.length - 1] = [prevStart, Math.max(prevEnd, currEnd)];
-    } else {
-      merged.push([currStart, currEnd]);
-    }
-  }
-
-  return merged;
-}
-
-function calculateTotalDuration(intervals: Array<[number, number]>): number {
-  return intervals.reduce((sum, [start, end]) => sum + (end - start), 0);
 }
 
 export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOccupancyData {

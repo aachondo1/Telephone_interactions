@@ -48,8 +48,8 @@ export function QueueWaitDistribution({ records }: Props) {
             tickLine={false}
           />
           <Tooltip
-            formatter={(value: number) => [(value).toLocaleString('es-CL'), 'Llamadas']}
-            labelFormatter={(label: string) => `${label}`}
+            formatter={(value) => [Number(value).toLocaleString('es-CL'), 'Llamadas']}
+            labelFormatter={(label) => `${label}`}
             contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}
           />
           <Bar
@@ -81,7 +81,7 @@ export function QueueWaitDistribution({ records }: Props) {
           </p>
         </div>
         <div className="text-center">
-          <p className="text-xs text-slate-400">>60s</p>
+          <p className="text-xs text-slate-400">{'>'}60s</p>
           <p className="text-2xl font-bold text-red-600">
             {Math.round(
               (records.filter(r => (r.queue_time_seconds ?? 0) > 60).length / total) * 100

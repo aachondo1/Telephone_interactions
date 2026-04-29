@@ -5,7 +5,7 @@ import { UploadModal } from './components/UploadModal';
 import { DataAuditPanel } from './components/DataAuditPanel';
 import { parseCSVText, detectColumns, validateColumns, transformRows, calculateDateRangeFromRecords } from './lib/csvParser';
 import { parseAgentStatusCSV } from './lib/agentStatusParser';
-import { saveUpload, getCallRecords, getAllUploads, getAllCallRecords, getProcessedSignatures, saveAgentStatusUpload, getLatestAgentStatusUpload } from './lib/supabaseService';
+import { saveUpload, getAllUploads, getAllCallRecords, getProcessedSignatures, saveAgentStatusUpload, getLatestAgentStatusUpload } from './lib/supabaseService';
 import type { CallRecord, CallUpload, AgentStatusRecord } from './lib/supabase';
 
 type DataState =
@@ -15,7 +15,7 @@ type DataState =
 
 export default function App() {
   const [dataState, setDataState] = useState<DataState>({ phase: 'loading' });
-  const [uploads, setUploads] = useState<CallUpload[]>([]);
+  const [_uploads, setUploads] = useState<CallUpload[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);

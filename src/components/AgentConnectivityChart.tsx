@@ -7,7 +7,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-  Cell,
 } from 'recharts';
 import type { AgentStatusRecord } from '../lib/supabase';
 import type { ExecutiveStat } from '../lib/kpi';

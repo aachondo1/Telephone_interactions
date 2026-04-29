@@ -48,9 +48,9 @@ export function QueuePieChart({ stats }: Props) {
             ))}
           </Pie>
           <Tooltip
-            formatter={(value: number, name: string, props) => [
-              `${formatDuration(value)} (${Math.round((value / totalAll) * 100)}%)`,
-              props.payload.name,
+            formatter={(value, _name, props) => [
+              `${formatDuration(Number(value))} (${Math.round((Number(value) / totalAll) * 100)}%)`,
+              (props as { payload?: { name?: string } }).payload?.name,
             ]}
             contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', fontSize: 13 }}
           />

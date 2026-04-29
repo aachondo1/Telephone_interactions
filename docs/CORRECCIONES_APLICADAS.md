@@ -1,6 +1,14 @@
 # Correcciones Aplicadas al Cálculo de Métricas
 
-**Fecha:** 2026-04-28  
+> **✅ Estado:** CORRECCIONES APLICADAS — Los cambios descritos aquí ya están en el código base.
+
+**Documentos relacionados:**
+- [Issue de Ocupación](OCCUPANCY_ISSUE.md) — Diagnóstico original del problema
+- [Auditoría de Métricas](AUDIT_METRICAS.md) — Auditoría que detectó los fallos
+- [PR Bugfix](PULL_REQUEST_BUGFIX.md) — Detalle de 10 bugs corregidos
+- [Reset de Datos](RESET_DATOS.md) — Procedimiento de limpieza posterior
+
+**Fecha:** 2026-04-28
 **Branch:** `claude/upload-dictionary-data-lU3ye`
 
 ---

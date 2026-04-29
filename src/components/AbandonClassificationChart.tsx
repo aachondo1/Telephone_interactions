@@ -1,5 +1,5 @@
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import type { CallRecord } from '../lib/supabase';
 
@@ -54,7 +54,7 @@ export function AbandonClassificationChart({ records }: Props) {
             width={75}
           />
           <Tooltip
-            formatter={(value: number) => (value).toLocaleString('es-CL')}
+            formatter={(value) => Number(value).toLocaleString('es-CL')}
             contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}
           />
           <Legend />

@@ -87,8 +87,8 @@ export function ExecutiveTalkTimeByHour({ data, executives, allExecutives }: Pro
             unit=" min"
           />
           <Tooltip
-            formatter={(value: number, name: string) => [
-              `${value} min (${formatDuration(value * 60)})`,
+            formatter={(value, name) => [
+              `${Number(value)} min (${formatDuration(Number(value) * 60)})`,
               name,
             ]}
             contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', fontSize: 12 }}

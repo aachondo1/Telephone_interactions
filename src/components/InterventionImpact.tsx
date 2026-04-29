@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import type { CallRecord } from '../lib/supabase';
 import { calculateKPIs, formatDuration } from '../lib/kpi';
@@ -23,10 +23,10 @@ function formatPercent(value: number): string {
   return `${Math.abs(value).toFixed(1)}%`;
 }
 
-function getMetricChange(before: number, after: number): { percent: number; isImprovement: boolean } {
-  if (before === 0) return { percent: 0, isImprovement: false };
-  const percent = ((after - before) / before) * 100;
-  return { percent, isImprovement: percent < 0 };
+function getMetricChange(before: number, after: number): { changePercent: number; isImprovement: boolean } {
+  if (before === 0) return { changePercent: 0, isImprovement: false };
+  const changePercent = ((after - before) / before) * 100;
+  return { changePercent, isImprovement: changePercent < 0 };
 }
 
 export function InterventionImpact({ records }: Props) {

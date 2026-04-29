@@ -14,7 +14,7 @@ export function QueueKPICards({ stats, totalCalls }: Props) {
     : 0;
   const totalUnattended = stats.reduce((acc, q) => acc + q.unattendedCount, 0);
   const totalAbandonedInQueue = stats.reduce((acc, q) => acc + q.abandonQueueRate * q.unattendedCount / 100, 0);
-  const totalAbandonedInAlert = stats.reduce((acc, q) => acc + q.abandonAlertRate * q.unattendedCount / 100, 0);
+  // totalAbandonedInAlert available if needed: stats.reduce((acc, q) => acc + q.abandonAlertRate * q.unattendedCount / 100, 0)
   const avgBounceRate = stats.length > 0
     ? Math.round(stats.reduce((acc, q) => acc + q.bounceRate, 0) / stats.length)
     : 0;

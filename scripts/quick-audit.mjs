@@ -1,7 +1,18 @@
-import { createClient } from '@supabase/supabase-js';
+#!/usr/bin/env node
 
-const supabaseUrl = 'https://tnkqsfxsofaocbrnhhjr.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRua3FzZnhzb2Zhb2Nicm5oaGpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMzA0MjksImV4cCI6MjA5MjcwNjQyOX0.dfmlXQD21AtEC1TxKzu-AJ5V8ZYjFdf8KZkRKPOSmg0';
+import { createClient } from '@supabase/supabase-js';
+import * as dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config();
+
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('❌ Error: VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY deben estar definidas en .env');
+  process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

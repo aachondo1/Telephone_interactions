@@ -53,10 +53,11 @@ export function QueueBarChart({ stats }: Props) {
             tickLine={false}
           />
           <Tooltip
-            formatter={(value: number) => [formatDuration(value), 'Tiempo']}
-            labelFormatter={(_: unknown, payload: {payload?: {fullName?: string}}[]) =>
-              payload?.[0]?.payload?.fullName ?? ''
-            }
+            formatter={(value) => [formatDuration(Number(value)), 'Tiempo']}
+            labelFormatter={(_, payload) => {
+              const p = payload as unknown as {payload?: {fullName?: string}}[];
+              return p?.[0]?.payload?.fullName ?? '';
+            }}
             contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', fontSize: 13 }}
           />
           <Bar dataKey="tiempo" radius={[0, 6, 6, 0]} maxBarSize={28}>

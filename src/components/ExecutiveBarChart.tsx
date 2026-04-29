@@ -52,10 +52,11 @@ export function ExecutiveBarChart({ stats }: Props) {
             tickLine={false}
           />
           <Tooltip
-            formatter={(value: number) => [value.toLocaleString('es-CL'), 'Llamadas']}
-            labelFormatter={(_: unknown, payload: {payload?: {fullName?: string}}[]) =>
-              payload?.[0]?.payload?.fullName ?? ''
-            }
+            formatter={(value) => [Number(value).toLocaleString('es-CL'), 'Llamadas']}
+            labelFormatter={(_, payload) => {
+              const p = (payload as unknown as {payload?: {fullName?: string}}[])?.[0]?.payload;
+              return p?.fullName ?? '';
+            }}
             contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', fontSize: 13 }}
           />
           <Bar dataKey="llamadas" radius={[6, 6, 0, 0]} maxBarSize={36}>

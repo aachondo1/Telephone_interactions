@@ -1,5 +1,11 @@
 # 🗄️ INSTRUCCIONES PARA APLICAR MIGRACIÓN DE INTEGRIDAD DE DATOS
 
+> **📋 Referencia operativa** — Instrucciones paso a paso para ejecutar las migraciones SQL en Supabase.
+
+**Documentos relacionados:**
+- [Plan de Implementación](IMPLEMENTATION_PLAN.md) — Plan general de correcciones
+- [Reset de Datos](RESET_DATOS.md) — Procedimiento de limpieza previo
+
 **Archivo:** `supabase/migrations/20260428_add_data_integrity_constraints.sql`
 
 ---

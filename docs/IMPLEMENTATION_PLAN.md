@@ -1,8 +1,15 @@
 # 📋 PLAN DE IMPLEMENTACIÓN - Corrección de Datos y KPIs
 
-**Estado:** EN PROGRESO  
-**Fecha creación:** 2026-04-28  
-**Rama de desarrollo:** `claude/fix-erlang-occupancy-kpi-l1pAd`  
+> **⚠️ Estado:** EN PROGRESO — Fases 1-3 completadas, pendiente aplicación manual de migraciones y validación final.
+
+**Documentos relacionados:**
+- [Aplicar Migraciones](APPLY_MIGRATION.md) — Instrucciones paso a paso para ejecutar las migraciones SQL
+- [Correcciones Aplicadas](CORRECCIONES_APLICADAS.md) — Registro de correcciones ya implementadas
+- [PR Bugfix](PULL_REQUEST_BUGFIX.md) — Detalle de 10 bugs corregidos
+- [Reset de Datos](RESET_DATOS.md) — Procedimiento de limpieza posterior
+
+**Fecha creación:** 2026-04-28
+**Rama de desarrollo:** `claude/fix-erlang-occupancy-kpi-l1pAd`
 **Tiempo estimado:** 3 semanas
 
 ---

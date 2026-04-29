@@ -37,7 +37,7 @@ export function ServiceLevelChart({ data }: Props) {
             domain={[0, 100]}
           />
           <Tooltip
-            formatter={(value: number) => `${value}%`}
+            formatter={(value) => `${Number(value)}%`}
             contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}
           />
           <ReferenceLine y={80} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Meta 80%', position: 'right', fill: '#10b981', fontSize: 11 }} />

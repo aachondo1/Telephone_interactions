@@ -63,13 +63,14 @@ export function ExecutiveTalkTimeByDay({ data, executives }: Props) {
             unit=" min"
           />
           <Tooltip
-            formatter={(value: number, name: string) => [
-              `${value} min (${formatDuration(value * 60)})`,
+            formatter={(value, name) => [
+              `${Number(value)} min (${formatDuration(Number(value) * 60)})`,
               name,
             ]}
-            labelFormatter={(label: string, payload: {payload?: {date?: string}}[]) =>
-              payload?.[0]?.payload?.date ? `Fecha: ${payload[0].payload.date}` : label
-            }
+            labelFormatter={(label, payload) => {
+              const p = (payload as unknown as {payload?: {date?: string}}[])?.[0]?.payload;
+              return p?.date ? `Fecha: ${p.date}` : String(label);
+            }}
             contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', fontSize: 12 }}
           />
           <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
