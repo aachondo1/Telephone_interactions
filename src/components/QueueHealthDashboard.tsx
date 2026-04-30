@@ -63,17 +63,6 @@ export function QueueHealthDashboard({ records }: Props) {
                   </th>
                   <th className="px-6 py-3 text-right font-semibold text-slate-700">
                     <div className="flex items-center justify-end gap-1">
-                      AWT
-                      <Tooltip
-                        definition="Tiempo promedio de espera de todas las llamadas válidas"
-                        formula="SUM(queue_time_seconds) / Cantidad total"
-                        unit="Segundos (mm:ss)"
-                        benchmark="Menor es mejor"
-                      />
-                    </div>
-                  </th>
-                  <th className="px-6 py-3 text-right font-semibold text-slate-700">
-                    <div className="flex items-center justify-end gap-1">
                       SL%
                       <Tooltip
                         definition="Porcentaje de llamadas atendidas dentro de 20 segundos"
@@ -113,7 +102,6 @@ export function QueueHealthDashboard({ records }: Props) {
                     <td className="px-6 py-4 font-medium text-slate-800">{m.queue}</td>
                     <td className="px-6 py-4 text-right text-slate-600">{m.attendedCalls}</td>
                     <td className="px-6 py-4 text-right text-slate-600">{m.abandonedCalls}</td>
-                    <td className="px-6 py-4 text-right text-slate-600">{m.awtFormatted}</td>
                     <td className="px-6 py-4 text-right">
                       <span
                         className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${

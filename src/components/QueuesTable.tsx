@@ -5,7 +5,9 @@ type Props = {
 };
 
 export function QueuesTable({ stats }: Props) {
-  const maxDuration = Math.max(...stats.map(s => s.totalDurationSeconds), 1);
+  // Filter to show only queues with inbound traffic
+  const activeQueues = stats.filter(s => s.inboundCount > 0);
+  const maxDuration = Math.max(...activeQueues.map(s => s.totalDurationSeconds), 1);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -25,7 +27,7 @@ export function QueuesTable({ stats }: Props) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {stats.map((row, i) => (
+            {activeQueues.map((row, i) => (
               <tr
                 key={row.queue}
                 className={`hover:bg-slate-100 transition-colors ${i % 2 === 0 ? '' : 'even:bg-slate-50'}`}
@@ -57,7 +59,7 @@ export function QueuesTable({ stats }: Props) {
             ))}
           </tbody>
         </table>
-        {stats.length === 0 && (
+        {activeQueues.length === 0 && (
           <p className="text-center text-slate-400 py-8">Sin datos</p>
         )}
       </div>

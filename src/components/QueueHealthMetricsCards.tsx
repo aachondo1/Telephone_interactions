@@ -93,21 +93,6 @@ export function QueueHealthMetricsCards({ metrics }: Props) {
 
   const supplementaryCards = [
     {
-      label: 'AWT Global (Referencia)',
-      value: queue.awtFormatted,
-      sub: 'Promedio de todas',
-      icon: Clock,
-      color: 'bg-slate-50 text-slate-600',
-      border: 'border-slate-100',
-      benchmark: 'Informativo',
-      tooltip: {
-        definition: 'Tiempo promedio de espera de TODAS las llamadas válidas (atendidas + abandonadas)',
-        formula: 'SUM(queue_time_seconds de todas) / Cantidad total',
-        unit: 'Segundos (mm:ss)',
-        benchmark: 'Informativo. Usa ASA y ATA para diagnóstico más preciso',
-      },
-    },
-    {
       label: 'Erlang C (Carga)',
       value: queue.erlangC.toFixed(1),
       sub: 'Intensidad de tráfico',
@@ -154,8 +139,8 @@ export function QueueHealthMetricsCards({ metrics }: Props) {
         ))}
       </div>
 
-      {/* Supplementary Metrics: AWT Global & Erlang C */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Supplementary Metrics: Erlang C */}
+      <div className="grid grid-cols-1 gap-4">
         {supplementaryCards.map(({ label, value, sub, icon: Icon, color, border, benchmark, tooltip }) => (
           <div key={label} className={`bg-white rounded-2xl p-6 shadow-sm border ${border}`}>
             <div className="flex items-start justify-between mb-4">
