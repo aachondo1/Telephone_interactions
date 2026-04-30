@@ -1419,11 +1419,17 @@ export function calculateTechnicalLeaks(records: CallRecord[]): TechnicalLeaksDa
 
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
 
-  const shortAbandons = inboundCalls.filter(r =>
-    !r.attended && (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD)
-  ).length;
-
+  // Filtros MUTUAMENTE EXCLUYENTES para evitar duplicación
+  // 1. IVR Drops: Llamadas que NO llegaron a la cola (flow_exit = false)
   const ivrDrops = inboundCalls.filter(r => r.flow_exit === false).length;
+
+  // 2. Short Abandons: Llamadas que SÍ llegaron a cola (flow_exit != false)
+  //    pero cliente cuelga en < 5 segundos (antes de procesamiento)
+  const shortAbandons = inboundCalls.filter(r =>
+    r.flow_exit !== false && // Asegurar que NO es IVR drop
+    !r.attended &&
+    (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD)
+  ).length;
 
   const totalTechnicalLeaks = shortAbandons + ivrDrops;
   const percentOfInbound = inboundCalls.length > 0
