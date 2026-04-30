@@ -1594,13 +1594,3 @@ export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWait
     totalValidCalls: validCalls.length,
   };
 }
-  const quality = getDataQualityReport(records);
-  const demand = calculateHourlyDemand(records);
-
-  console.group('📊 KPI Debug Info');
-  console.log('Data Quality:', quality);
-  console.log('Peak hour Erlang:', demand.points.reduce((max, h) =>
-    h.lun && h.lun > (max.lun ?? 0) ? h : max
-  ));
-  console.groupEnd();
-}
