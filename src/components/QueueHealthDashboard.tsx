@@ -67,43 +67,31 @@ function getInboundRecords(records: CallRecord[]): CallRecord[] {
 }
 
 export function QueueHealthDashboard({ kpis, records }: Props) {
+  // Extraer todas las métricas clave directamente del objeto KPIs
+  const { serviceLevel, abandonStats, asa, ata, erlangC, queueStats } = kpis;
+  const serviceLevelPercent = serviceLevel.overallSL;
+
   const cleanedRecords = cleanRecords(records);
   const filteredKPIs = kpis.queueStats.filter(q => {
     const queueLower = (q.queue || '').toLowerCase();
     return queueLower !== 'saliente' && queueLower !== 'sin cola' && q.count > 0;
   });
 
-  // Extraer métricas clave de KPIs
-  const serviceLevelPercent = kpis.serviceLevel.overallSL;
-  const queueStats = kpis.queueStats;
-
   // Métricas de operación
   const totalCalls = cleanedRecords.length;
   const totalAbandons = cleanedRecords.filter(r => !r.attended).length;
   const attendedCalls = cleanedRecords.filter(r => r.attended).length;
 
-  // ASA: Tiempo promedio en espera (suma de tiempo en cola de atendidas / total atendidas)
-  const attendedWithQueueTime = cleanedRecords.filter(r => r.attended && r.queue_time_seconds !== null && r.queue_time_seconds !== undefined);
-  const asa = attendedWithQueueTime.length > 0
-    ? attendedWithQueueTime.reduce((sum, r) => sum + (r.queue_time_seconds ?? 0), 0) / attendedWithQueueTime.length
-    : 0;
-
-  // ATA: Tiempo promedio de abandono
-  const inboundRecords = cleanedRecords.filter(r => {
-    const direction = (r.call_direction || '').toLowerCase();
-    return direction === 'inbound' || direction === 'entrante';
-  });
-
-  const ata = totalAbandons > 0
-    ? cleanedRecords
-        .filter(r => !r.attended)
-        .reduce((sum, r) => sum + (r.queue_time_seconds ?? 0), 0) / totalAbandons
-    : 0;
-
   // AHT: Tiempo promedio de conversación
   const avgHandleTime = filteredKPIs.length > 0
     ? filteredKPIs.reduce((sum, q) => sum + q.avgHandleTimeSeconds, 0) / filteredKPIs.length
     : 0;
+
+  // Embudo de Coherencia: Entrantes -> IVR -> Corto -> Cola -> Rebote -> Atendidas
+  const inboundRecords = cleanedRecords.filter(r => {
+    const direction = (r.call_direction || '').toLowerCase();
+    return direction === 'inbound' || direction === 'entrante';
+  });
 
   // Tasa de Abandono %: Abandonadas en cola/alerta / Llamadas válidas inbound
   const abandonsQueueAlert = inboundRecords.filter(r =>
@@ -167,21 +155,6 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
   const avgWaitTime = totalUnattended > 0
     ? filteredUnattended.reduce((sum, r) => sum + (r.queue_time_seconds ?? 0), 0) / totalUnattended
     : 0;
-
-  // Erlang C: System Load Intensity = Offered Traffic / Number of Agents
-  // Offered Traffic = (Total Handle Time in seconds) / 3600
-  const totalHandleTime = cleanedRecords.reduce((sum, r) => sum + (r.handle_time_seconds ?? 0), 0);
-  const offeredTraffic = totalHandleTime / 3600;
-
-  // Estimate number of agents: Use sum of implied agents across queues
-  // If no queue data, estimate based on concurrent capacity (avg handle time * call volume)
-  let agentCount = 1;
-  if (filteredKPIs.length > 0) {
-    // Conservative estimate: assume at least 1 agent per queue, or derive from throughput
-    agentCount = Math.max(filteredKPIs.length, Math.ceil(offeredTraffic / avgHandleTime) || 1);
-  }
-
-  const erlangC = agentCount > 0 ? offeredTraffic / agentCount : 0;
 
   const [tooltips, setTooltips] = useState<Record<string, boolean>>({});
 

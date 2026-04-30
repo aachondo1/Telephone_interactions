@@ -261,6 +261,9 @@ export type KPISummary = {
   topCallers: TopCallerEntry[];
   serviceLevel: ServiceLevelData;
   abandonStats: AbandonStats;
+  asa: number;
+  ata: number;
+  erlangC: number;
 };
 
 export function formatDuration(seconds: number): string {
@@ -923,6 +926,9 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     topCallers: [],
     serviceLevel: { overallSL: 0, points: [] },
     abandonStats: { totalUnattended: 0, abandonedInQueue: 0, abandonedInAlert: 0, abandonedInIVR: 0, reentries: 0 },
+    asa: 0,
+    ata: 0,
+    erlangC: 0,
   };
   if (total === 0) return empty;
 
@@ -1229,6 +1235,24 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const serviceLevel = calculateServiceLevel(validRecords);
   const abandonStats = calculateAbandonStats(validRecords);
 
+  // Calcular ASA (Average Speed to Answer): promedio de tiempo en cola para llamadas atendidas
+  const attendedRecords = validRecords.filter(r => r.attended);
+  const asa = attendedRecords.length > 0
+    ? attendedRecords.reduce((sum, r) => sum + (r.queue_time_seconds ?? 0), 0) / attendedRecords.length
+    : 0;
+
+  // Calcular ATA (Average Time to Abandon): promedio de tiempo en cola para llamadas abandonadas
+  const abandonedRecords = validRecords.filter(r => !r.attended);
+  const ata = abandonedRecords.length > 0
+    ? abandonedRecords.reduce((sum, r) => sum + (r.queue_time_seconds ?? 0), 0) / abandonedRecords.length
+    : 0;
+
+  // Calcular Erlang C: carga de sistema = tráfico ofrecido / agentes estimados
+  const totalHandleTime = validRecords.reduce((sum, r) => sum + (r.handle_time_seconds ?? 0), 0);
+  const offeredTraffic = totalHandleTime / 3600;
+  const estimatedAgents = Math.max(1, Math.ceil(total / 10));
+  const erlangC = estimatedAgents > 0 ? offeredTraffic / estimatedAgents : 0;
+
   return {
     totalCalls: total,
     avgDurationSeconds,
@@ -1270,6 +1294,9 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     topCallers,
     serviceLevel,
     abandonStats,
+    asa,
+    ata,
+    erlangC,
   };
 }
 
