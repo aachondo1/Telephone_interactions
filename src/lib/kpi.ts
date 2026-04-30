@@ -1342,14 +1342,14 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       ? Math.round(queueTimes.reduce((a, b) => a + b, 0) / queueTimes.length)
       : 0;
 
-    const handleTimes = inboundCalls
-      .filter(r => r.handle_time_seconds !== null && r.handle_time_seconds >= 0)
-      .map(r => r.handle_time_seconds!);
+    const durations = inboundCalls
+      .filter(r => r.duration_seconds !== null && r.duration_seconds >= 0)
+      .map(r => r.duration_seconds!);
 
-    // Erlang C: intensidad de tráfico
-    // Aproximación: (total_handle_time en segundos) / 3600
-    const totalHandleTime = handleTimes.reduce((a, b) => a + b, 0);
-    const erlangC = Math.round(totalHandleTime / 3600 * 10) / 10;
+    // Erlang C: intensidad de tráfico (cuántos agentes "llenos" necesita)
+    // Fórmula: SUM(duration_seconds) / 3600
+    const totalDuration = durations.reduce((a, b) => a + b, 0);
+    const erlangC = Math.round(totalDuration / 3600 * 10) / 10;
 
     metrics.push({
       queue,
