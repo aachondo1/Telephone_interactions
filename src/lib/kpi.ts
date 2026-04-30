@@ -1287,6 +1287,8 @@ export type QueueHealthMetric = {
   ataSeconds: number;
   ataFormatted: string;
   erlangC: number;
+  staffingEfficiency: number;
+  slTrend: 'up' | 'down' | 'stable';
   totalCalls: number;
   attendedCalls: number;
   abandonedCalls: number;
@@ -1424,6 +1426,16 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
     const totalHandleTime = handleTimes.reduce((a, b) => a + b, 0);
     const erlangC = Math.round((totalHandleTime / (3600 * hoursInPeriod)) * 10) / 10;
 
+    // Staffing Efficiency: Erlang C normalized (traffic intensity as % of 1.0)
+    const staffingEfficiency = (erlangC / 1.0) * 100;
+
+    // SL% Trend: Compare against 80% benchmark
+    const slTrend: 'up' | 'down' | 'stable' = serviceLevelPercent >= 80
+      ? 'up'
+      : serviceLevelPercent >= 70
+        ? 'stable'
+        : 'down';
+
     metrics.push({
       queue,
       serviceLevelPercent,
@@ -1435,6 +1447,8 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       ataSeconds,
       ataFormatted: formatDuration(ataSeconds),
       erlangC,
+      staffingEfficiency,
+      slTrend,
       totalCalls: validCallsForSL.length,
       attendedCalls,
       abandonedCalls,

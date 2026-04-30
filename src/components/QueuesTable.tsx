@@ -13,17 +13,30 @@ export function QueuesTable({ stats, healthMetrics = [] }: Props) {
   // Map health metrics for quick lookup
   const metricsMap = new Map(healthMetrics.map(m => [m.queue, m]));
 
-  // Calculate staffing efficiency: Erlang C / max occupancy ratio
-  // High Erlang + Low SL% = Understaffing | Low Erlang + Low SL% = Low Adherence
-  const getStaffingAnalysis = (queue: string, erlangC: number, slPercent: number) => {
-    const metric = metricsMap.get(queue);
+  // SL% Trend indicator
+  const getTrendIndicator = (slTrend: string, slPercent: number) => {
+    if (slTrend === 'up') {
+      return { icon: '↑', color: 'text-bice-green', label: 'En mejora' };
+    }
+    if (slTrend === 'stable') {
+      return { icon: '→', color: 'text-amber-500', label: 'Estable' };
+    }
+    return { icon: '↓', color: 'text-red-500', label: 'Decayendo' };
+  };
+
+  // Staffing Efficiency analysis
+  // High staffingEfficiency (Erlang C normalized) + Low SL% = Understaffing
+  // Low staffingEfficiency + Low SL% = Low Adherence
+  const getStaffingAnalysis = (metric: QueueHealthMetric | undefined) => {
     if (!metric) return null;
 
-    if (slPercent >= 80) {
+    const { serviceLevelPercent, staffingEfficiency } = metric;
+
+    if (serviceLevelPercent >= 80) {
       return { label: 'Óptimo', color: 'text-bice-green', icon: '✓' };
     }
 
-    if (erlangC > 0.8) {
+    if (staffingEfficiency > 80) {
       return { label: 'Falta Staff', color: 'text-red-500', icon: '↑' };
     }
 
@@ -52,11 +65,8 @@ export function QueuesTable({ stats, healthMetrics = [] }: Props) {
           <tbody className="divide-y divide-slate-100">
             {activeQueues.map((row, i) => {
               const metric = metricsMap.get(row.queue);
-              const staffingAnalysis = getStaffingAnalysis(
-                row.queue,
-                metric?.erlangC || 0,
-                metric?.serviceLevelPercent || 0
-              );
+              const trendIndicator = metric ? getTrendIndicator(metric.slTrend, metric.serviceLevelPercent) : null;
+              const staffingAnalysis = getStaffingAnalysis(metric);
 
               return (
                 <tr
@@ -88,15 +98,22 @@ export function QueuesTable({ stats, healthMetrics = [] }: Props) {
                   </td>
                   <td className="px-4 py-3 text-center font-mono">
                     {metric ? (
-                      <span
-                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                          metric.serviceLevelPercent >= 80
-                            ? 'bg-bice-green bg-opacity-10 text-bice-green'
-                            : 'bg-red-100 text-red-700'
-                        }`}
-                      >
-                        {metric.serviceLevelPercent}%
-                      </span>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                            metric.serviceLevelPercent >= 80
+                              ? 'bg-bice-green bg-opacity-10 text-bice-green'
+                              : 'bg-red-100 text-red-700'
+                          }`}
+                        >
+                          {metric.serviceLevelPercent}%
+                        </span>
+                        {trendIndicator && (
+                          <span className={`text-lg ${trendIndicator.color}`} title={trendIndicator.label}>
+                            {trendIndicator.icon}
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-slate-400">—</span>
                     )}
