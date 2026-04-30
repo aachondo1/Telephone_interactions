@@ -40,7 +40,7 @@ export function TechnicalLeaksPanel({ data }: Props) {
               </div>
               <p className="text-2xl font-bold text-amber-600 mb-2">{data.shortAbandons}</p>
               <p className="text-xs text-amber-700">
-                Clientes que cuelgan en < 5 segundos (antes de procesamiento)
+                Clientes que cuelgan en &lt; 5 segundos (antes de procesamiento)
               </p>
             </div>
 
