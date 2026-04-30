@@ -1608,23 +1608,27 @@ export type QueueWaitDistributionData = {
 };
 
 export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWaitDistributionData {
-  const SHORT_ABANDON_THRESHOLD = 5;
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
 
-  // Apply same filtering as Service Level: exclude short abandons and IVR drops
+  // Hardened filter: Only calls that were assigned to an agent but not attended
+  // This isolates "Failed Assignment" cases where customer was queued & agent was assigned but call abandoned
   const validCalls = inboundCalls.filter(r => {
-    const isShortAbandon = !r.attended && (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD);
-    const exitedInIVR = r.flow_exit === false;
-    return !isShortAbandon && !exitedInIVR;
+    const salioDelIVR = r.flow_exit !== false; // Exited IVR successfully
+    const tieneAsignacion = r.executive !== null && r.executive !== undefined && r.executive !== ''; // Agent assigned
+    const noFueAtendida = !r.attended; // Not handled
+    return salioDelIVR && tieneAsignacion && noFueAtendida;
   });
 
+  // New buckets: granular ranges to capture atypical cases
   const buckets = [
     { label: '<10s', min: 0, max: 10 },
     { label: '10-20s', min: 10, max: 20 },
     { label: '20-30s', min: 20, max: 30 },
     { label: '30-60s', min: 30, max: 60 },
     { label: '60-120s', min: 60, max: 120 },
-    { label: '>120s', min: 120, max: Infinity },
+    { label: '120-300s', min: 120, max: 300 },
+    { label: '300-600s', min: 300, max: 600 },
+    { label: '>600s', min: 600, max: Infinity },
   ];
 
   const bucketData = buckets.map(b => {
@@ -1639,6 +1643,7 @@ export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWait
     };
   });
 
+  // SL metrics: ≤20s (SL compliance), 20-60s (recovery window), >60s (lost)
   const slCount = validCalls.filter(r => (r.queue_time_seconds ?? 0) <= 20).length;
   const midCount = validCalls.filter(r => {
     const qt = r.queue_time_seconds ?? 0;
