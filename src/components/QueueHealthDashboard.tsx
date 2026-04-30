@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   BarChart,
   Bar,
@@ -8,6 +9,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
+import { TrendingUp, TrendingDown, Clock, Zap, Info } from 'lucide-react';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { QueuesDetailTable } from './QueuesDetailTable';
 import type { CallRecord } from '../lib/supabase';
@@ -164,50 +166,153 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
     ? filteredUnattended.reduce((sum, r) => sum + (r.queue_time_seconds ?? 0), 0) / totalUnattended
     : 0;
 
+  const [tooltips, setTooltips] = useState<Record<string, boolean>>({});
+
+  const toggleTooltip = (key: string) => {
+    setTooltips(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
   return (
     <div className="space-y-8">
       <div className="space-y-4">
         {/* FILA 1: 4 KPIs principales */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            label="Nivel de Servicio (SL%)"
-            value={`${Math.round(serviceLevelPercent)}%`}
-            goal={serviceLevelPercent >= 80 ? '≥ 80%' : '< 80%'}
-            sublabel="Atendidas < 20s"
-            borderColor={serviceLevelPercent >= 80 ? 'border-emerald-100' : 'border-red-100'}
-          />
-          <KPICard
-            label="Tasa de Abandono"
-            value={`${Math.round(abandonRate)}%`}
-            goal={abandonRate <= 10 ? '≤ 10%' : '> 10%'}
-            sublabel="Clientes perdidos"
-            borderColor={abandonRate <= 10 ? 'border-emerald-100' : 'border-orange-100'}
-          />
-          <KPICard
-            label="ASA (Velocidad de Respuesta)"
-            value={formatDuration(avgQueueTime)}
-            goal="Menor es mejor"
-            sublabel="Solo llamadas atendidas"
-            borderColor="border-blue-100"
-          />
-          <KPICard
-            label="ATA (Paciencia del Cliente)"
-            value={formatDuration(avgAbandonTime)}
-            goal="Equipo rápido"
-            sublabel="Solo llamadas abandonadas"
-            borderColor="border-emerald-100"
-          />
+          {/* KPI 1: Nivel de Servicio (SL%) */}
+          <div className={`bg-white rounded-2xl p-6 shadow-sm border ${serviceLevelPercent >= 80 ? 'border-emerald-100' : 'border-red-100'}`}>
+            <div className="flex items-start justify-between mb-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${serviceLevelPercent >= 80 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                {serviceLevelPercent >= 80 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+              </div>
+              <span className="text-xs text-slate-400 font-medium">{serviceLevelPercent >= 80 ? '≥ 80%' : '< 80%'}</span>
+            </div>
+            <div className="flex items-start justify-between gap-2 mb-2 relative">
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Nivel de Servicio (SL%)</p>
+              <button
+                onClick={() => toggleTooltip('sl')}
+                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors"
+                title="Porcentaje de colas que atienden en menos de 20 segundos"
+              >
+                <Info size={16} />
+              </button>
+              {tooltips.sl && (
+                <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-lg z-50 p-2 text-xs text-slate-600 whitespace-nowrap border border-slate-100">
+                  Porcentaje de colas &lt; 20s
+                </div>
+              )}
+            </div>
+            <p className={`text-2xl font-bold mb-1 ${serviceLevelPercent >= 80 ? 'text-emerald-600' : 'text-red-600'}`}>{Math.round(serviceLevelPercent)}%</p>
+            <p className="text-xs text-slate-500">Atendidas &lt; 20s</p>
+          </div>
+
+          {/* KPI 2: Tasa de Abandono */}
+          <div className={`bg-white rounded-2xl p-6 shadow-sm border ${abandonRate <= 10 ? 'border-emerald-100' : 'border-orange-100'}`}>
+            <div className="flex items-start justify-between mb-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${abandonRate <= 10 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}>
+                {abandonRate <= 10 ? <TrendingDown size={20} /> : <TrendingUp size={20} />}
+              </div>
+              <span className="text-xs text-slate-400 font-medium">{abandonRate <= 10 ? '≤ 10%' : '> 10%'}</span>
+            </div>
+            <div className="flex items-start justify-between gap-2 mb-2 relative">
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Tasa de Abandono</p>
+              <button
+                onClick={() => toggleTooltip('abandonment')}
+                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors"
+                title="Porcentaje de llamadas no atendidas"
+              >
+                <Info size={16} />
+              </button>
+              {tooltips.abandonment && (
+                <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-lg z-50 p-2 text-xs text-slate-600 whitespace-nowrap border border-slate-100">
+                  Clientes perdidos %
+                </div>
+              )}
+            </div>
+            <p className={`text-2xl font-bold mb-1 ${abandonRate <= 10 ? 'text-emerald-600' : 'text-orange-600'}`}>{Math.round(abandonRate)}%</p>
+            <p className="text-xs text-slate-500">Clientes perdidos</p>
+          </div>
+
+          {/* KPI 3: ASA (Velocidad de Respuesta) */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-blue-100">
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-50 text-blue-600">
+                <Clock size={20} />
+              </div>
+              <span className="text-xs text-slate-400 font-medium">Menor es mejor</span>
+            </div>
+            <div className="flex items-start justify-between gap-2 mb-2 relative">
+              <p className="text-xs text-slate-400 uppercase tracking-wide">ASA (Velocidad de Respuesta)</p>
+              <button
+                onClick={() => toggleTooltip('asa')}
+                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors"
+                title="Tiempo promedio de espera en segundos"
+              >
+                <Info size={16} />
+              </button>
+              {tooltips.asa && (
+                <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-lg z-50 p-2 text-xs text-slate-600 whitespace-nowrap border border-slate-100">
+                  Tiempo promedio espera
+                </div>
+              )}
+            </div>
+            <p className="text-2xl font-bold text-blue-600 mb-1">{formatDuration(Math.floor(avgQueueTime))}</p>
+            <p className="text-xs text-slate-500">Solo llamadas atendidas</p>
+          </div>
+
+          {/* KPI 4: ATA (Paciencia del Cliente) */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-emerald-100">
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-emerald-50 text-emerald-600">
+                <Zap size={20} />
+              </div>
+              <span className="text-xs text-slate-400 font-medium">Equipo rápido</span>
+            </div>
+            <div className="flex items-start justify-between gap-2 mb-2 relative">
+              <p className="text-xs text-slate-400 uppercase tracking-wide">ATA (Paciencia del Cliente)</p>
+              <button
+                onClick={() => toggleTooltip('ata')}
+                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors"
+                title="Tiempo promedio de abandono en segundos"
+              >
+                <Info size={16} />
+              </button>
+              {tooltips.ata && (
+                <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-lg z-50 p-2 text-xs text-slate-600 whitespace-nowrap border border-slate-100">
+                  Tiempo promedio abandono
+                </div>
+              )}
+            </div>
+            <p className="text-2xl font-bold text-emerald-600 mb-1">{formatDuration(Math.floor(avgAbandonTime))}</p>
+            <p className="text-xs text-slate-500">Solo llamadas abandonadas</p>
+          </div>
         </div>
 
-        {/* Erlang C en fila separada */}
+        {/* FILA 2: Erlang C en ancho completo */}
         <div className="grid grid-cols-1 gap-4">
-          <KPICard
-            label="Erlang C (Carga)"
-            value={erlangC.toFixed(1)}
-            goal={erlangC <= 0.8 ? '≤ 0.8 ideal' : '> 0.8'}
-            sublabel="Intensidad de tráfico"
-            borderColor={erlangC <= 0.8 ? 'border-emerald-100' : 'border-slate-100'}
-          />
+          <div className={`bg-white rounded-2xl p-6 shadow-sm border ${erlangC <= 0.8 ? 'border-emerald-100' : 'border-slate-100'}`}>
+            <div className="flex items-start justify-between mb-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${erlangC <= 0.8 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'}`}>
+                <Zap size={20} />
+              </div>
+              <span className="text-xs text-slate-400 font-medium">{erlangC <= 0.8 ? '≤ 0.8 ideal' : '> 0.8'}</span>
+            </div>
+            <div className="flex items-start justify-between gap-2 mb-2 relative">
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Erlang C (Carga del Sistema)</p>
+              <button
+                onClick={() => toggleTooltip('erlang')}
+                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors"
+                title="Proporción entre llamadas no atendidas y llamadas totales"
+              >
+                <Info size={16} />
+              </button>
+              {tooltips.erlang && (
+                <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-lg z-50 p-2 text-xs text-slate-600 whitespace-nowrap border border-slate-100">
+                  Intensidad tráfico
+                </div>
+              )}
+            </div>
+            <p className={`text-2xl font-bold mb-1 ${erlangC <= 0.8 ? 'text-emerald-600' : 'text-slate-800'}`}>{erlangC.toFixed(1)}</p>
+            <p className="text-xs text-slate-500">Intensidad de tráfico</p>
+          </div>
         </div>
       </div>
 
