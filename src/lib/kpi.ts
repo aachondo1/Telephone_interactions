@@ -1324,6 +1324,10 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
   const hoursPerBusinessDay = 10.5;
   const hoursInPeriod = daysInPeriod * hoursPerBusinessDay;
 
+  // Umbrales para Service Level (estándar Chile)
+  const SL_THRESHOLD_SECONDS = 20; // 80/20 - estándar de excelencia
+  const SHORT_ABANDON_THRESHOLD = 5; // Abandonos cortos (< 5s) no cuentan
+
   const queueMap = new Map<string, CallRecord[]>();
 
   for (const r of records) {
@@ -1336,22 +1340,31 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
 
   for (const [queue, queueRecords] of queueMap) {
     const inboundCalls = queueRecords.filter(r => isInbound(r.call_direction));
-    const attendedCalls = inboundCalls.filter(r => r.attended).length;
-    const abandonedCalls = inboundCalls.filter(r => !r.attended).length;
 
-    const answeredWithin20s = inboundCalls.filter(r =>
-      r.attended && r.queue_time_seconds !== null && r.queue_time_seconds <= 20
+    // Filtrar llamadas válidas para SL: excluir abandonos cortos e IVR drops
+    const validCallsForSL = inboundCalls.filter(r => {
+      const isShortAbandon = !r.attended && (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD);
+      const exitedInIVR = r.flow_exit === false; // No llegó a la cola
+      return !isShortAbandon && !exitedInIVR;
+    });
+
+    const attendedCalls = validCallsForSL.filter(r => r.attended).length;
+    const abandonedCalls = validCallsForSL.filter(r => !r.attended).length;
+
+    // Service Level: Atendidas < 20s / Total de llamadas válidas
+    const answeredWithin20s = validCallsForSL.filter(r =>
+      r.attended && r.queue_time_seconds !== null && r.queue_time_seconds <= SL_THRESHOLD_SECONDS
     ).length;
 
-    const serviceLevelPercent = inboundCalls.length > 0
-      ? Math.round((answeredWithin20s / inboundCalls.length) * 100)
+    const serviceLevelPercent = validCallsForSL.length > 0
+      ? Math.round((answeredWithin20s / validCallsForSL.length) * 100)
       : 0;
 
-    const abandonmentRatePercent = inboundCalls.length > 0
-      ? Math.round((abandonedCalls / inboundCalls.length) * 100)
+    const abandonmentRatePercent = validCallsForSL.length > 0
+      ? Math.round((abandonedCalls / validCallsForSL.length) * 100)
       : 0;
 
-    const queueTimes = inboundCalls
+    const queueTimes = validCallsForSL
       .filter(r => r.queue_time_seconds !== null && r.queue_time_seconds >= 0)
       .map(r => r.queue_time_seconds!);
 
@@ -1359,7 +1372,7 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       ? Math.round(queueTimes.reduce((a, b) => a + b, 0) / queueTimes.length)
       : 0;
 
-    const handleTimes = inboundCalls
+    const handleTimes = validCallsForSL
       .filter(r => r.handle_time_seconds !== null && r.handle_time_seconds >= 0)
       .map(r => r.handle_time_seconds!);
 
@@ -1376,7 +1389,7 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       awtSeconds,
       awtFormatted: formatDuration(awtSeconds),
       erlangC,
-      totalCalls: inboundCalls.length,
+      totalCalls: validCallsForSL.length,
       attendedCalls,
       abandonedCalls,
     });
