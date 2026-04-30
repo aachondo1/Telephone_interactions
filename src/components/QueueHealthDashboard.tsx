@@ -6,7 +6,7 @@ import { AbandonClassificationChart } from './AbandonClassificationChart';
 import { QueueWaitDistribution } from './QueueWaitDistribution';
 import { QueuesDetailTable } from './QueuesDetailTable';
 import type { CallRecord } from '../lib/supabase';
-import type { KPI } from '../lib/kpi';
+import type { KPI, QueueStat } from '../lib/kpi';
 import { formatDuration } from '../lib/kpi';
 
 type Props = {
@@ -24,63 +24,93 @@ function KPICard({ label, value, sublabel, color = 'text-slate-800' }: { label: 
   );
 }
 
+function KPIGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 px-1">{title}</h4>
+      <div className="grid grid-cols-2 gap-8">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function cleanRecords(records: CallRecord[]): CallRecord[] {
+  return records.filter(r => {
+    const queue = (r.queue || '').toLowerCase();
+    return queue !== 'saliente' && queue !== 'sin cola' && r.queue;
+  });
+}
+
 export function QueueHealthDashboard({ kpis, records }: Props) {
-  // Calcular métricas operacionales
-  const avgQueueTime = kpis.queueStats.length > 0
-    ? kpis.queueStats.reduce((sum, q) => sum + q.avgQueueTimeSeconds, 0) / kpis.queueStats.length
+  // Filtrar registros ruidosos (Saliente, Sin cola)
+  const cleanedRecords = cleanRecords(records);
+  const filteredKPIs = kpis.queueStats.filter(q => {
+    const queueLower = (q.queue || '').toLowerCase();
+    return queueLower !== 'saliente' && queueLower !== 'sin cola' && q.count > 0;
+  });
+
+  // Calcular métricas operacionales con datos limpios
+  const avgQueueTime = filteredKPIs.length > 0
+    ? filteredKPIs.reduce((sum, q) => sum + q.avgQueueTimeSeconds, 0) / filteredKPIs.length
     : 0;
 
-  const avgHandleTime = kpis.queueStats.length > 0
-    ? kpis.queueStats.reduce((sum, q) => sum + q.avgHandleTimeSeconds, 0) / kpis.queueStats.length
+  const avgHandleTime = filteredKPIs.length > 0
+    ? filteredKPIs.reduce((sum, q) => sum + q.avgHandleTimeSeconds, 0) / filteredKPIs.length
     : 0;
 
-  const totalAbandons = records.filter(r => !r.attended).length;
+  const totalAbandons = cleanedRecords.filter(r => !r.attended).length;
   const avgAbandonTime = totalAbandons > 0
-    ? records
+    ? cleanedRecords
         .filter(r => !r.attended)
         .reduce((sum, r) => sum + (r.queue_time_seconds ?? 0), 0) / totalAbandons
     : 0;
 
-  const staffingGap = kpis.totalCalls > 0 ? (totalAbandons / kpis.totalCalls) * 100 : 0;
-  const staffingStatus = staffingGap > 5 ? 'text-red-600' : staffingGap > 2 ? 'text-amber-600' : 'text-emerald-600';
+  const totalCalls = cleanedRecords.length;
+  const abandonRate = totalCalls > 0 ? (totalAbandons / totalCalls) * 100 : 0;
 
   return (
     <div className="space-y-8">
-      {/* FILA SUPERIOR: KPIs Operacionales */}
-      <div className="grid grid-cols-4 gap-8">
-        <KPICard
-          label="ASA"
-          value={formatDuration(avgQueueTime)}
-          sublabel="Tiempo promedio en espera"
-          color="text-sky-600"
-        />
-        <KPICard
-          label="ATA"
-          value={formatDuration(avgAbandonTime)}
-          sublabel="Tiempo promedio de abandono"
-          color="text-red-600"
-        />
-        <KPICard
-          label="AHT"
-          value={formatDuration(avgHandleTime)}
-          sublabel="Tiempo promedio de conversación"
-          color="text-emerald-600"
-        />
-        <KPICard
-          label="Staffing Gap"
-          value={`${staffingGap.toFixed(1)}%`}
-          sublabel={staffingGap > 5 ? 'Falta staff' : 'Baja adherencia'}
-          color={staffingStatus}
-        />
+      {/* FILA SUPERIOR: KPIs Operacionales Agrupados */}
+      <div className="space-y-8">
+        <KPIGroup title="Grupo de Atención">
+          <KPICard
+            label="ASA"
+            value={formatDuration(avgQueueTime)}
+            sublabel="Tiempo promedio en espera"
+            color="text-sky-600"
+          />
+          <KPICard
+            label="AHT"
+            value={formatDuration(avgHandleTime)}
+            sublabel="Tiempo promedio de conversación"
+            color="text-emerald-600"
+          />
+        </KPIGroup>
+
+        <KPIGroup title="Grupo de Pérdida">
+          <KPICard
+            label="ATA"
+            value={formatDuration(avgAbandonTime)}
+            sublabel="Tiempo promedio de abandono"
+            color="text-red-600"
+          />
+          <KPICard
+            label="% Abandono"
+            value={`${abandonRate.toFixed(1)}%`}
+            sublabel={abandonRate > 5 ? 'Nivel crítico' : abandonRate > 2 ? 'Requiere atención' : 'Dentro de meta'}
+            color={abandonRate > 5 ? 'text-red-600' : abandonRate > 2 ? 'text-amber-600' : 'text-emerald-600'}
+          />
+        </KPIGroup>
       </div>
 
       {/* BLOQUE MEDIO: Análisis de Abandonos */}
       <div className="grid grid-cols-2 gap-8">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <AbandonClassificationChart records={records} />
+          <AbandonClassificationChart records={cleanedRecords} />
         </div>
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <QueueWaitDistribution records={records} />
+          <QueueWaitDistribution records={cleanedRecords} />
         </div>
       </div>
 
@@ -97,7 +127,7 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
             <QueueAttendanceEvolution data={kpis.queueAttendanceEvolution} />
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <h3 className="text-sm font-semibold text-slate-700 mb-6">Distribucion de No Atendidas</h3>
+            <h3 className="text-sm font-semibold text-slate-700 mb-6">Distribución de No Atendidas</h3>
             <QueueUnattendedHeatmap data={kpis.queueUnattendedHeatmap} />
           </div>
         </div>
@@ -108,10 +138,10 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
         </div>
       </div>
 
-      {/* PIE DE PÁGINA: Tabla Maestra */}
+      {/* PIE DE PÁGINA: Tabla Maestra Optimizada */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-        <h3 className="text-sm font-semibold text-slate-700 mb-6">Tabla de Rendimiento de Colas</h3>
-        <QueuesDetailTable stats={kpis.queueStats} />
+        <h3 className="text-sm font-semibold text-slate-700 mb-6">Rendimiento de Colas</h3>
+        <QueuesDetailTable stats={filteredKPIs} />
       </div>
     </div>
   );
