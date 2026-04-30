@@ -410,7 +410,7 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
                     </div>
                     <div>
                       <p className="font-semibold text-slate-800">Fórmula</p>
-                      <p className="text-slate-600 font-mono text-xs">(Llamadas con >1 alerta) / (Total asignadas) × 100</p>
+                      <p className="text-slate-600 font-mono text-xs">(Llamadas con {'>'}1 alerta) / (Total asignadas) × 100</p>
                     </div>
                     <div>
                       <p className="font-semibold text-slate-800">Unidad</p>

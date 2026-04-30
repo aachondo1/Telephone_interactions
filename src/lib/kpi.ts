@@ -268,6 +268,8 @@ export type KPISummary = {
   bounceCount: number;
 };
 
+export type KPI = KPISummary;
+
 export function formatDuration(seconds: number): string {
   if (seconds < 0) seconds = 0;
   const floored = Math.floor(seconds);
@@ -1266,6 +1268,10 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     ? Math.round((bouncedCalls.length / assignedCalls.length) * 100)
     : 0;
   const bounceCount = bouncedCalls.length;
+
+  if (assignedCalls.length > 0) {
+    console.log(`[Bounce KPI] Assigned: ${assignedCalls.length}, Bounced: ${bounceCount}, Rate: ${bounceRate}%`);
+  }
 
   return {
     totalCalls: total,
