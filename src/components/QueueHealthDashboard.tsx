@@ -78,9 +78,10 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
   const totalAbandons = cleanedRecords.filter(r => !r.attended).length;
   const attendedCalls = cleanedRecords.filter(r => r.attended).length;
 
-  // ASA: Tiempo promedio en espera
-  const avgQueueTime = filteredKPIs.length > 0
-    ? filteredKPIs.reduce((sum, q) => sum + q.avgQueueTimeSeconds, 0) / filteredKPIs.length
+  // ASA: Tiempo promedio en espera (suma de tiempo en cola de atendidas / total atendidas)
+  const attendedWithQueueTime = cleanedRecords.filter(r => r.attended && r.queue_time_seconds !== null && r.queue_time_seconds !== undefined);
+  const avgQueueTime = attendedWithQueueTime.length > 0
+    ? attendedWithQueueTime.reduce((sum, r) => sum + (r.queue_time_seconds ?? 0), 0) / attendedWithQueueTime.length
     : 0;
 
   // ATA: Tiempo promedio de abandono
