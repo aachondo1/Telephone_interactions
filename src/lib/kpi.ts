@@ -824,6 +824,110 @@ export function calculateRentryRate(records: CallRecord[], hours: number = 24): 
   return { reentries, reentryRate };
 }
 
+// === QUEUE HEALTH METRICS: SOURCE OF TRUTH ===
+// These are the authoritative metrics for queue analysis
+// Filters applied:
+// - direction === 'inbound' (only incoming calls)
+// - flow_exit !== false (only calls that exited IVR)
+// - Excludes "Sin cola" (unqueued calls)
+export function calculateQueueHealthMetrics(records: CallRecord[]): QueueStat[] {
+  // Filter: inbound only
+  const inboundRecords = records.filter(r =>
+    !r.call_direction?.toLowerCase().includes('saliente') &&
+    !r.call_direction?.toLowerCase().includes('outbound')
+  );
+
+  // Filter: only calls that exited IVR (flow_exit !== false)
+  const flowExitRecords = inboundRecords.filter(r => r.flow_exit !== false);
+
+  // Filter: exclude "Sin cola" (unqueued calls)
+  const queuedRecords = flowExitRecords.filter(r => r.queue && r.queue.trim() !== '');
+
+  // Exclude technical cuts
+  const validRecords = queuedRecords.filter(r => !isCorruptedTechnicalCall(r));
+
+  if (validRecords.length === 0) {
+    console.log('[QUEUE HEALTH] Total Registros Procesados: 0 (no valid records after filtering)');
+    return [];
+  }
+
+  console.log(`[QUEUE HEALTH] Total Registros Procesados: ${validRecords.length} (${inboundRecords.length} inbound, ${flowExitRecords.length} flow_exit=true, ${queuedRecords.length} with queue)`);
+
+  const totalQueueDuration = validRecords.reduce((sum, r) => sum + r.duration_seconds, 0);
+
+  // Queue stats aggregation
+  const queueMap = new Map<string, {
+    count: number; totalDuration: number;
+    inbound: number; outbound: number; unattended: number; complete: number;
+    totalHandleTime: number; totalQueueTime: number; totalAlertTime: number;
+    totalAlertSegments: number; bounceCount: number; alertableCount: number;
+    abandonQueueCount: number; abandonAlertCount: number;
+  }>();
+
+  for (const r of validRecords) {
+    const q = r.queue || 'Sin cola';
+    const e = queueMap.get(q) ?? {
+      count: 0, totalDuration: 0, inbound: 0, outbound: 0, unattended: 0, complete: 0,
+      totalHandleTime: 0, totalQueueTime: 0, totalAlertTime: 0,
+      totalAlertSegments: 0, bounceCount: 0, alertableCount: 0,
+      abandonQueueCount: 0, abandonAlertCount: 0,
+    };
+    queueMap.set(q, {
+      count: e.count + 1,
+      totalDuration: e.totalDuration + r.duration_seconds,
+      inbound: e.inbound + (isInbound(r.call_direction) ? 1 : 0),
+      outbound: e.outbound + (!isInbound(r.call_direction) ? 1 : 0),
+      unattended: e.unattended + (!r.attended ? 1 : 0),
+      complete: e.complete + (r.export_complete ? 1 : 0),
+      totalHandleTime: e.totalHandleTime + (r.handle_time_seconds ?? 0),
+      totalQueueTime: e.totalQueueTime + (r.queue_time_seconds ?? 0),
+      totalAlertTime: e.totalAlertTime + (r.alert_time_seconds ?? 0),
+      totalAlertSegments: e.totalAlertSegments + (r.alert_segments ?? 0),
+      bounceCount: e.bounceCount + (r.is_bounce ? 1 : 0),
+      alertableCount: e.alertableCount + ((r.alert_segments ?? 0) > 0 ? 1 : 0),
+      abandonQueueCount: e.abandonQueueCount + (r.abandon_type === 'queue' ? 1 : 0),
+      abandonAlertCount: e.abandonAlertCount + (r.abandon_type === 'alert' ? 1 : 0),
+    });
+  }
+
+  const queueStats: QueueStat[] = Array.from(queueMap.entries())
+    .map(([queue, d]) => {
+      const avg = Math.round(d.totalDuration / d.count);
+      const avgHandleTime = Math.round(d.totalHandleTime / d.count);
+      const avgQueueTime = Math.round(d.totalQueueTime / d.count);
+      const avgAlertTime = Math.round(d.totalAlertTime / d.count);
+      const avgAlertSegments = Math.round((d.totalAlertSegments / d.count) * 10) / 10;
+      const bounceRate = d.alertableCount > 0 ? Math.round((d.bounceCount / d.alertableCount) * 100) : 0;
+      const abandonQueueRate = d.unattended > 0 ? Math.round((d.abandonQueueCount / d.unattended) * 100) : 0;
+      const abandonAlertRate = d.unattended > 0 ? Math.round((d.abandonAlertCount / d.unattended) * 100) : 0;
+      return {
+        queue,
+        count: d.count,
+        avgDurationSeconds: avg,
+        avgDurationFormatted: formatDuration(avg),
+        totalDurationSeconds: d.totalDuration,
+        totalDurationFormatted: formatDuration(d.totalDuration),
+        percentage: totalQueueDuration > 0 ? Math.round((d.totalDuration / totalQueueDuration) * 100) : 0,
+        inboundCount: d.inbound,
+        outboundCount: d.outbound,
+        unattendedCount: d.unattended,
+        unattendedPercent: Math.round((d.unattended / d.count) * 100),
+        completenessRate: Math.round((d.complete / d.count) * 100),
+        avgQueueTimeSeconds: avgQueueTime,
+        avgHandleTimeSeconds: avgHandleTime,
+        avgAlertTimeSeconds: avgAlertTime,
+        avgAlertSegments: avgAlertSegments,
+        bounceRate: bounceRate,
+        abandonQueueRate: abandonQueueRate,
+        abandonAlertRate: abandonAlertRate,
+      };
+    })
+    .filter(q => q.count > 0)
+    .sort((a, b) => b.totalDurationSeconds - a.totalDurationSeconds);
+
+  return queueStats;
+}
+
 export function calculateKPIs(records: CallRecord[]): KPISummary {
   // CAMBIO 1: Filtrar solo llamadas ENTRANTES para KPIs de servicio
   const inboundRecords = records.filter(r =>
@@ -989,73 +1093,12 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     .filter(e => e.count >= 5)
     .sort((a, b) => b.count - a.count);
 
-  // Queue stats
-  const queueMap = new Map<string, {
-    count: number; totalDuration: number;
-    inbound: number; outbound: number; unattended: number; complete: number;
-    totalHandleTime: number; totalQueueTime: number; totalAlertTime: number;
-    totalAlertSegments: number; bounceCount: number; alertableCount: number;
-    abandonQueueCount: number; abandonAlertCount: number;
-  }>();
-  for (const r of validRecords) {
-    const q = r.queue || 'Sin cola';
-    const e = queueMap.get(q) ?? {
-      count: 0, totalDuration: 0, inbound: 0, outbound: 0, unattended: 0, complete: 0,
-      totalHandleTime: 0, totalQueueTime: 0, totalAlertTime: 0,
-      totalAlertSegments: 0, bounceCount: 0, alertableCount: 0,
-      abandonQueueCount: 0, abandonAlertCount: 0,
-    };
-    queueMap.set(q, {
-      count: e.count + 1,
-      totalDuration: e.totalDuration + r.duration_seconds,
-      inbound: e.inbound + (isInbound(r.call_direction) ? 1 : 0),
-      outbound: e.outbound + (!isInbound(r.call_direction) ? 1 : 0),
-      unattended: e.unattended + (!r.attended ? 1 : 0),
-      complete: e.complete + (r.export_complete ? 1 : 0),
-      totalHandleTime: e.totalHandleTime + (r.handle_time_seconds ?? 0),
-      totalQueueTime: e.totalQueueTime + (r.queue_time_seconds ?? 0),
-      totalAlertTime: e.totalAlertTime + (r.alert_time_seconds ?? 0),
-      totalAlertSegments: e.totalAlertSegments + (r.alert_segments ?? 0),
-      bounceCount: e.bounceCount + (r.is_bounce ? 1 : 0),
-      alertableCount: e.alertableCount + ((r.alert_segments ?? 0) > 0 ? 1 : 0),
-      abandonQueueCount: e.abandonQueueCount + (r.abandon_type === 'queue' ? 1 : 0),
-      abandonAlertCount: e.abandonAlertCount + (r.abandon_type === 'alert' ? 1 : 0),
-    });
-  }
-  const totalQueueDuration = Array.from(queueMap.values()).reduce((sum, d) => sum + d.totalDuration, 0);
-  const queueStats: QueueStat[] = Array.from(queueMap.entries())
-    .map(([queue, d]) => {
-      const avg = Math.round(d.totalDuration / d.count);
-      const avgHandleTime = Math.round(d.totalHandleTime / d.count);
-      const avgQueueTime = Math.round(d.totalQueueTime / d.count);
-      const avgAlertTime = Math.round(d.totalAlertTime / d.count);
-      const avgAlertSegments = Math.round((d.totalAlertSegments / d.count) * 10) / 10;
-      const bounceRate = d.alertableCount > 0 ? Math.round((d.bounceCount / d.alertableCount) * 100) : 0;
-      const abandonQueueRate = d.unattended > 0 ? Math.round((d.abandonQueueCount / d.unattended) * 100) : 0;
-      const abandonAlertRate = d.unattended > 0 ? Math.round((d.abandonAlertCount / d.unattended) * 100) : 0;
-      return {
-        queue,
-        count: d.count,
-        avgDurationSeconds: avg,
-        avgDurationFormatted: formatDuration(avg),
-        totalDurationSeconds: d.totalDuration,
-        totalDurationFormatted: formatDuration(d.totalDuration),
-        percentage: Math.round((d.totalDuration / totalQueueDuration) * 100),
-        inboundCount: d.inbound,
-        outboundCount: d.outbound,
-        unattendedCount: d.unattended,
-        unattendedPercent: Math.round((d.unattended / d.count) * 100),
-        completenessRate: Math.round((d.complete / d.count) * 100),
-        avgQueueTimeSeconds: avgQueueTime,
-        avgHandleTimeSeconds: avgHandleTime,
-        avgAlertTimeSeconds: avgAlertTime,
-        avgAlertSegments: avgAlertSegments,
-        bounceRate: bounceRate,
-        abandonQueueRate: abandonQueueRate,
-        abandonAlertRate: abandonAlertRate,
-      };
-    })
-    .sort((a, b) => b.totalDurationSeconds - a.totalDurationSeconds);
+  // Queue stats: Use Queue Health Metrics as source of truth
+  // This ensures all queue data is calculated with consistent filters:
+  // - inbound only
+  // - flow_exit !== false (calls that exited IVR)
+  // - excludes "Sin cola" (unqueued calls)
+  const queueStats = calculateQueueHealthMetrics(validRecords);
 
   // Hourly distribution
   const hourMap = new Map<number, number>();

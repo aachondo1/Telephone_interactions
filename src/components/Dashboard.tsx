@@ -26,7 +26,7 @@ import { ExecutiveTalkTimeByWeekday } from './ExecutiveTalkTimeByWeekday';
 import { ExecutivesDetailTable } from './ExecutivesDetailTable';
 import { ExecutiveDashboard } from './ExecutiveDashboard';
 import { SectionHeader } from './SectionHeader';
-import { calculateKPIs, logKPIDebugInfo } from '../lib/kpi';
+import { calculateKPIs, logKPIDebugInfo, calculateQueueHealthMetrics } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
@@ -359,6 +359,17 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
   const kpis = useMemo(() => calculateKPIs(filteredRecords), [filteredRecords]);
 
+  // Queue Health Metrics: Source of Truth for Queue Analysis
+  // These metrics always apply the mandatory filters: inbound, flow_exit !== false, exclude "Sin cola"
+  const queueHealthStats = useMemo(() => calculateQueueHealthMetrics(filteredRecords), [filteredRecords]);
+
+  // Validation: Log total processed records for both views
+  useEffect(() => {
+    const healthTotal = queueHealthStats.reduce((sum, q) => sum + q.count, 0);
+    const kpisTotal = kpis.queueStats.reduce((sum, q) => sum + q.count, 0);
+    console.log(`[DASHBOARD] Queue Health Total: ${healthTotal} | KPI Queue Total: ${kpisTotal}`);
+  }, [queueHealthStats, kpis.queueStats]);
+
   useEffect(() => {
     logKPIDebugInfo(records);
   }, [records]);
@@ -447,17 +458,29 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
             title="Análisis de Colas"
             description="Rendimiento, ocupación y patrones de atención por cola"
           />
-          <QueueKPICards stats={kpis.queueStats} totalCalls={kpis.totalCalls} />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <QueueBarChart stats={kpis.queueStats} />
-            <QueuePieChart stats={kpis.queueStats} />
-          </div>
-          <QueuePerformanceHeatmap data={kpis.queuePerformanceHeatmap} />
-          <QueueAttendanceEvolution data={kpis.queueAttendanceEvolution} />
-          <QueueUnattendedHeatmap data={kpis.queueUnattendedHeatmap} />
-          <QueueLoadVariability data={kpis.queueLoadVariability} />
-          <QueuesDetailTable stats={kpis.queueStats} />
-          <TopCallersTable records={filteredRecords} />
+          {queueHealthStats.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center py-12 gap-4 text-center">
+              <AlertCircle size={32} className="text-slate-300" />
+              <div>
+                <p className="font-semibold text-slate-600">Sin datos de colas</p>
+                <p className="text-sm text-slate-400 mt-1">No hay colas después de aplicar los filtros (inbound, flow_exit=true, con cola asignada)</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <QueueKPICards stats={queueHealthStats} totalCalls={queueHealthStats.reduce((sum, q) => sum + q.count, 0)} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <QueueBarChart stats={queueHealthStats} />
+                <QueuePieChart stats={queueHealthStats} />
+              </div>
+              <QueuePerformanceHeatmap data={kpis.queuePerformanceHeatmap} />
+              <QueueAttendanceEvolution data={kpis.queueAttendanceEvolution} />
+              <QueueUnattendedHeatmap data={kpis.queueUnattendedHeatmap} />
+              <QueueLoadVariability data={kpis.queueLoadVariability} />
+              <QueuesDetailTable stats={queueHealthStats} />
+              <TopCallersTable records={filteredRecords} />
+            </>
+          )}
         </div>
       )}
 
