@@ -25,7 +25,7 @@ export function Tooltip({ definition, formula, unit, benchmark, label }: Props) 
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-72 bg-slate-900 text-white rounded-lg shadow-lg p-4 z-50 text-xs leading-relaxed">
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-72 bg-slate-900 text-white rounded-lg shadow-lg p-4 z-50 text-xs leading-relaxed pointer-events-auto">
           <div className="space-y-2">
             {label && <p className="font-semibold text-sm border-b border-slate-700 pb-2">{label}</p>}
 
@@ -57,7 +57,7 @@ export function Tooltip({ definition, formula, unit, benchmark, label }: Props) 
           </div>
 
           {/* Punta del tooltip */}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 w-2 h-2 bg-slate-900 rotate-45"></div>
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 -mb-1 w-2 h-2 bg-slate-900 rotate-45"></div>
         </div>
       )}
     </div>
