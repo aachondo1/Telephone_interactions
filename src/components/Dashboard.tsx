@@ -446,7 +446,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
           </div>
           <div className="border-t border-slate-200 pt-6 mt-6">
             <h2 className="text-lg font-semibold text-slate-700 mb-6">Salud de Cola</h2>
-            <QueueHealthDashboard kpis={kpis} />
+            <QueueHealthDashboard kpis={kpis} records={filteredRecords} />
           </div>
         </div>
       )}

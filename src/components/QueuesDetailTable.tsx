@@ -10,10 +10,10 @@ type Props = {
 type SortKey = keyof QueueStat;
 
 function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
-  if (!active) return <ChevronsUpDown size={13} className="text-slate-300 ml-1 inline" />;
+  if (!active) return <ChevronsUpDown size={13} className="text-gray-300 ml-1 inline" />;
   return dir === 'asc'
-    ? <ChevronUp size={13} className="text-sky-500 ml-1 inline" />
-    : <ChevronDown size={13} className="text-sky-500 ml-1 inline" />;
+    ? <ChevronUp size={13} className="text-gray-100 ml-1 inline" />
+    : <ChevronDown size={13} className="text-gray-100 ml-1 inline" />;
 }
 
 export function QueuesDetailTable({ stats }: Props) {
@@ -29,7 +29,12 @@ export function QueuesDetailTable({ stats }: Props) {
     }
   }
 
-  const sorted = [...stats].sort((a, b) => {
+  const filtered = stats.filter(q => {
+    const attended = q.count - (q.unattendedCount ?? 0);
+    return attended > 0 || q.count > 0;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
     const av = a[sortKey];
     const bv = b[sortKey];
     if (typeof av === 'string' && typeof bv === 'string') {
@@ -60,11 +65,11 @@ export function QueuesDetailTable({ stats }: Props) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-slate-50">
+            <tr className="bg-bice-dark-blue" style={{ backgroundColor: '#003a70' }}>
               {cols.map(col => (
                 <th
                   key={col.key}
-                  className={`px-4 py-3 font-medium text-slate-500 cursor-pointer select-none whitespace-nowrap ${col.align} hover:text-slate-700 transition-colors`}
+                  className={`px-4 py-3 font-medium text-white cursor-pointer select-none whitespace-nowrap ${col.align} hover:text-gray-200 transition-colors`}
                   onClick={() => handleSort(col.key)}
                 >
                   {col.label}
@@ -85,7 +90,7 @@ export function QueuesDetailTable({ stats }: Props) {
                     <span className="font-medium text-slate-700 truncate max-w-[180px]">{q.queue}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                <td className="px-4 py-3 text-right font-mono font-semibold text-slate-800">
                   {q.count.toLocaleString('es-CL')}
                 </td>
                 <td className="px-4 py-3 text-right">
@@ -123,7 +128,7 @@ export function QueuesDetailTable({ stats }: Props) {
                     <span className="text-slate-300">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right font-mono">
                   {q.unattendedCount > 0 ? (
                     <span className="text-red-500 font-semibold">{q.unattendedCount.toLocaleString('es-CL')}</span>
                   ) : (
