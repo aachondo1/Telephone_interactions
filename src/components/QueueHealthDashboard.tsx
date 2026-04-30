@@ -3,11 +3,9 @@ import type { CallRecord } from '../lib/supabase';
 import {
   calculateQueueHealthMetrics,
   calculateAbandonFunnel,
-  calculateTechnicalLeaks,
 } from '../lib/kpi';
 import { QueueHealthMetricsCards } from './QueueHealthMetricsCards';
 import { AbandonFunnelChart } from './AbandonFunnelChart';
-import { TechnicalLeaksPanel } from './TechnicalLeaksPanel';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { calculateQueuePerformanceHeatmap } from '../lib/kpi';
 import { Tooltip } from './Tooltip';
@@ -19,7 +17,6 @@ type Props = {
 export function QueueHealthDashboard({ records }: Props) {
   const metrics = useMemo(() => calculateQueueHealthMetrics(records), [records]);
   const funnelData = useMemo(() => calculateAbandonFunnel(records), [records]);
-  const technicalLeaks = useMemo(() => calculateTechnicalLeaks(records), [records]);
   const heatmapData = useMemo(() => calculateQueuePerformanceHeatmap(records), [records]);
 
   return (
@@ -29,9 +26,6 @@ export function QueueHealthDashboard({ records }: Props) {
 
       {/* Abandon Funnel */}
       <AbandonFunnelChart data={funnelData} />
-
-      {/* Technical Leaks */}
-      <TechnicalLeaksPanel data={technicalLeaks} />
 
       {/* Heatmap */}
       <QueuePerformanceHeatmap data={heatmapData} />
