@@ -1307,6 +1307,23 @@ export type QueueHealthInsight = {
 };
 
 export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthMetric[] {
+  if (records.length === 0) return [];
+
+  // Calcular período de tiempo para normalización
+  const dates = records
+    .filter(r => r.call_date)
+    .map(r => new Date(r.call_date + 'T00:00:00').getTime())
+    .sort((a, b) => a - b);
+
+  const minDate = dates[0];
+  const maxDate = dates[dates.length - 1];
+  const daysInPeriod = Math.max(1, (maxDate - minDate) / (1000 * 60 * 60 * 24) + 1);
+
+  // Horario de negocios (08:00 - 19:00 lunes a viernes, 08:00 - 15:00 viernes)
+  // Estimamos 10.5 horas promedio por día hábil
+  const hoursPerBusinessDay = 10.5;
+  const hoursInPeriod = daysInPeriod * hoursPerBusinessDay;
+
   const queueMap = new Map<string, CallRecord[]>();
 
   for (const r of records) {
@@ -1342,14 +1359,15 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       ? Math.round(queueTimes.reduce((a, b) => a + b, 0) / queueTimes.length)
       : 0;
 
-    const durations = inboundCalls
-      .filter(r => r.duration_seconds !== null && r.duration_seconds >= 0)
-      .map(r => r.duration_seconds!);
+    const handleTimes = inboundCalls
+      .filter(r => r.handle_time_seconds !== null && r.handle_time_seconds >= 0)
+      .map(r => r.handle_time_seconds!);
 
-    // Erlang C: intensidad de tráfico (cuántos agentes "llenos" necesita)
-    // Fórmula: SUM(duration_seconds) / 3600
-    const totalDuration = durations.reduce((a, b) => a + b, 0);
-    const erlangC = Math.round(totalDuration / 3600 * 10) / 10;
+    // Erlang C: intensidad de tráfico normalizado por horas del período
+    // Fórmula: SUM(handle_time_seconds) / (3600 × Horas del Período)
+    // Esto da el promedio de Erlangs por hora
+    const totalHandleTime = handleTimes.reduce((a, b) => a + b, 0);
+    const erlangC = Math.round((totalHandleTime / (3600 * hoursInPeriod)) * 10) / 10;
 
     metrics.push({
       queue,
