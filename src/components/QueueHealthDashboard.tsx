@@ -73,6 +73,10 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
     return queueLower !== 'saliente' && queueLower !== 'sin cola' && q.count > 0;
   });
 
+  // Extraer métricas clave de KPIs
+  const serviceLevelPercent = kpis.serviceLevel.overallSL;
+  const queueStats = kpis.queueStats;
+
   // Métricas de operación
   const totalCalls = cleanedRecords.length;
   const totalAbandons = cleanedRecords.filter(r => !r.attended).length;
@@ -80,12 +84,17 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
 
   // ASA: Tiempo promedio en espera (suma de tiempo en cola de atendidas / total atendidas)
   const attendedWithQueueTime = cleanedRecords.filter(r => r.attended && r.queue_time_seconds !== null && r.queue_time_seconds !== undefined);
-  const avgQueueTime = attendedWithQueueTime.length > 0
+  const asa = attendedWithQueueTime.length > 0
     ? attendedWithQueueTime.reduce((sum, r) => sum + (r.queue_time_seconds ?? 0), 0) / attendedWithQueueTime.length
     : 0;
 
   // ATA: Tiempo promedio de abandono
-  const avgAbandonTime = totalAbandons > 0
+  const inboundRecords = cleanedRecords.filter(r => {
+    const direction = (r.call_direction || '').toLowerCase();
+    return direction === 'inbound' || direction === 'entrante';
+  });
+
+  const ata = totalAbandons > 0
     ? cleanedRecords
         .filter(r => !r.attended)
         .reduce((sum, r) => sum + (r.queue_time_seconds ?? 0), 0) / totalAbandons
@@ -95,15 +104,6 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
   const avgHandleTime = filteredKPIs.length > 0
     ? filteredKPIs.reduce((sum, q) => sum + q.avgHandleTimeSeconds, 0) / filteredKPIs.length
     : 0;
-
-  // Embudo de Coherencia: Entrantes -> IVR -> Corto -> Cola -> Rebote -> Atendidas
-  const inboundRecords = cleanedRecords.filter(r => {
-    const direction = (r.call_direction || '').toLowerCase();
-    return direction === 'inbound' || direction === 'entrante';
-  });
-
-  // SL%: Nivel de Servicio General (% de llamadas atendidas en <= 20s)
-  const serviceLevelPercent = kpis.serviceLevel.overallSL;
 
   // Tasa de Abandono %: Abandonadas en cola/alerta / Llamadas válidas inbound
   const abandonsQueueAlert = inboundRecords.filter(r =>
@@ -319,7 +319,7 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
                 </div>
               )}
             </div>
-            <p className="text-2xl font-bold text-blue-600 mb-1">{formatDuration(Math.floor(avgQueueTime))}</p>
+            <p className="text-2xl font-bold text-blue-600 mb-1">{formatDuration(Math.floor(asa))}</p>
             <p className="text-xs text-slate-500">Solo llamadas atendidas</p>
           </div>
 
@@ -362,7 +362,7 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
                 </div>
               )}
             </div>
-            <p className="text-2xl font-bold text-emerald-600 mb-1">{formatDuration(Math.floor(avgAbandonTime))}</p>
+            <p className="text-2xl font-bold text-emerald-600 mb-1">{formatDuration(Math.floor(ata))}</p>
             <p className="text-xs text-slate-500">Solo llamadas abandonadas</p>
           </div>
         </div>
