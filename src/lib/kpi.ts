@@ -274,6 +274,39 @@ export function formatDuration(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+export function parseDuration(timeStr: string): number {
+  if (!timeStr || typeof timeStr !== 'string') return 0;
+
+  const trimmed = timeStr.trim();
+
+  // Format: "13s"
+  const secondsMatch = trimmed.match(/^(\d+)s$/);
+  if (secondsMatch) return parseInt(secondsMatch[1], 10);
+
+  // Format: "1m 43s" or "1m43s"
+  const minSecMatch = trimmed.match(/^(\d+)m\s*(\d+)s$/);
+  if (minSecMatch) {
+    return parseInt(minSecMatch[1], 10) * 60 + parseInt(minSecMatch[2], 10);
+  }
+
+  // Format: "05:14" or "1:23:45"
+  const colonParts = trimmed.split(':');
+  if (colonParts.length === 2) {
+    // mm:ss
+    const mins = parseInt(colonParts[0], 10);
+    const secs = parseInt(colonParts[1], 10);
+    return isNaN(mins) || isNaN(secs) ? 0 : mins * 60 + secs;
+  } else if (colonParts.length === 3) {
+    // hh:mm:ss
+    const hours = parseInt(colonParts[0], 10);
+    const mins = parseInt(colonParts[1], 10);
+    const secs = parseInt(colonParts[2], 10);
+    return isNaN(hours) || isNaN(mins) || isNaN(secs) ? 0 : hours * 3600 + mins * 60 + secs;
+  }
+
+  return 0;
+}
+
 function isInbound(direction: string): boolean {
   const d = (direction || '').toLowerCase();
   return d === 'inbound' || d === 'entrante';

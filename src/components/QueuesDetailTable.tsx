@@ -9,6 +9,14 @@ type Props = {
 
 type SortKey = keyof QueueStat | 'slPercent' | 'erlangC' | 'trendencySL' | 'staffAnalysis';
 
+type ColumnDef = {
+  label: string;
+  key: SortKey;
+  align: string;
+  tooltip?: React.ReactNode;
+  isAudit?: boolean;
+};
+
 function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
   if (!active) return <ChevronsUpDown size={13} className="text-gray-300 ml-1 inline" />;
   return dir === 'asc'
@@ -60,7 +68,9 @@ export function QueuesDetailTable({ stats }: Props) {
     const needsStaff = slPercent < 80 && erlangC > 0.8;
     const lowAdherence = slPercent < 80 && erlangC <= 0.8;
     const staffAnalysis = needsStaff ? '✖ Falta Staff' : lowAdherence ? '⚠ Baja Adherencia' : '✓ Óptimo';
-    const trendencySL = Math.random() > 0.5 ? '↑' : '↓';
+    const trendencySL = slPercent >= 80 ? '↑' : '↓';
+
+    console.log(`[SLA] ${q.queue}: SLA calculado sobre ${q.count} llamadas. Valor final: ${Math.round(slPercent)}%`);
 
     return {
       ...q,
@@ -97,7 +107,7 @@ export function QueuesDetailTable({ stats }: Props) {
     return sortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
   });
 
-  const cols: { label: string; key: SortKey; align: string; tooltip?: React.ReactNode }[] = [
+  const cols: ColumnDef[] = [
     { label: 'Cola', key: 'queue', align: 'text-left' },
     { label: 'Llamadas', key: 'count', align: 'text-right' },
     { label: '%', key: 'percentage', align: 'text-right' },
@@ -185,12 +195,14 @@ export function QueuesDetailTable({ stats }: Props) {
       label: 'Tendencia SL%',
       key: 'trendencySL',
       align: 'text-center',
+      isAudit: true,
       tooltip: <div><p className="font-semibold text-slate-800 mb-2">Tendencia SL%</p><p className="text-slate-600">Comparativa del Nivel de Servicio contra el periodo anterior.</p></div>,
     },
     {
       label: 'Análisis Staff',
       key: 'staffAnalysis',
       align: 'text-center',
+      isAudit: true,
       tooltip: <div><p className="font-semibold text-slate-800 mb-2">Análisis Staff</p><p className="text-slate-600">Diagnóstico automático de la causa raíz del bajo SL.</p></div>,
     },
     { label: 'Atendidas / No Atendidas', key: 'completenessRate', align: 'text-center' },
@@ -206,8 +218,7 @@ export function QueuesDetailTable({ stats }: Props) {
           <thead>
             <tr className="bg-bice-dark-blue" style={{ backgroundColor: '#003a70' }}>
               {cols.map(col => {
-                const isAudit = col.label === 'Tendencia SL%' || col.label === 'Análisis Staff';
-                const headerClass = isAudit ? 'bg-yellow-200 text-yellow-900' : 'text-white';
+                const headerClass = col.isAudit ? 'bg-yellow-200 text-yellow-900' : 'text-white';
 
                 return (
                   <th
