@@ -6,7 +6,7 @@ type Props = {
 };
 
 export function AbandonFunnelChart({ data }: Props) {
-  const { totalInbound, ivrFugues, shortAbandons, queueFugues, alertFugues, attendedCalls } = data;
+  const { totalInbound, ivrFugues, shortAbandons, queueFugues, bounceAbandons, attendedCalls } = data;
 
   // Build funnel data: each stage shows cumulative loss
   const chartData = [
@@ -35,9 +35,9 @@ export function AbandonFunnelChart({ data }: Props) {
       color: '#0369a1',
     },
     {
-      stage: 'Después Alerta',
-      count: totalInbound - ivrFugues - shortAbandons - queueFugues - alertFugues,
-      percentage: totalInbound > 0 ? Math.round(((totalInbound - ivrFugues - shortAbandons - queueFugues - alertFugues) / totalInbound) * 100) : 0,
+      stage: 'Después Rebote',
+      count: totalInbound - ivrFugues - shortAbandons - queueFugues - bounceAbandons,
+      percentage: totalInbound > 0 ? Math.round(((totalInbound - ivrFugues - shortAbandons - queueFugues - bounceAbandons) / totalInbound) * 100) : 0,
       color: '#075985',
     },
     {
@@ -143,12 +143,12 @@ export function AbandonFunnelChart({ data }: Props) {
               </div>
 
               <div className="bg-red-50 rounded-xl p-3">
-                <p className="text-xs text-slate-400 mb-1">Fuga Alerta</p>
-                <p className="text-2xl font-bold text-red-600">{alertFugues}</p>
+                <p className="text-xs text-slate-400 mb-1">Abandono tras Rebote</p>
+                <p className="text-2xl font-bold text-red-600">{bounceAbandons}</p>
                 <p className="text-xs text-slate-500 mt-1">
-                  {totalInbound > 0 ? Math.round((alertFugues / totalInbound) * 100) : 0}% de entrantes
+                  {totalInbound > 0 ? Math.round((bounceAbandons / totalInbound) * 100) : 0}% de entrantes
                 </p>
-                <p className="text-xs text-slate-400 mt-1">Agentes ocupados</p>
+                <p className="text-xs text-slate-400 mt-1">Tras devolución de agente</p>
               </div>
             </div>
 
@@ -156,8 +156,8 @@ export function AbandonFunnelChart({ data }: Props) {
             <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
               <p className="text-xs text-slate-600 font-medium mb-2">Verificación de Coherencia:</p>
               <p className="text-xs text-slate-500">
-                {ivrFugues} + {shortAbandons} + {queueFugues} + {alertFugues} + {attendedCalls} = {ivrFugues + shortAbandons + queueFugues + alertFugues + attendedCalls}
-                {ivrFugues + shortAbandons + queueFugues + alertFugues + attendedCalls === totalInbound ? (
+                {ivrFugues} + {shortAbandons} + {queueFugues} + {bounceAbandons} + {attendedCalls} = {ivrFugues + shortAbandons + queueFugues + bounceAbandons + attendedCalls}
+                {ivrFugues + shortAbandons + queueFugues + bounceAbandons + attendedCalls === totalInbound ? (
                   <span className="text-green-600 font-medium"> ✓ Correcto</span>
                 ) : (
                   <span className="text-red-600 font-medium"> ✗ Error</span>

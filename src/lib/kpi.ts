@@ -1297,7 +1297,7 @@ export type AbandonFunnelData = {
   ivrFugues: number;
   shortAbandons: number;
   queueFugues: number;
-  alertFugues: number;
+  bounceAbandons: number;
   attendedCalls: number;
   totalAbandons: number;
 };
@@ -1461,20 +1461,22 @@ export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData
     (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD)
   ).length;
 
-  // Stage 3-4: Queue and Alert Abandons (excluding short abandons)
-  // These are calls that reached queue/alert but were abandoned after exceeding threshold
+  // Stage 3: Queue Abandons (excluding short abandons and bounces)
+  // These are calls that reached queue but were abandoned after exceeding threshold
   const queueFugues = inboundCalls.filter(r =>
     r.flow_exit !== false && // NOT an IVR drop
     !r.attended &&
     r.abandon_type === 'queue' &&
+    !r.is_bounce &&
     (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD)
   ).length;
 
-  const alertFugues = inboundCalls.filter(r =>
+  // Stage 4: Bounce Abandons (calls with at least one bounce)
+  // These are unattended calls that had agent callbacks/bounces before abandoning
+  const bounceAbandons = inboundCalls.filter(r =>
     r.flow_exit !== false && // NOT an IVR drop
     !r.attended &&
-    r.abandon_type === 'alert' &&
-    (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD)
+    r.is_bounce === true
   ).length;
 
   // Stage 5: Attended Calls (successful completions)
@@ -1488,7 +1490,7 @@ export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData
     ivrFugues,
     shortAbandons,
     queueFugues,
-    alertFugues,
+    bounceAbandons,
     attendedCalls,
     totalAbandons,
   };
@@ -1541,17 +1543,17 @@ export function generateQueueHealthInsights(
     }
   }
 
-  // Alert 2: Low agent availability
-  const alertAbandons = funnelData.alertFugues;
+  // Alert 2: High bounce abandons
+  const bounceAbandons = funnelData.bounceAbandons;
   const totalAbandons = funnelData.totalAbandons;
-  if (totalAbandons > 0 && alertAbandons / totalAbandons > 0.05) {
+  if (totalAbandons > 0 && bounceAbandons / totalAbandons > 0.05) {
     insights.push({
       type: 'availability',
       severity: 'warning',
       queue: 'General',
-      message: `Baja Disponibilidad: Las llamadas están llegando a los agentes pero no las están tomando. Revisar estados "Away" o distracciones.`,
-      metric: 'Bounce Rate',
-      value: `${Math.round((alertAbandons / totalAbandons) * 100)}%`,
+      message: `Abandonos tras Rebote Elevados: Los clientes están siendo devueltos frecuentemente antes de ser atendidos. Revisar estrategia de enrutamiento y disponibilidad de agentes.`,
+      metric: 'Bounce Abandon Rate',
+      value: `${Math.round((bounceAbandons / totalAbandons) * 100)}%`,
       threshold: '< 5%',
     });
   }
