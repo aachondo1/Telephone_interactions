@@ -9,42 +9,43 @@ export function AbandonFunnelChart({ data }: Props) {
   const { totalInbound, ivrFugues, shortAbandons, queueFugues, bounceAbandons, attendedCalls } = data;
 
   // Build funnel data: each stage shows cumulative loss
+  // Gradient colors: BICE blue (#326295) transitioning to lighter tones, ending in BICE green (#84BD00)
   const chartData = [
     {
       stage: 'Entrantes',
       count: totalInbound,
       percentage: 100,
-      color: '#0ea5e9',
+      color: '#326295', // bice-blue
     },
     {
       stage: 'Después IVR',
       count: totalInbound - ivrFugues,
       percentage: totalInbound > 0 ? Math.round(((totalInbound - ivrFugues) / totalInbound) * 100) : 0,
-      color: '#06b6d4',
+      color: '#4a7ab0', // bice-blue lighter
     },
     {
       stage: 'Después Abandono Corto',
       count: totalInbound - ivrFugues - shortAbandons,
       percentage: totalInbound > 0 ? Math.round(((totalInbound - ivrFugues - shortAbandons) / totalInbound) * 100) : 0,
-      color: '#0284c7',
+      color: '#6b98c7', // bice-blue lighter
     },
     {
       stage: 'Después Cola',
       count: totalInbound - ivrFugues - shortAbandons - queueFugues,
       percentage: totalInbound > 0 ? Math.round(((totalInbound - ivrFugues - shortAbandons - queueFugues) / totalInbound) * 100) : 0,
-      color: '#0369a1',
+      color: '#8db3d9', // bice-blue lighter
     },
     {
       stage: 'Después Rebote',
       count: totalInbound - ivrFugues - shortAbandons - queueFugues - bounceAbandons,
       percentage: totalInbound > 0 ? Math.round(((totalInbound - ivrFugues - shortAbandons - queueFugues - bounceAbandons) / totalInbound) * 100) : 0,
-      color: '#075985',
+      color: '#b0cce8', // bice-blue very light
     },
     {
       stage: 'Atendidas',
       count: attendedCalls,
       percentage: totalInbound > 0 ? Math.round((attendedCalls / totalInbound) * 100) : 0,
-      color: '#10b981',
+      color: '#84BD00', // bice-green
     },
   ];
 
@@ -81,10 +82,12 @@ export function AbandonFunnelChart({ data }: Props) {
                 <Tooltip
                   formatter={(value) => `${value} llamadas`}
                   contentStyle={{
-                    backgroundColor: '#1e293b',
-                    border: 'none',
-                    borderRadius: '8px',
-                    color: '#fff',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    color: '#65646A',
+                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+                    zIndex: 50,
                   }}
                 />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>

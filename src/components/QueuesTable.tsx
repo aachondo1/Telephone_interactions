@@ -54,12 +54,12 @@ export function QueuesTable({ stats, healthMetrics = [] }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-bice-dark-blue text-white">
-              <th className="text-left px-6 py-3 font-semibold">Cola</th>
+              <th className="text-left px-6 py-3 font-semibold" style={{ fontFamily: 'Open Sans' }}>Cola</th>
               <th className="text-right px-4 py-3 font-semibold font-mono">Llamadas</th>
               <th className="text-right px-4 py-3 font-semibold font-mono">Tiempo Total</th>
               <th className="text-right px-6 py-3 font-semibold font-mono">% del total</th>
               <th className="text-center px-4 py-3 font-semibold font-mono">SL%</th>
-              <th className="text-center px-4 py-3 font-semibold font-mono">Análisis</th>
+              <th className="text-center px-4 py-3 font-semibold" style={{ fontFamily: 'Open Sans' }}>Análisis</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -76,7 +76,7 @@ export function QueuesTable({ stats, healthMetrics = [] }: Props) {
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-bice-green flex-shrink-0" />
-                      <span className="font-medium text-bice-blue">{row.queue || 'Sin cola'}</span>
+                      <span className="font-medium text-bice-blue" style={{ fontFamily: 'Open Sans' }}>{row.queue || 'Sin cola'}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-slate-800">
@@ -100,10 +100,10 @@ export function QueuesTable({ stats, healthMetrics = [] }: Props) {
                     {metric ? (
                       <div className="flex items-center justify-center gap-1.5">
                         <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold ${
                             metric.serviceLevelPercent >= 80
-                              ? 'bg-bice-green bg-opacity-10 text-bice-green'
-                              : 'bg-red-100 text-red-700'
+                              ? 'bg-bice-green bg-opacity-15 text-bice-green'
+                              : 'bg-red-100 text-red-600'
                           }`}
                         >
                           {metric.serviceLevelPercent}%

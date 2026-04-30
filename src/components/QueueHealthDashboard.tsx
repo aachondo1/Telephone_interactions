@@ -21,7 +21,7 @@ export function QueueHealthDashboard({ records }: Props) {
   const heatmapData = useMemo(() => calculateQueuePerformanceHeatmap(records), [records]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* KPI Cards */}
       <QueueHealthMetricsCards metrics={metrics} />
 

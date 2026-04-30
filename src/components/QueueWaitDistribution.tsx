@@ -61,23 +61,38 @@ export function QueueWaitDistribution({ records }: Props) {
           <Tooltip
             formatter={(value) => [Number(value).toLocaleString('es-CL'), 'Llamadas']}
             labelFormatter={(label) => `${label}`}
-            contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}
+            contentStyle={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              color: '#65646A',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+              zIndex: 50,
+            }}
           />
           <Bar
             dataKey="count"
             radius={[4, 4, 0, 0]}
             maxBarSize={32}
           >
-            {buckets.map((entry, index) => (
-              <Cell
-                key={`cell-${index}`}
-                fill={
-                  entry.label === '<10s' || entry.label === '10-20s' ? '#84BD00' // bice-green for SL zone
-                    : entry.label === '20-30s' || entry.label === '30-60s' ? '#f59e0b' // amber for recovery zone
-                      : '#ef4444' // red for long waits (>60s)
-                }
-              />
-            ))}
+            {buckets.map((entry, index) => {
+              // Gradient colors: BICE green for SL zone, smooth amber gradient for recovery, soft red for losses
+              const getBarColor = () => {
+                if (entry.label === '<10s') return '#84BD00'; // bice-green
+                if (entry.label === '10-20s') return '#9ac924'; // bice-green lighter
+                if (entry.label === '20-30s') return '#fbbf24'; // amber lighter
+                if (entry.label === '30-60s') return '#f59e0b'; // amber
+                if (entry.label === '60-120s') return '#f87171'; // red lighter
+                if (entry.label === '120-300s') return '#ef4444'; // red
+                return '#dc2626'; // red darker for very long waits
+              };
+              return (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={getBarColor()}
+                />
+              );
+            })}
           </Bar>
         </BarChart>
       </ResponsiveContainer>

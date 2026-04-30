@@ -25,39 +25,39 @@ export function Tooltip({ definition, formula, unit, benchmark, label }: Props) 
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-72 bg-slate-900 text-white rounded-lg shadow-lg p-4 z-50 text-xs leading-relaxed pointer-events-auto">
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-72 bg-white text-bice-gray rounded-xl shadow-xl p-4 z-50 text-xs leading-relaxed pointer-events-auto border border-slate-100">
           <div className="space-y-2">
-            {label && <p className="font-semibold text-sm border-b border-slate-700 pb-2">{label}</p>}
+            {label && <p className="font-semibold text-sm border-b border-slate-200 pb-2 text-bice-blue">{label}</p>}
 
             <div>
-              <p className="font-semibold text-slate-300">Definición:</p>
-              <p className="text-slate-200">{definition}</p>
+              <p className="font-semibold text-bice-blue">Definición:</p>
+              <p className="text-bice-gray">{definition}</p>
             </div>
 
             {formula && (
               <div>
-                <p className="font-semibold text-slate-300">Fórmula:</p>
-                <p className="text-slate-200 font-mono bg-slate-800 p-2 rounded">{formula}</p>
+                <p className="font-semibold text-bice-blue">Fórmula:</p>
+                <p className="text-bice-gray font-mono bg-slate-50 p-2 rounded text-xs">{formula}</p>
               </div>
             )}
 
             {unit && (
               <div>
-                <p className="font-semibold text-slate-300">Unidad:</p>
-                <p className="text-slate-200">{unit}</p>
+                <p className="font-semibold text-bice-blue">Unidad:</p>
+                <p className="text-bice-gray">{unit}</p>
               </div>
             )}
 
             {benchmark && (
               <div>
-                <p className="font-semibold text-slate-300">Benchmark:</p>
-                <p className="text-slate-200">{benchmark}</p>
+                <p className="font-semibold text-bice-blue">Benchmark:</p>
+                <p className="text-bice-gray">{benchmark}</p>
               </div>
             )}
           </div>
 
           {/* Punta del tooltip */}
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 -mb-1 w-2 h-2 bg-slate-900 rotate-45"></div>
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 -mb-1 w-2 h-2 bg-white border border-slate-100 border-t-0 border-r-0 rotate-45"></div>
         </div>
       )}
     </div>
