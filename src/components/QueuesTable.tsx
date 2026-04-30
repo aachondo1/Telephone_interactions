@@ -17,40 +17,40 @@ export function QueuesTable({ stats }: Props) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-slate-50 text-slate-500">
-              <th className="text-left px-6 py-3 font-medium">Cola</th>
-              <th className="text-right px-4 py-3 font-medium">Llamadas</th>
-              <th className="text-right px-4 py-3 font-medium">Tiempo Total</th>
-              <th className="px-6 py-3 font-medium text-left w-40">% del total</th>
+            <tr className="bg-bice-blue text-white">
+              <th className="text-left px-6 py-3 font-semibold">Cola</th>
+              <th className="text-right px-4 py-3 font-semibold font-mono">Llamadas</th>
+              <th className="text-right px-4 py-3 font-semibold font-mono">Tiempo Total</th>
+              <th className="text-right px-6 py-3 font-semibold font-mono">% del total</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="divide-y divide-slate-100">
             {stats.map((row, i) => (
               <tr
                 key={row.queue}
-                className={`hover:bg-slate-50 transition-colors ${i % 2 === 0 ? '' : 'bg-slate-50/30'}`}
+                className={`hover:bg-slate-100 transition-colors ${i % 2 === 0 ? '' : 'even:bg-slate-50'}`}
               >
                 <td className="px-6 py-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
-                    <span className="font-medium text-slate-700">{row.queue || 'Sin cola'}</span>
+                    <div className="w-2 h-2 rounded-full bg-bice-green flex-shrink-0" />
+                    <span className="font-medium text-bice-blue">{row.queue || 'Sin cola'}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                <td className="px-4 py-3 text-right font-mono text-slate-800">
                   {row.count.toLocaleString('es-CL')}
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-slate-600">
                   {row.totalDurationFormatted}
                 </td>
                 <td className="px-6 py-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3 justify-between">
                     <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                       <div
-                        className="h-full bg-emerald-400 rounded-full"
+                        className="h-full bg-bice-green rounded-full"
                         style={{ width: `${(row.totalDurationSeconds / maxDuration) * 100}%` }}
                       />
                     </div>
-                    <span className="text-xs text-slate-500 w-10 text-right">{row.percentage}%</span>
+                    <span className="text-xs font-mono text-bice-gray text-right w-12">{row.percentage}%</span>
                   </div>
                 </td>
               </tr>
