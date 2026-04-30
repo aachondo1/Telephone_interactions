@@ -27,7 +27,7 @@ import { ExecutivesDetailTable } from './ExecutivesDetailTable';
 import { ExecutiveDashboard } from './ExecutiveDashboard';
 import { QueueHealthDashboard } from './QueueHealthDashboard';
 import { SectionHeader } from './SectionHeader';
-import { calculateKPIs, logKPIDebugInfo } from '../lib/kpi';
+import { calculateKPIs } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
@@ -358,10 +358,6 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
 
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
   const kpis = useMemo(() => calculateKPIs(filteredRecords), [filteredRecords]);
-
-  useEffect(() => {
-    logKPIDebugInfo(records);
-  }, [records]);
 
   // Scroll to top when section changes
   useEffect(() => {
