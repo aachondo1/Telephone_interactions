@@ -63,7 +63,13 @@ export function QueuesDetailTable({ stats }: Props) {
 
   // Calcular métricas adicionales para cada cola
   const enrichedStats = filtered.map(q => {
-    const erlangC = q.abandonQueueRate / 100;
+    // Erlang C: Carga de tráfico ofrecido = (Duración total en horas) / Agentes estimados
+    // Estimamos agentes como: max(1, volumen/10) para un ratio 10 llamadas por agente por hora
+    const offeredTraffic = q.totalDurationSeconds / 3600;
+    const estimatedAgents = Math.max(1, Math.ceil(q.count / 10));
+    const erlangC = offeredTraffic / estimatedAgents;
+
+    // Análisis de Staff: Si SL% bajo Y carga alta, falta staff. Si solo SL% bajo, baja adherencia.
     const needsStaff = q.slPercent < 80 && erlangC > 0.8;
     const lowAdherence = q.slPercent < 80 && erlangC <= 0.8;
     const staffAnalysis = needsStaff ? '✖ Falta Staff' : lowAdherence ? '⚠ Baja Adherencia' : '✓ Óptimo';
@@ -179,19 +185,19 @@ export function QueuesDetailTable({ stats }: Props) {
         <div className="space-y-2">
           <div>
             <p className="font-semibold text-slate-800">Definición</p>
-            <p className="text-slate-600">Intensidad de carga del sistema (tráfico ofrecido)</p>
+            <p className="text-slate-600">Intensidad de carga del sistema (tráfico ofrecido vs. capacidad)</p>
           </div>
           <div>
             <p className="font-semibold text-slate-800">Fórmula</p>
-            <p className="text-slate-600 font-mono text-xs">Tasa de abandono / 100</p>
+            <p className="text-slate-600 font-mono text-xs">(Duración Total / 3600) / Agentes Estimados</p>
           </div>
           <div>
             <p className="font-semibold text-slate-800">Unidad</p>
-            <p className="text-slate-600">Índice (0.0 - 1.0)</p>
+            <p className="text-slate-600">Índice decimal (Erlangs por agente)</p>
           </div>
           <div>
             <p className="font-semibold text-slate-800">Benchmark</p>
-            <p className="text-slate-600">≤ 0.8</p>
+            <p className="text-slate-600">≤ 0.8 para evitar congestión</p>
           </div>
         </div>
       ),
