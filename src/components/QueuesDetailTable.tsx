@@ -63,18 +63,14 @@ export function QueuesDetailTable({ stats }: Props) {
 
   // Calcular métricas adicionales para cada cola
   const enrichedStats = filtered.map(q => {
-    const slPercent = q.avgQueueTimeSeconds <= 20 ? 100 : Math.max(0, 100 - ((q.avgQueueTimeSeconds - 20) * 5));
     const erlangC = q.abandonQueueRate / 100;
-    const needsStaff = slPercent < 80 && erlangC > 0.8;
-    const lowAdherence = slPercent < 80 && erlangC <= 0.8;
+    const needsStaff = q.slPercent < 80 && erlangC > 0.8;
+    const lowAdherence = q.slPercent < 80 && erlangC <= 0.8;
     const staffAnalysis = needsStaff ? '✖ Falta Staff' : lowAdherence ? '⚠ Baja Adherencia' : '✓ Óptimo';
-    const trendencySL = slPercent >= 80 ? '↑' : '↓';
-
-    console.log(`[SLA] ${q.queue}: SLA calculado sobre ${q.count} llamadas. Valor final: ${Math.round(slPercent)}%`);
+    const trendencySL = q.slPercent >= 80 ? '↑' : '↓';
 
     return {
       ...q,
-      slPercent,
       erlangC,
       staffAnalysis,
       trendencySL,
@@ -133,11 +129,15 @@ export function QueuesDetailTable({ stats }: Props) {
         <div className="space-y-2">
           <div>
             <p className="font-semibold text-slate-800">Definición</p>
-            <p className="text-slate-600">Porcentaje de atención ≤ 20s</p>
+            <p className="text-slate-600">Porcentaje de llamadas atendidas en ≤ 20s</p>
           </div>
           <div>
             <p className="font-semibold text-slate-800">Fórmula</p>
-            <p className="text-slate-600 font-mono text-xs">Atendidas ≤ 20s / Total</p>
+            <p className="text-slate-600 font-mono text-xs">(Atendidas ≤ 20s / Total) × 100</p>
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800">Unidad</p>
+            <p className="text-slate-600">%</p>
           </div>
           <div>
             <p className="font-semibold text-slate-800">Benchmark</p>
@@ -154,11 +154,15 @@ export function QueuesDetailTable({ stats }: Props) {
         <div className="space-y-2">
           <div>
             <p className="font-semibold text-slate-800">Definición</p>
-            <p className="text-slate-600">Tasa de fuga de clientes</p>
+            <p className="text-slate-600">Porcentaje de clientes que abandonaron sin ser atendidos</p>
           </div>
           <div>
             <p className="font-semibold text-slate-800">Fórmula</p>
-            <p className="text-slate-600 font-mono text-xs">Abandonos / Total</p>
+            <p className="text-slate-600 font-mono text-xs">(Abandonos / Total) × 100</p>
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800">Unidad</p>
+            <p className="text-slate-600">%</p>
           </div>
           <div>
             <p className="font-semibold text-slate-800">Benchmark</p>
@@ -175,11 +179,15 @@ export function QueuesDetailTable({ stats }: Props) {
         <div className="space-y-2">
           <div>
             <p className="font-semibold text-slate-800">Definición</p>
-            <p className="text-slate-600">Carga de intensidad del sistema</p>
+            <p className="text-slate-600">Intensidad de carga del sistema (tráfico ofrecido)</p>
           </div>
           <div>
             <p className="font-semibold text-slate-800">Fórmula</p>
-            <p className="text-slate-600 font-mono text-xs">Tráfico ofrecido vs Capacidad</p>
+            <p className="text-slate-600 font-mono text-xs">Tasa de abandono / 100</p>
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800">Unidad</p>
+            <p className="text-slate-600">Índice (0.0 - 1.0)</p>
           </div>
           <div>
             <p className="font-semibold text-slate-800">Benchmark</p>

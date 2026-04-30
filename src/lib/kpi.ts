@@ -64,6 +64,7 @@ export type QueueStat = {
   bounceRate: number;
   abandonQueueRate: number;
   abandonAlertRate: number;
+  slPercent: number;
 };
 
 export type QueueHeatmapCell = {
@@ -1030,6 +1031,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     totalHandleTime: number; totalQueueTime: number; totalAlertTime: number;
     totalAlertSegments: number; bounceCount: number; alertableCount: number;
     abandonQueueCount: number; abandonAlertCount: number;
+    answeredWithin20s: number;
   }>();
   for (const r of validRecords) {
     const q = r.queue || 'Sin cola';
@@ -1038,6 +1040,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
       totalHandleTime: 0, totalQueueTime: 0, totalAlertTime: 0,
       totalAlertSegments: 0, bounceCount: 0, alertableCount: 0,
       abandonQueueCount: 0, abandonAlertCount: 0,
+      answeredWithin20s: 0,
     };
     queueMap.set(q, {
       count: e.count + 1,
@@ -1054,6 +1057,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
       alertableCount: e.alertableCount + ((r.alert_segments ?? 0) > 0 ? 1 : 0),
       abandonQueueCount: e.abandonQueueCount + (r.abandon_type === 'queue' ? 1 : 0),
       abandonAlertCount: e.abandonAlertCount + (r.abandon_type === 'alert' ? 1 : 0),
+      answeredWithin20s: e.answeredWithin20s + ((r.queue_time_seconds ?? 0) <= 20 && r.attended ? 1 : 0),
     });
   }
   const totalQueueDuration = Array.from(queueMap.values()).reduce((sum, d) => sum + d.totalDuration, 0);
@@ -1067,6 +1071,10 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
       const bounceRate = d.alertableCount > 0 ? Math.round((d.bounceCount / d.alertableCount) * 100) : 0;
       const abandonQueueRate = d.unattended > 0 ? Math.round((d.abandonQueueCount / d.unattended) * 100) : 0;
       const abandonAlertRate = d.unattended > 0 ? Math.round((d.abandonAlertCount / d.unattended) * 100) : 0;
+      const slPercent = Math.round((d.answeredWithin20s / d.count) * 100);
+
+      console.log(`[SLA Corregido] ${queue}: Detectadas ${d.answeredWithin20s} llamadas bajo el umbral de 20s de un total de ${d.count}. Nuevo SLA: ${slPercent}%`);
+
       return {
         queue,
         count: d.count,
@@ -1087,6 +1095,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
         bounceRate: bounceRate,
         abandonQueueRate: abandonQueueRate,
         abandonAlertRate: abandonAlertRate,
+        slPercent: slPercent,
       };
     })
     .sort((a, b) => b.totalDurationSeconds - a.totalDurationSeconds);
