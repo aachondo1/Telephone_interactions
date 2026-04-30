@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect } from 'react';
 import { KPICards } from './KPICards';
 import { HourlyChart } from './HourlyChart';
 import { ExecutivesTable } from './ExecutivesTable';
-import { QueuesTable } from './QueuesTable';
 import { DirectionChart } from './DirectionChart';
 import { DurationExtremes } from './DurationExtremes';
 import { FilterBar, DEFAULT_FILTERS } from './FilterBar';
@@ -427,7 +426,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
           <HourlyChart data={kpis.hourlyDistribution} />
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <ExecutivesTable stats={kpis.executiveStats} />
-            <QueuesTable stats={kpis.queueStats} />
+            {/* QueuesTable removed - table now integrated in QueueHealthDashboard with proper styling */}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <DirectionChart stats={kpis.directionStats} />
