@@ -1282,6 +1282,10 @@ export type QueueHealthMetric = {
   abandonmentRatePercent: number;
   awtSeconds: number;
   awtFormatted: string;
+  asaSeconds: number;
+  asaFormatted: string;
+  ataSeconds: number;
+  ataFormatted: string;
   erlangC: number;
   totalCalls: number;
   attendedCalls: number;
@@ -1380,12 +1384,31 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
 
     const abandonedCalls = realAbandonedCalls;
 
+    // AWT Global: promedio de espera de todas las llamadas válidas
     const queueTimes = validCallsForSL
       .filter(r => r.queue_time_seconds !== null && r.queue_time_seconds >= 0)
       .map(r => r.queue_time_seconds!);
 
     const awtSeconds = queueTimes.length > 0
       ? Math.round(queueTimes.reduce((a, b) => a + b, 0) / queueTimes.length)
+      : 0;
+
+    // ASA: Promedio de espera solo de llamadas ATENDIDAS (velocidad del equipo)
+    const answeredQueueTimes = validCallsForSL
+      .filter(r => r.attended && r.queue_time_seconds !== null && r.queue_time_seconds >= 0)
+      .map(r => r.queue_time_seconds!);
+
+    const asaSeconds = answeredQueueTimes.length > 0
+      ? Math.round(answeredQueueTimes.reduce((a, b) => a + b, 0) / answeredQueueTimes.length)
+      : 0;
+
+    // ATA: Promedio de espera solo de llamadas ABANDONADAS en cola/alerta (paciencia del cliente)
+    const abandonedQueueTimes = validCallsForSL
+      .filter(r => !r.attended && (r.abandon_type === 'queue' || r.abandon_type === 'alert') && r.queue_time_seconds !== null && r.queue_time_seconds >= 0)
+      .map(r => r.queue_time_seconds!);
+
+    const ataSeconds = abandonedQueueTimes.length > 0
+      ? Math.round(abandonedQueueTimes.reduce((a, b) => a + b, 0) / abandonedQueueTimes.length)
       : 0;
 
     const handleTimes = validCallsForSL
@@ -1404,6 +1427,10 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       abandonmentRatePercent,
       awtSeconds,
       awtFormatted: formatDuration(awtSeconds),
+      asaSeconds,
+      asaFormatted: formatDuration(asaSeconds),
+      ataSeconds,
+      ataFormatted: formatDuration(ataSeconds),
       erlangC,
       totalCalls: validCallsForSL.length,
       attendedCalls,
