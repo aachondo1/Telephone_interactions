@@ -7,16 +7,10 @@ import { DirectionChart } from './DirectionChart';
 import { DurationExtremes } from './DurationExtremes';
 import { FilterBar, DEFAULT_FILTERS } from './FilterBar';
 import type { FilterState } from './FilterBar';
-import { QueueKPICards } from './QueueKPICards';
-import { QueueBarChart } from './QueueBarChart';
-import { QueuePieChart } from './QueuePieChart';
-import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
-import QueueUnattendedHeatmap from './QueueUnattendedHeatmap';
-import { QueueLoadVariability } from './QueueLoadVariability';
-import { QueueAttendanceEvolution } from './QueueAttendanceEvolution';
+import { QueueHealthDashboard } from './QueueHealthDashboard';
+import { QueuesDashboard } from './QueuesDashboard';
 import { PhoneOccupancyChart } from './PhoneOccupancyChart';
 import { StaffingDemandChart } from './StaffingDemandChart';
-import { QueuesDetailTable } from './QueuesDetailTable';
 import { ExecutiveKPICards } from './ExecutiveKPICards';
 import { ExecutiveBarChart } from './ExecutiveBarChart';
 import { ExecutiveScatterChart } from './ExecutiveScatterChart';
@@ -32,7 +26,6 @@ import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
 import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users, Zap } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
-import { TopCallersTable } from './TopCallersTable';
 import type { AgentStatusRecord } from '../lib/supabase';
 import { InterventionImpact } from './InterventionImpact';
 import { supabase } from '../lib/supabase';
@@ -447,17 +440,14 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
             title="Análisis de Colas"
             description="Rendimiento, ocupación y patrones de atención por cola"
           />
-          <QueueKPICards stats={kpis.queueStats} totalCalls={kpis.totalCalls} />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <QueueBarChart stats={kpis.queueStats} />
-            <QueuePieChart stats={kpis.queueStats} />
+          <div>
+            <h2 className="text-lg font-semibold text-slate-700 mb-6">Comparativa de Colas</h2>
+            <QueuesDashboard kpis={kpis} records={filteredRecords} />
           </div>
-          <QueuePerformanceHeatmap data={kpis.queuePerformanceHeatmap} />
-          <QueueAttendanceEvolution data={kpis.queueAttendanceEvolution} />
-          <QueueUnattendedHeatmap data={kpis.queueUnattendedHeatmap} />
-          <QueueLoadVariability data={kpis.queueLoadVariability} />
-          <QueuesDetailTable stats={kpis.queueStats} />
-          <TopCallersTable records={filteredRecords} />
+          <div className="border-t border-slate-200 pt-6 mt-6">
+            <h2 className="text-lg font-semibold text-slate-700 mb-6">Salud de Cola</h2>
+            <QueueHealthDashboard kpis={kpis} />
+          </div>
         </div>
       )}
 
