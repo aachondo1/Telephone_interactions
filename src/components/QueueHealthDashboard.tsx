@@ -95,20 +95,19 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
     ? filteredKPIs.reduce((sum, q) => sum + q.avgHandleTimeSeconds, 0) / filteredKPIs.length
     : 0;
 
-  // SL%: Nivel de Servicio General (% de llamadas atendidas en <= 20s)
-  const serviceLevelPercent = kpis.serviceLevel.overallSL;
-
-  // Tasa de Abandono %
-  const abandonRate = Math.round((totalAbandons / totalCalls) * 100) || 0;
-
-  // Erlang C: Capacidad del sistema
-  const erlangC = totalCalls > 0 ? (totalAbandons / totalCalls) : 0;
-
   // Embudo de Coherencia: Entrantes -> IVR -> Corto -> Cola -> Rebote -> Atendidas
   const inboundRecords = cleanedRecords.filter(r => {
     const direction = (r.call_direction || '').toLowerCase();
     return direction === 'inbound' || direction === 'entrante';
   });
+
+  // Tasa de Abandono %: Abandonadas en cola/alerta / Llamadas válidas inbound
+  const abandonsQueueAlert = inboundRecords.filter(r =>
+    !r.attended && (r.abandon_type === 'queue' || r.abandon_type === 'alert')
+  ).length;
+  const abandonRate = inboundRecords.length > 0
+    ? Math.round((abandonsQueueAlert / inboundRecords.length) * 100)
+    : 0;
 
   const funnelStages = {
     entrantes: inboundRecords.length,
@@ -240,11 +239,11 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
                   <div className="space-y-3">
                     <div>
                       <p className="font-semibold text-slate-800">Definición</p>
-                      <p className="text-slate-600">Porcentaje de clientes que colgaron antes de ser atendidos.</p>
+                      <p className="text-slate-600">Porcentaje de clientes que cuelgan antes de ser atendidos en cola o alerta</p>
                     </div>
                     <div>
                       <p className="font-semibold text-slate-800">Fórmula</p>
-                      <p className="text-slate-600 font-mono">(Llamadas Abandonadas / Total Recibidas) × 100</p>
+                      <p className="text-slate-600 font-mono">(Abandonadas en cola/alerta) / (Llamadas válidas) × 100</p>
                     </div>
                     <div>
                       <p className="font-semibold text-slate-800">Unidad</p>
