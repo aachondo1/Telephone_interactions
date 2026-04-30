@@ -189,14 +189,30 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
               <p className="text-xs text-slate-400 uppercase tracking-wide">Nivel de Servicio (SL%)</p>
               <button
                 onClick={() => toggleTooltip('sl')}
-                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors"
-                title="Porcentaje de colas que atienden en menos de 20 segundos"
+                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
               >
                 <Info size={16} />
               </button>
               {tooltips.sl && (
-                <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-lg z-50 p-2 text-xs text-slate-600 whitespace-nowrap border border-slate-100">
-                  Porcentaje de colas &lt; 20s
+                <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl z-50 p-4 text-xs text-slate-700 border border-slate-100 w-80">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-semibold text-slate-800">Definición</p>
+                      <p className="text-slate-600">Porcentaje de llamadas atendidas antes del tiempo objetivo.</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Fórmula</p>
+                      <p className="text-slate-600 font-mono">(Llamadas Atendidas ≤ 20s / Total Recibidas) × 100</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Unidad</p>
+                      <p className="text-slate-600">Porcentaje (%)</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Benchmark</p>
+                      <p className="text-slate-600">≥ 80%</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -216,14 +232,30 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
               <p className="text-xs text-slate-400 uppercase tracking-wide">Tasa de Abandono</p>
               <button
                 onClick={() => toggleTooltip('abandonment')}
-                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors"
-                title="Porcentaje de llamadas no atendidas"
+                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
               >
                 <Info size={16} />
               </button>
               {tooltips.abandonment && (
-                <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-lg z-50 p-2 text-xs text-slate-600 whitespace-nowrap border border-slate-100">
-                  Clientes perdidos %
+                <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl z-50 p-4 text-xs text-slate-700 border border-slate-100 w-80">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-semibold text-slate-800">Definición</p>
+                      <p className="text-slate-600">Porcentaje de clientes que colgaron antes de ser atendidos.</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Fórmula</p>
+                      <p className="text-slate-600 font-mono">(Llamadas Abandonadas / Total Recibidas) × 100</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Unidad</p>
+                      <p className="text-slate-600">Porcentaje (%)</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Benchmark</p>
+                      <p className="text-slate-600">≤ 10%</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -243,14 +275,30 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
               <p className="text-xs text-slate-400 uppercase tracking-wide">ASA (Velocidad de Respuesta)</p>
               <button
                 onClick={() => toggleTooltip('asa')}
-                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors"
-                title="Tiempo promedio de espera en segundos"
+                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
               >
                 <Info size={16} />
               </button>
               {tooltips.asa && (
-                <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-lg z-50 p-2 text-xs text-slate-600 whitespace-nowrap border border-slate-100">
-                  Tiempo promedio espera
+                <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl z-50 p-4 text-xs text-slate-700 border border-slate-100 w-80">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-semibold text-slate-800">Definición</p>
+                      <p className="text-slate-600">Tiempo promedio que un cliente espera en cola antes de ser atendido.</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Fórmula</p>
+                      <p className="text-slate-600 font-mono">Suma de tiempo en cola (atendidas) / Total Atendidas</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Unidad</p>
+                      <p className="text-slate-600">Minutos y Segundos (mm:ss)</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Benchmark</p>
+                      <p className="text-slate-600">Menor tiempo posible</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -270,14 +318,30 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
               <p className="text-xs text-slate-400 uppercase tracking-wide">ATA (Paciencia del Cliente)</p>
               <button
                 onClick={() => toggleTooltip('ata')}
-                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors"
-                title="Tiempo promedio de abandono en segundos"
+                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
               >
                 <Info size={16} />
               </button>
               {tooltips.ata && (
-                <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-lg z-50 p-2 text-xs text-slate-600 whitespace-nowrap border border-slate-100">
-                  Tiempo promedio abandono
+                <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl z-50 p-4 text-xs text-slate-700 border border-slate-100 w-80">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-semibold text-slate-800">Definición</p>
+                      <p className="text-slate-600">Tiempo promedio que un cliente aguanta en espera antes de colgar.</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Fórmula</p>
+                      <p className="text-slate-600 font-mono">Suma de tiempo en cola (abandonos) / Total Abandonos</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Unidad</p>
+                      <p className="text-slate-600">Minutos y Segundos (mm:ss)</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Benchmark</p>
+                      <p className="text-slate-600">Indica la paciencia del cliente</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -299,14 +363,30 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
               <p className="text-xs text-slate-400 uppercase tracking-wide">Erlang C (Carga del Sistema)</p>
               <button
                 onClick={() => toggleTooltip('erlang')}
-                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors"
-                title="Proporción entre llamadas no atendidas y llamadas totales"
+                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
               >
                 <Info size={16} />
               </button>
               {tooltips.erlang && (
-                <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-lg z-50 p-2 text-xs text-slate-600 whitespace-nowrap border border-slate-100">
-                  Intensidad tráfico
+                <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl z-50 p-4 text-xs text-slate-700 border border-slate-100 w-80">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-semibold text-slate-800">Definición</p>
+                      <p className="text-slate-600">Medida de intensidad de tráfico y capacidad del sistema.</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Fórmula</p>
+                      <p className="text-slate-600 font-mono">Algoritmo de Erlang (Tráfico ofrecido vs Agentes)</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Unidad</p>
+                      <p className="text-slate-600">Índice decimal</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Benchmark</p>
+                      <p className="text-slate-600">≤ 0.8 para evitar colapso</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
