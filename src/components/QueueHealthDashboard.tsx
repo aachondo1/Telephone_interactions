@@ -168,6 +168,21 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
     ? filteredUnattended.reduce((sum, r) => sum + (r.queue_time_seconds ?? 0), 0) / totalUnattended
     : 0;
 
+  // Erlang C: System Load Intensity = Offered Traffic / Number of Agents
+  // Offered Traffic = (Total Handle Time in seconds) / 3600
+  const totalHandleTime = cleanedRecords.reduce((sum, r) => sum + (r.handle_time_seconds ?? 0), 0);
+  const offeredTraffic = totalHandleTime / 3600;
+
+  // Estimate number of agents: Use sum of implied agents across queues
+  // If no queue data, estimate based on concurrent capacity (avg handle time * call volume)
+  let agentCount = 1;
+  if (filteredKPIs.length > 0) {
+    // Conservative estimate: assume at least 1 agent per queue, or derive from throughput
+    agentCount = Math.max(filteredKPIs.length, Math.ceil(offeredTraffic / avgHandleTime) || 1);
+  }
+
+  const erlangC = agentCount > 0 ? offeredTraffic / agentCount : 0;
+
   const [tooltips, setTooltips] = useState<Record<string, boolean>>({});
 
   const toggleTooltip = (key: string) => {
