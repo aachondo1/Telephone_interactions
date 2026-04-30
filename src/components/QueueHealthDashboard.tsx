@@ -208,10 +208,12 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
                 <Tooltip
                   contentStyle={{
                     backgroundColor: '#ffffff',
-                    borderRadius: '6px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                    borderRadius: '8px',
+                    border: '1px solid #f1f5f9',
+                    boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                    fontSize: '12px',
                   }}
+                  itemStyle={{ fontFamily: 'monospace' }}
                   formatter={(value: number) => value.toLocaleString('es-CL')}
                 />
                 <Bar dataKey="value" fill="#3b82f6">
@@ -267,10 +269,12 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
                 <Tooltip
                   contentStyle={{
                     backgroundColor: '#ffffff',
-                    borderRadius: '6px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                    borderRadius: '8px',
+                    border: '1px solid #f1f5f9',
+                    boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                    fontSize: '12px',
                   }}
+                  itemStyle={{ fontFamily: 'monospace' }}
                   formatter={(value: number) => value.toLocaleString('es-CL')}
                 />
                 <Bar dataKey="count" fill="#3b82f6">
