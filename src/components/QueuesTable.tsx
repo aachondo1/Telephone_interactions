@@ -6,8 +6,8 @@ type Props = {
 };
 
 export function QueuesTable({ stats, healthMetrics = [] }: Props) {
-  // Filter to show only queues with inbound traffic
-  const activeQueues = stats.filter(s => s.inboundCount > 0);
+  // Aggressive filter: only queues with inbound calls OR handled calls, excluding "Sin cola"
+  const activeQueues = stats.filter(s => (s.inboundCount > 0 || s.count > 0) && s.queue !== 'Sin cola');
   const maxDuration = Math.max(...activeQueues.map(s => s.totalDurationSeconds), 1);
 
   // Map health metrics for quick lookup
@@ -53,7 +53,7 @@ export function QueuesTable({ stats, healthMetrics = [] }: Props) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-bice-blue text-white">
+            <tr className="bg-bice-dark-blue text-white">
               <th className="text-left px-6 py-3 font-semibold">Cola</th>
               <th className="text-right px-4 py-3 font-semibold font-mono">Llamadas</th>
               <th className="text-right px-4 py-3 font-semibold font-mono">Tiempo Total</th>
