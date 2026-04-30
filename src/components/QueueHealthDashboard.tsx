@@ -101,6 +101,9 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
     return direction === 'inbound' || direction === 'entrante';
   });
 
+  // SL%: Nivel de Servicio General (% de llamadas atendidas en <= 20s)
+  const serviceLevelPercent = kpis.serviceLevel.overallSL;
+
   // Tasa de Abandono %: Abandonadas en cola/alerta / Llamadas válidas inbound
   const abandonsQueueAlert = inboundRecords.filter(r =>
     !r.attended && (r.abandon_type === 'queue' || r.abandon_type === 'alert')
