@@ -950,6 +950,10 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     );
   }
 
+  // Queue stats: Use Queue Health Metrics as source of truth
+  // Pass UNFILTERED records so calculateQueueHealthMetrics can apply all its filters correctly
+  const queueStats = calculateQueueHealthMetrics(records);
+
   const total = validRecords.length;
   const empty: KPISummary = {
     totalCalls: 0,
@@ -1093,12 +1097,6 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     .filter(e => e.count >= 5)
     .sort((a, b) => b.count - a.count);
 
-  // Queue stats: Use Queue Health Metrics as source of truth
-  // This ensures all queue data is calculated with consistent filters:
-  // - inbound only
-  // - flow_exit !== false (calls that exited IVR)
-  // - excludes "Sin cola" (unqueued calls)
-  const queueStats = calculateQueueHealthMetrics(validRecords);
 
   // Hourly distribution
   const hourMap = new Map<number, number>();
