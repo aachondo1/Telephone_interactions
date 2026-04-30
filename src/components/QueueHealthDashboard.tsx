@@ -329,19 +329,19 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
                   <div className="space-y-3">
                     <div>
                       <p className="font-semibold text-slate-800">Definición</p>
-                      <p className="text-slate-600">Tiempo promedio que un cliente aguanta en espera antes de colgar.</p>
+                      <p className="text-slate-600">Tiempo promedio que un cliente espera antes de abandonar la llamada</p>
                     </div>
                     <div>
                       <p className="font-semibold text-slate-800">Fórmula</p>
-                      <p className="text-slate-600 font-mono">Suma de tiempo en cola (abandonos) / Total Abandonos</p>
+                      <p className="text-slate-600 font-mono">SUM(queue_time_seconds de abandonadas) / Cantidad de abandonadas</p>
                     </div>
                     <div>
                       <p className="font-semibold text-slate-800">Unidad</p>
-                      <p className="text-slate-600">Minutos y Segundos (mm:ss)</p>
+                      <p className="text-slate-600">Segundos (mm:ss)</p>
                     </div>
                     <div>
                       <p className="font-semibold text-slate-800">Benchmark</p>
-                      <p className="text-slate-600">Indica la paciencia del cliente</p>
+                      <p className="text-slate-600">Si ATA &gt; ASA: cliente impaciente. Si ATA &lt; ASA: cliente impaciente</p>
                     </div>
                   </div>
                 </div>
