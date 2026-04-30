@@ -1293,9 +1293,12 @@ export type QueueHealthMetric = {
 };
 
 export type AbandonFunnelData = {
+  totalInbound: number;
   ivrFugues: number;
+  shortAbandons: number;
   queueFugues: number;
   alertFugues: number;
+  attendedCalls: number;
   totalAbandons: number;
 };
 
@@ -1442,12 +1445,53 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
 }
 
 export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData {
-  const ivrFugues = records.filter(r => !r.attended && r.abandon_type === 'ivr').length;
-  const queueFugues = records.filter(r => !r.attended && r.abandon_type === 'queue').length;
-  const alertFugues = records.filter(r => !r.attended && r.abandon_type === 'alert').length;
-  const totalAbandons = records.filter(r => !r.attended).length;
+  const SHORT_ABANDON_THRESHOLD = 5;
 
-  return { ivrFugues, queueFugues, alertFugues, totalAbandons };
+  // Total inbound calls (100% of funnel)
+  const inboundCalls = records.filter(r => isInbound(r.call_direction));
+  const totalInbound = inboundCalls.length;
+
+  // Stage 1: IVR Fugas (exitedInIVR: flow_exit === false)
+  const ivrFugues = inboundCalls.filter(r => r.flow_exit === false).length;
+
+  // Stage 2: Short Abandons (< 5 seconds in queue)
+  const shortAbandons = inboundCalls.filter(r =>
+    r.flow_exit !== false && // NOT an IVR drop
+    !r.attended &&
+    (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD)
+  ).length;
+
+  // Stage 3-4: Queue and Alert Abandons (excluding short abandons)
+  // These are calls that reached queue/alert but were abandoned after exceeding threshold
+  const queueFugues = inboundCalls.filter(r =>
+    r.flow_exit !== false && // NOT an IVR drop
+    !r.attended &&
+    r.abandon_type === 'queue' &&
+    (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD)
+  ).length;
+
+  const alertFugues = inboundCalls.filter(r =>
+    r.flow_exit !== false && // NOT an IVR drop
+    !r.attended &&
+    r.abandon_type === 'alert' &&
+    (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD)
+  ).length;
+
+  // Stage 5: Attended Calls (successful completions)
+  const attendedCalls = inboundCalls.filter(r => r.attended).length;
+
+  // Total abandons (all unattended inbound calls)
+  const totalAbandons = totalInbound - attendedCalls;
+
+  return {
+    totalInbound,
+    ivrFugues,
+    shortAbandons,
+    queueFugues,
+    alertFugues,
+    attendedCalls,
+    totalAbandons,
+  };
 }
 
 export function calculateTechnicalLeaks(records: CallRecord[]): TechnicalLeaksData {
