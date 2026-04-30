@@ -1356,7 +1356,12 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
     });
 
     const attendedCalls = validCallsForSL.filter(r => r.attended).length;
-    const abandonedCalls = validCallsForSL.filter(r => !r.attended).length;
+
+    // Abandonos reales: Solo en queue o alert (después de llegar a la cola)
+    // Excluye IVR abandonos que se cuentan en "Fugas Técnicas"
+    const realAbandonedCalls = validCallsForSL.filter(r =>
+      !r.attended && (r.abandon_type === 'queue' || r.abandon_type === 'alert')
+    ).length;
 
     // Service Level: Atendidas < 20s / Total de llamadas válidas
     const answeredWithin20s = validCallsForSL.filter(r =>
@@ -1367,9 +1372,13 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       ? Math.round((answeredWithin20s / validCallsForSL.length) * 100)
       : 0;
 
+    // Tasa de Abandono: Abandonadas en cola/alerta / Llamadas válidas
+    // Consistente con SL%: ambas usan validCallsForSL como denominador
     const abandonmentRatePercent = validCallsForSL.length > 0
-      ? Math.round((abandonedCalls / validCallsForSL.length) * 100)
+      ? Math.round((realAbandonedCalls / validCallsForSL.length) * 100)
       : 0;
+
+    const abandonedCalls = realAbandonedCalls;
 
     const queueTimes = validCallsForSL
       .filter(r => r.queue_time_seconds !== null && r.queue_time_seconds >= 0)
