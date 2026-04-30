@@ -24,7 +24,7 @@ import { calculateKPIs, logKPIDebugInfo } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
-import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users, Zap } from 'lucide-react';
+import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, BarChart3, PhoneCall, Shield, Upload, Users, Zap } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import type { AgentStatusRecord } from '../lib/supabase';
 import { InterventionImpact } from './InterventionImpact';
@@ -433,21 +433,25 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
         </div>
       )}
 
-      {activeSection === 'colas' && (
+      {activeSection === 'health' && (
         <div className="space-y-6">
           <SectionHeader
-            icon={Layers}
-            title="Análisis de Colas"
-            description="Rendimiento, ocupación y patrones de atención por cola"
+            icon={Activity}
+            title="Salud de Cola"
+            description="Métricas de desempeño, abandonos y distribución de tiempos de espera"
           />
-          <div>
-            <h2 className="text-lg font-semibold text-slate-700 mb-6">Comparativa de Colas</h2>
-            <QueuesDashboard kpis={kpis} records={filteredRecords} />
-          </div>
-          <div className="border-t border-slate-200 pt-6 mt-6">
-            <h2 className="text-lg font-semibold text-slate-700 mb-6">Salud de Cola</h2>
-            <QueueHealthDashboard kpis={kpis} records={filteredRecords} />
-          </div>
+          <QueueHealthDashboard kpis={kpis} records={filteredRecords} />
+        </div>
+      )}
+
+      {activeSection === 'queues' && (
+        <div className="space-y-6">
+          <SectionHeader
+            icon={BarChart3}
+            title="Comparativa de Colas"
+            description="Análisis comparativo de rendimiento entre colas"
+          />
+          <QueuesDashboard kpis={kpis} records={filteredRecords} />
         </div>
       )}
 
