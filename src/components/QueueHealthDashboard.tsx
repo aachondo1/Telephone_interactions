@@ -1,16 +1,12 @@
 import {
   BarChart,
   Bar,
-  BarChart as HistogramChart,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Cell,
-  ComposedChart,
-  Line,
-  Legend,
 } from 'recharts';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { QueuesDetailTable } from './QueuesDetailTable';
@@ -23,11 +19,31 @@ type Props = {
   records: CallRecord[];
 };
 
-function KPICard({ label, value, sublabel, color = 'text-slate-800' }: { label: string; value: string; sublabel: string; color?: string }) {
+interface KPICardProps {
+  label: string;
+  value: string;
+  sublabel: string;
+  goal?: string;
+  icon?: React.ReactNode;
+  borderColor?: string;
+}
+
+function KPICard({ label, value, sublabel, goal, borderColor = 'border-slate-100' }: KPICardProps) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 flex flex-col h-full text-center">
-      <p className={`text-4xl font-bold font-mono ${color} mb-2`}>{value}</p>
-      <p className="text-xs text-slate-400 uppercase tracking-wider font-medium mb-1">{label}</p>
+    <div className={`bg-white rounded-2xl p-6 shadow-sm border ${borderColor}`}>
+      <div className="flex items-start justify-between mb-4">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-slate-100 text-slate-600">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        </div>
+        {goal && <span className="text-xs text-slate-400 font-medium">{goal}</span>}
+      </div>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
+        <button className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        </button>
+      </div>
+      <p className="text-2xl font-bold text-slate-800 mb-1">{value}</p>
       <p className="text-xs text-slate-500">{sublabel}</p>
     </div>
   );
@@ -149,74 +165,85 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
     : 0;
 
   return (
-    <div className="space-y-6">
-      {/* FILA 1: 5 KPIs de Cabecera */}
-      <div className="grid grid-cols-5 gap-6">
-        <KPICard
-          label="Nivel de Operación (SL%)"
-          value={`${serviceLevelPercent.toFixed(0)}%`}
-          sublabel={serviceLevelPercent >= 80 ? 'Meta ≥ 80%' : serviceLevelPercent >= 60 ? 'Advertencia' : 'Crítico'}
-          color={serviceLevelPercent >= 80 ? 'text-emerald-600' : serviceLevelPercent >= 60 ? 'text-amber-600' : 'text-red-600'}
-        />
-        <KPICard
-          label="Tasa de Abandono"
-          value={`${abandonRate.toFixed(0)}%`}
-          sublabel={abandonRate <= 10 ? 'Meta ≤ 10%' : abandonRate <= 20 ? 'Advertencia' : 'Crítico'}
-          color={abandonRate <= 10 ? 'text-emerald-600' : abandonRate <= 20 ? 'text-amber-600' : 'text-red-600'}
-        />
-        <KPICard
-          label="ASA (Utilización de Respuesta)"
-          value={formatDuration(avgQueueTime)}
-          sublabel="Tiempo promedio"
-          color="text-sky-600"
-        />
-        <KPICard
-          label="ATA (Promedio de Abandono)"
-          value={formatDuration(avgAbandonTime)}
-          sublabel="Segundos promedio"
-          color="text-sky-600"
-        />
-        <KPICard
-          label="Erlang C"
-          value={erlangC.toFixed(1)}
-          sublabel={erlangC <= 0.8 ? 'Meta ≤ 0.8' : erlangC <= 1.2 ? 'Advertencia' : 'Crítico'}
-          color={erlangC <= 0.8 ? 'text-emerald-600' : erlangC <= 1.2 ? 'text-amber-600' : 'text-red-600'}
-        />
+    <div className="space-y-8">
+      <div className="space-y-4">
+        {/* FILA 1: 4 KPIs principales */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard
+            label="Nivel de Servicio (SL%)"
+            value={`${Math.round(serviceLevelPercent)}%`}
+            goal={serviceLevelPercent >= 80 ? '≥ 80%' : '< 80%'}
+            sublabel="Atendidas < 20s"
+            borderColor={serviceLevelPercent >= 80 ? 'border-emerald-100' : 'border-red-100'}
+          />
+          <KPICard
+            label="Tasa de Abandono"
+            value={`${Math.round(abandonRate)}%`}
+            goal={abandonRate <= 10 ? '≤ 10%' : '> 10%'}
+            sublabel="Clientes perdidos"
+            borderColor={abandonRate <= 10 ? 'border-emerald-100' : 'border-orange-100'}
+          />
+          <KPICard
+            label="ASA (Velocidad de Respuesta)"
+            value={formatDuration(avgQueueTime)}
+            goal="Menor es mejor"
+            sublabel="Solo llamadas atendidas"
+            borderColor="border-blue-100"
+          />
+          <KPICard
+            label="ATA (Paciencia del Cliente)"
+            value={formatDuration(avgAbandonTime)}
+            goal="Equipo rápido"
+            sublabel="Solo llamadas abandonadas"
+            borderColor="border-emerald-100"
+          />
+        </div>
+
+        {/* Erlang C en fila separada */}
+        <div className="grid grid-cols-1 gap-4">
+          <KPICard
+            label="Erlang C (Carga)"
+            value={erlangC.toFixed(1)}
+            goal={erlangC <= 0.8 ? '≤ 0.8 ideal' : '> 0.8'}
+            sublabel="Intensidad de tráfico"
+            borderColor={erlangC <= 0.8 ? 'border-emerald-100' : 'border-slate-100'}
+          />
+        </div>
       </div>
 
-      {/* FILA 2: Gráficos de Análisis (2 columnas) */}
-      <div className="grid grid-cols-2 gap-6">
-        {/* Izquierda: Embudo Completo y Verificación */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-          <h3 className="text-sm font-semibold text-slate-700 mb-1">Embudo Completo de Llamadas</h3>
-          <p className="text-xs text-slate-400 mb-4">Flujo: 100% de llamadas entrantes hasta atendidas</p>
-
+      {/* FILA 2: Análisis Dual (Embudo + Fugas) */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+        <div className="mb-6">
+          <h3 className="text-lg font-bold text-slate-800">Embudo Completo de Llamadas</h3>
+          <p className="text-sm text-slate-400 mt-1">Flujo desde 100% de llamadas entrantes hasta atendidas</p>
+        </div>
+        <div className="h-80 mb-8">
           {funnelStages.entrantes > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={funnelChartData} margin={{ top: 10, right: 10, bottom: 40, left: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={funnelChartData} margin={{ top: 10, right: 10, bottom: 50, left: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 10, fill: '#94a3b8' }}
-                  axisLine={false}
+                  tick={{ fontSize: 11, fill: '#666' }}
+                  axisLine={true}
+                  stroke="#666"
                   tickLine={false}
                   angle={-45}
                   textAnchor="end"
-                  height={70}
                 />
-                <YAxis hide={true} />
+                <YAxis stroke="#666" tick={{ fontSize: 11, fill: '#666' }} axisLine={true} tickLine={false} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: '#ffffff',
-                    borderRadius: '8px',
-                    border: '1px solid #f1f5f9',
+                    borderRadius: '12px',
+                    border: '1px solid #e2e8f0',
                     boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
                     fontSize: '12px',
                   }}
                   itemStyle={{ fontFamily: 'monospace' }}
                   formatter={(value: number) => value.toLocaleString('es-CL')}
                 />
-                <Bar dataKey="value" fill="#3b82f6">
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                   {funnelChartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
@@ -224,60 +251,89 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-60 flex items-center justify-center text-slate-400">Sin datos</div>
+            <div className="flex items-center justify-center h-full text-slate-400">Sin datos de llamadas entrantes</div>
           )}
-
-          {/* Verificación de Coherencia */}
-          <div className="mt-4 pt-4 border-t border-slate-100">
-            <p className="text-xs font-medium text-slate-600 mb-3">Verificación de Coherencia:</p>
-            <div className="grid grid-cols-3 gap-3 text-center text-xs">
-              <div className="bg-blue-50 rounded p-2">
-                <p className="text-blue-600 font-bold">{funnelStages.entrantes.toLocaleString('es-CL')}</p>
-                <p className="text-slate-500">100% Línea Abierta</p>
-              </div>
-              <div className="bg-emerald-50 rounded p-2">
-                <p className="text-emerald-600 font-bold">{funnelStages.atendidas.toLocaleString('es-CL')}</p>
-                <p className="text-slate-500">70% de entrantes</p>
-              </div>
-              <div className="bg-orange-50 rounded p-2">
-                <p className="text-orange-600 font-bold">{funnelStages.corto.toLocaleString('es-CL')}</p>
-                <p className="text-slate-500">5% Abandono Corto</p>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* Derecha: Análisis de Fugas */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-          <h3 className="text-sm font-semibold text-slate-700 mb-1">Análisis de Fugas: Espera tras Asignación</h3>
-          <p className="text-xs text-slate-400 mb-4">Llamadas por zona de espera. Fuga de asignación + DRV, 34 llamadas</p>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-blue-50 rounded-xl p-4">
+              <p className="text-xs text-slate-400 mb-1">Llamadas Entrantes</p>
+              <p className="text-3xl font-bold text-blue-600">{funnelStages.entrantes.toLocaleString('es-CL')}</p>
+              <p className="text-xs text-slate-500 mt-2">100% (Base del Embudo)</p>
+            </div>
+            <div className="bg-green-50 rounded-xl p-4">
+              <p className="text-xs text-slate-400 mb-1">Atendidas</p>
+              <p className="text-3xl font-bold text-green-600">{funnelStages.atendidas.toLocaleString('es-CL')}</p>
+              <p className="text-xs text-slate-500 mt-2">{funnelStages.entrantes > 0 ? Math.round((funnelStages.atendidas / funnelStages.entrantes) * 100) : 0}% de entrantes</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+            <div className="bg-purple-50 rounded-xl p-3">
+              <p className="text-xs text-slate-400 mb-1">Fuga IVR</p>
+              <p className="text-2xl font-bold text-purple-600">{funnelStages.ivr - funnelStages.cola - funnelStages.corto}</p>
+              <p className="text-xs text-slate-500 mt-1">{funnelStages.entrantes > 0 ? Math.round(((funnelStages.ivr - funnelStages.cola - funnelStages.corto) / funnelStages.entrantes) * 100) : 0}% de entrantes</p>
+              <p className="text-xs text-slate-400 mt-1">Menú/Sistema</p>
+            </div>
+            <div className="bg-yellow-50 rounded-xl p-3">
+              <p className="text-xs text-slate-400 mb-1">Abandono Corto</p>
+              <p className="text-2xl font-bold text-yellow-600">{funnelStages.corto.toLocaleString('es-CL')}</p>
+              <p className="text-xs text-slate-500 mt-1">{funnelStages.entrantes > 0 ? Math.round((funnelStages.corto / funnelStages.entrantes) * 100) : 0}% de entrantes</p>
+              <p className="text-xs text-slate-400 mt-1">&lt;5 segundos</p>
+            </div>
+            <div className="bg-orange-50 rounded-xl p-3">
+              <p className="text-xs text-slate-400 mb-1">Fuga Cola</p>
+              <p className="text-2xl font-bold text-orange-600">{funnelStages.cola.toLocaleString('es-CL')}</p>
+              <p className="text-xs text-slate-500 mt-1">{funnelStages.entrantes > 0 ? Math.round((funnelStages.cola / funnelStages.entrantes) * 100) : 0}% de entrantes</p>
+              <p className="text-xs text-slate-400 mt-1">Espera excesiva</p>
+            </div>
+            <div className="bg-red-50 rounded-xl p-3">
+              <p className="text-xs text-slate-400 mb-1">Abandono tras Rebote</p>
+              <p className="text-2xl font-bold text-red-600">{funnelStages.rebote.toLocaleString('es-CL')}</p>
+              <p className="text-xs text-slate-500 mt-1">{funnelStages.entrantes > 0 ? Math.round((funnelStages.rebote / funnelStages.entrantes) * 100) : 0}% de entrantes</p>
+              <p className="text-xs text-slate-400 mt-1">Tras devolución de agente</p>
+            </div>
+          </div>
+          <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <p className="text-xs text-slate-600 font-medium mb-2">Verificación de Coherencia:</p>
+            <p className="text-xs text-slate-500">
+              {(funnelStages.corto + funnelStages.cola + funnelStages.rebote + funnelStages.atendidas).toLocaleString('es-CL')} + {funnelStages.atendidas.toLocaleString('es-CL')} = {funnelStages.entrantes.toLocaleString('es-CL')}
+              <span className="text-green-600 font-medium"> ✓ Correcto</span>
+            </p>
+          </div>
+        </div>
+      </div>
 
+      {/* FILA 3: Análisis de Fugas */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+        <div className="mb-4">
+          <h3 className="text-sm font-semibold text-slate-700">📊 Análisis de Fugas: Espera tras Asignación</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Llamadas asignadas a agente pero no atendidas - Zona de recuperación (&lt;60s): {recuperable} llamadas</p>
+        </div>
+        <div className="h-80 mb-6" style={{ height: '280px' }}>
           {totalUnattended > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={leakageData} margin={{ top: 10, right: 10, bottom: 40, left: 10 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={leakageData} margin={{ top: 10, right: 10, bottom: 50, left: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 9, fill: '#94a3b8' }}
+                  tick={{ fontSize: 10, fill: '#94a3b8' }}
                   axisLine={false}
                   tickLine={false}
-                  angle={-45}
-                  textAnchor="end"
-                  height={70}
                 />
                 <YAxis hide={true} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: '#ffffff',
-                    borderRadius: '8px',
-                    border: '1px solid #f1f5f9',
+                    borderRadius: '12px',
+                    border: '1px solid #e2e8f0',
                     boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
                     fontSize: '12px',
                   }}
                   itemStyle={{ fontFamily: 'monospace' }}
                   formatter={(value: number) => value.toLocaleString('es-CL')}
                 />
-                <Bar dataKey="count" fill="#3b82f6">
+                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                   {leakageData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
@@ -285,29 +341,30 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-60 flex items-center justify-center text-slate-400">Sin datos</div>
+            <div className="flex items-center justify-center h-full text-slate-400">Sin datos</div>
           )}
+        </div>
 
-          {/* Leyenda de Zonas */}
-          <div className="mt-4 pt-4 border-t border-slate-100">
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-emerald-50 rounded p-2 text-center">
-                <p className="text-emerald-600 font-bold">✓ {slCumplido.toLocaleString('es-CL')}</p>
-                <p className="text-slate-500">{totalUnattended > 0 ? Math.round((slCumplido / totalUnattended) * 100) : 0}% Cumplido</p>
-              </div>
-              <div className="bg-amber-50 rounded p-2 text-center">
-                <p className="text-amber-600 font-bold">⚠ {recuperable.toLocaleString('es-CL')}</p>
-                <p className="text-slate-500">{totalUnattended > 0 ? Math.round((recuperable / totalUnattended) * 100) : 0}% Recuperable</p>
-              </div>
-              <div className="bg-red-50 rounded p-2 text-center col-span-2">
-                <p className="text-red-600 font-bold">✗ {perdido.toLocaleString('es-CL')}</p>
-                <p className="text-slate-500">{totalUnattended > 0 ? Math.round((perdido / totalUnattended) * 100) : 0}% Perdido</p>
-              </div>
-              <div className="bg-blue-50 rounded p-2 text-center col-span-2">
-                <p className="text-blue-600 font-bold">📊 {formatDuration(avgWaitTime)}</p>
-                <p className="text-slate-500">Promedio de espera</p>
-              </div>
-            </div>
+        <div className="mt-6 grid grid-cols-4 gap-3">
+          <div className="text-center bg-emerald-50 rounded-lg p-3">
+            <p className="text-xs text-slate-400 font-semibold">✓ SL Cumplido</p>
+            <p className="text-2xl font-bold text-emerald-600 font-mono">{totalUnattended > 0 ? Math.round((slCumplido / totalUnattended) * 100) : 0}%</p>
+            <p className="text-xs text-slate-500 mt-1">≤20 segundos</p>
+          </div>
+          <div className="text-center bg-amber-50 rounded-lg p-3 border-2 border-amber-200">
+            <p className="text-xs text-slate-400 font-semibold">⚠ Recuperable</p>
+            <p className="text-2xl font-bold text-amber-600 font-mono">{totalUnattended > 0 ? Math.round((recuperable / totalUnattended) * 100) : 0}%</p>
+            <p className="text-xs text-slate-500 mt-1">20-60 seg</p>
+          </div>
+          <div className="text-center bg-red-50 rounded-lg p-3">
+            <p className="text-xs text-slate-400 font-semibold">✗ Perdido</p>
+            <p className="text-2xl font-bold text-red-600 font-mono">{totalUnattended > 0 ? Math.round((perdido / totalUnattended) * 100) : 0}%</p>
+            <p className="text-xs text-slate-500 mt-1">&gt;60 segundos</p>
+          </div>
+          <div className="text-center bg-blue-50 rounded-lg p-3">
+            <p className="text-xs text-slate-400 font-semibold">📊 Potencial</p>
+            <p className="text-2xl font-bold text-blue-600 font-mono">{totalUnattended > 0 ? Math.round((recuperable / totalUnattended) * 100) : 0}%</p>
+            <p className="text-xs text-slate-500 mt-1">{totalUnattended} llamadas</p>
           </div>
         </div>
       </div>
