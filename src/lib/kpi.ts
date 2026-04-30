@@ -1538,8 +1538,62 @@ export function generateQueueHealthInsights(
   return insights;
 }
 
-// CAMBIO 7: Exportar función para que Dashboard la use
-export function logKPIDebugInfo(records: CallRecord[]): void {
+// Queue Wait Distribution (consistent with health metrics filtering)
+export type QueueWaitDistributionData = {
+  buckets: Array<{ label: string; count: number; percentage: number }>;
+  slPercent: number;
+  midPercent: number;
+  longPercent: number;
+  totalValidCalls: number;
+};
+
+export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWaitDistributionData {
+  const SHORT_ABANDON_THRESHOLD = 5;
+  const inboundCalls = records.filter(r => isInbound(r.call_direction));
+
+  // Apply same filtering as Service Level: exclude short abandons and IVR drops
+  const validCalls = inboundCalls.filter(r => {
+    const isShortAbandon = !r.attended && (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD);
+    const exitedInIVR = r.flow_exit === false;
+    return !isShortAbandon && !exitedInIVR;
+  });
+
+  const buckets = [
+    { label: '<10s', min: 0, max: 10 },
+    { label: '10-20s', min: 10, max: 20 },
+    { label: '20-30s', min: 20, max: 30 },
+    { label: '30-60s', min: 30, max: 60 },
+    { label: '60-120s', min: 60, max: 120 },
+    { label: '>120s', min: 120, max: Infinity },
+  ];
+
+  const bucketData = buckets.map(b => {
+    const count = validCalls.filter(r => {
+      const qt = r.queue_time_seconds ?? 0;
+      return qt >= b.min && qt < b.max;
+    }).length;
+    return {
+      label: b.label,
+      count,
+      percentage: validCalls.length > 0 ? Math.round((count / validCalls.length) * 100) : 0,
+    };
+  });
+
+  const slCount = validCalls.filter(r => (r.queue_time_seconds ?? 0) <= 20).length;
+  const midCount = validCalls.filter(r => {
+    const qt = r.queue_time_seconds ?? 0;
+    return qt > 20 && qt <= 60;
+  }).length;
+  const longCount = validCalls.filter(r => (r.queue_time_seconds ?? 0) > 60).length;
+
+  return {
+    buckets: bucketData,
+    slPercent: validCalls.length > 0 ? Math.round((slCount / validCalls.length) * 100) : 0,
+    midPercent: validCalls.length > 0 ? Math.round((midCount / validCalls.length) * 100) : 0,
+    longPercent: validCalls.length > 0 ? Math.round((longCount / validCalls.length) * 100) : 0,
+    totalValidCalls: validCalls.length,
+  };
+}
   const quality = getDataQualityReport(records);
   const demand = calculateHourlyDemand(records);
 

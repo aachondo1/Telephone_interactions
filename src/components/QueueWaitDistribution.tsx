@@ -1,6 +1,7 @@
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
+import { calculateQueueWaitDistribution } from '../lib/kpi';
 import type { CallRecord } from '../lib/supabase';
 
 type Props = {
@@ -8,24 +9,11 @@ type Props = {
 };
 
 export function QueueWaitDistribution({ records }: Props) {
-  const buckets = [
-    { label: '<10s', min: 0, max: 10 },
-    { label: '10-20s', min: 10, max: 20 },
-    { label: '20-30s', min: 20, max: 30 },
-    { label: '30-60s', min: 30, max: 60 },
-    { label: '60-120s', min: 60, max: 120 },
-    { label: '>120s', min: 120, max: Infinity },
-  ];
+  const distribution = calculateQueueWaitDistribution(records);
+  const { buckets, slPercent, midPercent, longPercent } = distribution;
 
-  const data = buckets.map(b => {
-    const count = records.filter(r => {
-      const qt = r.queue_time_seconds ?? 0;
-      return qt >= b.min && qt < b.max;
-    }).length;
-    return { label: b.label, count };
-  });
-
-  const total = records.length;
+  const data = buckets;
+  const total = distribution.totalValidCalls;
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
@@ -63,30 +51,15 @@ export function QueueWaitDistribution({ records }: Props) {
       <div className="mt-4 grid grid-cols-3 gap-3">
         <div className="text-center">
           <p className="text-xs text-slate-400">≤20s (SL)</p>
-          <p className="text-2xl font-bold text-emerald-600">
-            {Math.round(
-              (records.filter(r => (r.queue_time_seconds ?? 0) <= 20).length / total) * 100
-            )}%
-          </p>
+          <p className="text-2xl font-bold text-emerald-600">{slPercent}%</p>
         </div>
         <div className="text-center">
           <p className="text-xs text-slate-400">20-60s</p>
-          <p className="text-2xl font-bold text-amber-600">
-            {Math.round(
-              (records.filter(r => {
-                const qt = r.queue_time_seconds ?? 0;
-                return qt > 20 && qt <= 60;
-              }).length / total) * 100
-            )}%
-          </p>
+          <p className="text-2xl font-bold text-amber-600">{midPercent}%</p>
         </div>
         <div className="text-center">
           <p className="text-xs text-slate-400">{'>'}60s</p>
-          <p className="text-2xl font-bold text-red-600">
-            {Math.round(
-              (records.filter(r => (r.queue_time_seconds ?? 0) > 60).length / total) * 100
-            )}%
-          </p>
+          <p className="text-2xl font-bold text-red-600">{longPercent}%</p>
         </div>
       </div>
     </div>
