@@ -42,10 +42,10 @@ export function QueueHealthDashboard({ records }: Props) {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-100">
+              <thead className="bg-bice-dark-blue border-b border-slate-100">
                 <tr>
-                  <th className="px-6 py-3 text-left font-semibold text-slate-700">Cola</th>
-                  <th className="px-6 py-3 text-right font-semibold text-slate-700">
+                  <th className="px-6 py-3 text-left font-semibold text-white">Cola</th>
+                  <th className="px-6 py-3 text-right font-semibold text-white">
                     <div className="flex items-center justify-end gap-1">
                       Atendidas
                       <Tooltip
@@ -55,7 +55,7 @@ export function QueueHealthDashboard({ records }: Props) {
                       />
                     </div>
                   </th>
-                  <th className="px-6 py-3 text-right font-semibold text-slate-700">
+                  <th className="px-6 py-3 text-right font-semibold text-white">
                     <div className="flex items-center justify-end gap-1">
                       Abandonos
                       <Tooltip
@@ -65,7 +65,7 @@ export function QueueHealthDashboard({ records }: Props) {
                       />
                     </div>
                   </th>
-                  <th className="px-6 py-3 text-right font-semibold text-slate-700">
+                  <th className="px-6 py-3 text-right font-semibold text-white">
                     <div className="flex items-center justify-end gap-1">
                       SL%
                       <Tooltip
@@ -76,7 +76,7 @@ export function QueueHealthDashboard({ records }: Props) {
                       />
                     </div>
                   </th>
-                  <th className="px-6 py-3 text-right font-semibold text-slate-700">
+                  <th className="px-6 py-3 text-right font-semibold text-white">
                     <div className="flex items-center justify-end gap-1">
                       Abandon %
                       <Tooltip
@@ -87,7 +87,7 @@ export function QueueHealthDashboard({ records }: Props) {
                       />
                     </div>
                   </th>
-                  <th className="px-6 py-3 text-right font-semibold text-slate-700">
+                  <th className="px-6 py-3 text-right font-semibold text-white">
                     <div className="flex items-center justify-end gap-1">
                       Erlang C
                       <Tooltip
@@ -121,7 +121,7 @@ export function QueueHealthDashboard({ records }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {metrics.map(m => (
+                {metrics.filter(m => (m.attendedCalls > 0 || m.abandonedCalls > 0) && m.queue !== 'Sin cola').map(m => (
                   <tr key={m.queue} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-800">{m.queue}</td>
                     <td className="px-6 py-4 text-right text-slate-600">{m.attendedCalls}</td>
