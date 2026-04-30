@@ -1,5 +1,6 @@
 import { AlertCircle, PhoneOff, LogOut } from 'lucide-react';
 import type { TechnicalLeaksData } from '../lib/kpi';
+import { Tooltip } from './Tooltip';
 
 type Props = {
   data: TechnicalLeaksData;
@@ -36,6 +37,12 @@ export function TechnicalLeaksPanel({ data }: Props) {
                     <PhoneOff size={16} className="text-amber-600" />
                   </div>
                   <p className="font-semibold text-amber-900">Cuelgues Instantáneos</p>
+                  <Tooltip
+                    definition="Llamadas en las que el cliente cuelga en menos de 5 segundos, antes de que el sistema procese la llamada"
+                    formula="COUNT(queue_time_seconds &lt; 5 AND !attended AND flow_exit ≠ false)"
+                    unit="Cantidad absoluta"
+                    benchmark="Menor es mejor. Indica problemas de señal o marcado por error"
+                  />
                 </div>
               </div>
               <p className="text-2xl font-bold text-amber-600 mb-2">{data.shortAbandons}</p>
@@ -52,6 +59,12 @@ export function TechnicalLeaksPanel({ data }: Props) {
                     <LogOut size={16} className="text-blue-600" />
                   </div>
                   <p className="font-semibold text-blue-900">Salidas IVR</p>
+                  <Tooltip
+                    definition="Llamadas que no llegaron a la cola porque se desconectaron en el menú IVR o transferencia automática"
+                    formula="COUNT(flow_exit = false)"
+                    unit="Cantidad absoluta"
+                    benchmark="Menor es mejor. Indica problemas del sistema de menú"
+                  />
                 </div>
               </div>
               <p className="text-2xl font-bold text-blue-600 mb-2">{data.ivrDrops}</p>
@@ -68,6 +81,12 @@ export function TechnicalLeaksPanel({ data }: Props) {
                     <AlertCircle size={16} className="text-slate-600" />
                   </div>
                   <p className="font-semibold text-slate-800">Total Fugas</p>
+                  <Tooltip
+                    definition="Suma de cuelgues instantáneos (short abandons) + salidas IVR (iVR drops)"
+                    formula="Short Abandons + IVR Drops"
+                    unit="Cantidad absoluta"
+                    benchmark="NO se cuentan en SL% ni Abandonment Rate. Son problemas técnicos, no de capacidad"
+                  />
                 </div>
               </div>
               <p className="text-2xl font-bold text-slate-700 mb-2">{data.totalTechnicalLeaks}</p>

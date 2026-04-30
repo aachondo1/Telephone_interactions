@@ -12,6 +12,7 @@ import { QueueHealthInsights } from './QueueHealthInsights';
 import { TechnicalLeaksPanel } from './TechnicalLeaksPanel';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { calculateQueuePerformanceHeatmap } from '../lib/kpi';
+import { Tooltip } from './Tooltip';
 
 type Props = {
   records: CallRecord[];
@@ -55,12 +56,70 @@ export function QueueHealthDashboard({ records }: Props) {
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
                   <th className="px-6 py-3 text-left font-semibold text-slate-700">Cola</th>
-                  <th className="px-6 py-3 text-right font-semibold text-slate-700">Atendidas</th>
-                  <th className="px-6 py-3 text-right font-semibold text-slate-700">Abandonos</th>
-                  <th className="px-6 py-3 text-right font-semibold text-slate-700">AWT</th>
-                  <th className="px-6 py-3 text-right font-semibold text-slate-700">SL%</th>
-                  <th className="px-6 py-3 text-right font-semibold text-slate-700">Abandon %</th>
-                  <th className="px-6 py-3 text-right font-semibold text-slate-700">Erlang C</th>
+                  <th className="px-6 py-3 text-right font-semibold text-slate-700">
+                    <div className="flex items-center justify-end gap-1">
+                      Atendidas
+                      <Tooltip
+                        definition="Cantidad de llamadas que fueron respondidas por un agente"
+                        unit="Cantidad absoluta"
+                        benchmark="Mayor es mejor"
+                      />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-right font-semibold text-slate-700">
+                    <div className="flex items-center justify-end gap-1">
+                      Abandonos
+                      <Tooltip
+                        definition="Cantidad de llamadas abandonadas en cola o alerta (no incluye IVR ni short abandons)"
+                        unit="Cantidad absoluta"
+                        benchmark="Menor es mejor"
+                      />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-right font-semibold text-slate-700">
+                    <div className="flex items-center justify-end gap-1">
+                      AWT
+                      <Tooltip
+                        definition="Tiempo promedio de espera de todas las llamadas válidas"
+                        formula="SUM(queue_time_seconds) / Cantidad total"
+                        unit="Segundos (mm:ss)"
+                        benchmark="Menor es mejor"
+                      />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-right font-semibold text-slate-700">
+                    <div className="flex items-center justify-end gap-1">
+                      SL%
+                      <Tooltip
+                        definition="Porcentaje de llamadas atendidas dentro de 20 segundos"
+                        formula="(Atendidas &lt; 20s) / Llamadas válidas × 100"
+                        unit="Porcentaje (%)"
+                        benchmark="≥ 80%"
+                      />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-right font-semibold text-slate-700">
+                    <div className="flex items-center justify-end gap-1">
+                      Abandon %
+                      <Tooltip
+                        definition="Porcentaje de llamadas abandonadas"
+                        formula="Abandonos / Llamadas válidas × 100"
+                        unit="Porcentaje (%)"
+                        benchmark="≤ 10%"
+                      />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-right font-semibold text-slate-700">
+                    <div className="flex items-center justify-end gap-1">
+                      Erlang C
+                      <Tooltip
+                        definition="Intensidad de tráfico normalizada: promedio de agentes ocupados"
+                        formula="SUM(handle_time_seconds) / (3600 × Horas período)"
+                        unit="Erlangs"
+                        benchmark="≤ 0.8 ideal"
+                      />
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
