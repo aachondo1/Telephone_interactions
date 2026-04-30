@@ -96,7 +96,7 @@ export function QueueLoadVariability({ data }: Props) {
                 if (!active || !payload?.length) return null;
                 const d = payload[0]?.payload;
                 return (
-                  <div className="bg-white border border-slate-100 rounded-xl shadow-lg px-4 py-3 text-xs space-y-1">
+                  <div className="bg-white border border-slate-100 rounded-2xl shadow-2xl px-4 py-3 text-xs space-y-1" style={{ boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}>
                     <p className="font-semibold text-slate-700 mb-1">{label}</p>
                     <p className="text-slate-500">Mín: <span className="font-medium text-slate-700">{d.min}</span></p>
                     <p className="text-slate-500">Máx: <span className="font-medium text-slate-700">{d.max}</span></p>

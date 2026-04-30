@@ -58,7 +58,7 @@ export function QueueWaitDistribution({ records }: Props) {
           <Tooltip
             formatter={(value) => [Number(value).toLocaleString('es-CL'), 'Llamadas']}
             labelFormatter={(label) => `${label}`}
-            contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}
+            contentStyle={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #f1f5f9', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
           />
           <Bar
             dataKey="count"

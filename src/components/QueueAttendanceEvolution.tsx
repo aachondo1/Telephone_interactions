@@ -156,7 +156,7 @@ export function QueueAttendanceEvolution({ data }: Props) {
                 const validPayload = payload.filter(p => p.value !== null && p.value !== undefined);
                 if (validPayload.length === 0) return null;
                 return (
-                  <div className="bg-white border border-slate-100 rounded-xl shadow-lg px-4 py-3 text-xs min-w-40">
+                  <div className="bg-white border border-slate-100 rounded-2xl shadow-2xl px-4 py-3 text-xs min-w-40" style={{ boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}>
                     <p className="font-semibold text-slate-700 mb-2">{label}</p>
                     {validPayload
                       .sort((a, b) => (b.value as number) - (a.value as number))
