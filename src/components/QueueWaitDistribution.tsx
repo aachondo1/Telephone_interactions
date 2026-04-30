@@ -25,7 +25,7 @@ export function QueueWaitDistribution({ records }: Props) {
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
       <div className="mb-4">
         <h3 className="text-sm font-semibold text-slate-700">📊 Análisis de Fugas: Espera tras Asignación</h3>
-        <p className="text-xs text-slate-400 mt-0.5">Llamadas asignadas a agente pero no atendidas - Zona de recuperación (<60s): {recoveryPotential} llamadas</p>
+        <p className="text-xs text-slate-400 mt-0.5">Llamadas asignadas a agente pero no atendidas - Zona de recuperación (&lt;60s): {recoveryPotential} llamadas</p>
       </div>
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={data} margin={{ top: 20, right: 10, bottom: 0, left: 0 }}>
