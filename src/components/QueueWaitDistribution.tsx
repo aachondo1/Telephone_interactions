@@ -29,7 +29,7 @@ export function QueueWaitDistribution({ records }: Props) {
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-slate-700">Distribución de tiempos de espera</h3>
+        <h3 className="text-sm font-semibold text-slate-700">📊 HISTOGRAMA ACTUALIZADO V2 - Distribución de tiempos de espera</h3>
         <p className="text-xs text-slate-400 mt-0.5">Segundos en cola - Zona de recuperación potencial: {recoveryPotential} llamadas</p>
       </div>
       <ResponsiveContainer width="100%" height={280}>

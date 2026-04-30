@@ -6,6 +6,7 @@ import {
 } from '../lib/kpi';
 import { QueueHealthMetricsCards } from './QueueHealthMetricsCards';
 import { AbandonFunnelChart } from './AbandonFunnelChart';
+import { QueueWaitDistribution } from './QueueWaitDistribution';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { calculateQueuePerformanceHeatmap } from '../lib/kpi';
 import { Tooltip } from './Tooltip';
@@ -26,6 +27,9 @@ export function QueueHealthDashboard({ records }: Props) {
 
       {/* Abandon Funnel */}
       <AbandonFunnelChart data={funnelData} />
+
+      {/* Wait Distribution Histogram */}
+      <QueueWaitDistribution records={records} />
 
       {/* Heatmap */}
       <QueuePerformanceHeatmap data={heatmapData} />
@@ -94,6 +98,26 @@ export function QueueHealthDashboard({ records }: Props) {
                       />
                     </div>
                   </th>
+                  <th className="px-6 py-3 text-center font-semibold text-slate-700 bg-yellow-200">
+                    <div className="flex items-center justify-center gap-1">
+                      Tendencia SL%
+                      <Tooltip
+                        definition="Cambio en Service Level comparado con benchmark 80%"
+                        unit="Tendencia"
+                        benchmark="↑ Mejora, → Estable, ↓ Decae"
+                      />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-center font-semibold text-slate-700 bg-yellow-200">
+                    <div className="flex items-center justify-center gap-1">
+                      Análisis Staff
+                      <Tooltip
+                        definition="Diagnóstico de brecha de staffing: distingue falta de personal vs baja adherencia"
+                        unit="Análisis"
+                        benchmark="✓ Óptimo, ↑ Falta Staff, ⚠ Baja Adherencia"
+                      />
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -125,6 +149,27 @@ export function QueueHealthDashboard({ records }: Props) {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right text-slate-600">{m.erlangC.toFixed(1)}</td>
+                    <td className="px-6 py-4 text-center bg-yellow-100">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold">
+                        <span className={`text-lg ${
+                          m.slTrend === 'up' ? 'text-bice-green' :
+                          m.slTrend === 'stable' ? 'text-amber-500' :
+                          'text-red-500'
+                        }`}>
+                          {m.slTrend === 'up' ? '↑' : m.slTrend === 'stable' ? '→' : '↓'}
+                        </span>
+                        {m.serviceLevelPercent >= 80 ? 'Mejora' : m.serviceLevelPercent >= 70 ? 'Estable' : 'Decae'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center bg-yellow-100 font-semibold">
+                      {m.serviceLevelPercent >= 80 ? (
+                        <span className="text-bice-green">✓ Óptimo</span>
+                      ) : m.staffingEfficiency > 80 ? (
+                        <span className="text-red-500">↑ Falta Staff</span>
+                      ) : (
+                        <span className="text-amber-500">⚠ Baja Adherencia</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
