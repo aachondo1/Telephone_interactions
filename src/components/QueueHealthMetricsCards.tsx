@@ -3,13 +3,10 @@ import type { QueueHealthMetric } from '../lib/kpi';
 
 type Props = {
   metrics: QueueHealthMetric[];
-  selectedQueue?: string;
 };
 
-export function QueueHealthMetricsCards({ metrics, selectedQueue }: Props) {
-  const queue = selectedQueue
-    ? metrics.find(m => m.queue === selectedQueue)
-    : metrics[0];
+export function QueueHealthMetricsCards({ metrics }: Props) {
+  const queue = metrics[0];
 
   if (!queue) {
     return (

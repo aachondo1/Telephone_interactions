@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { CallRecord } from '../lib/supabase';
 import {
   calculateQueueHealthMetrics,
@@ -16,8 +16,6 @@ type Props = {
 };
 
 export function QueueHealthDashboard({ records }: Props) {
-  const [selectedQueue, setSelectedQueue] = useState<string>();
-
   const metrics = useMemo(() => calculateQueueHealthMetrics(records), [records]);
   const funnelData = useMemo(() => calculateAbandonFunnel(records), [records]);
   const heatmapData = useMemo(() => calculateQueuePerformanceHeatmap(records), [records]);
@@ -28,30 +26,8 @@ export function QueueHealthDashboard({ records }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Queue selector */}
-      {metrics.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
-          <p className="text-sm font-semibold text-slate-600 mb-3">Seleccionar Cola</p>
-          <div className="flex flex-wrap gap-2">
-            {metrics.map(m => (
-              <button
-                key={m.queue}
-                onClick={() => setSelectedQueue(m.queue === selectedQueue ? undefined : m.queue)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  m.queue === selectedQueue
-                    ? 'bg-sky-600 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                {m.queue} ({m.totalCalls})
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* KPI Cards */}
-      <QueueHealthMetricsCards metrics={metrics} selectedQueue={selectedQueue} />
+      <QueueHealthMetricsCards metrics={metrics} />
 
       {/* Abandon Funnel */}
       <AbandonFunnelChart data={funnelData} />
