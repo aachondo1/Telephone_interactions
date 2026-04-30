@@ -9,8 +9,21 @@ type Props = {
 };
 
 export function QueueWaitDistribution({ records }: Props) {
-  const distribution = calculateQueueWaitDistribution(records);
-  const { buckets, slPercent, midPercent, longPercent } = distribution;
+  const distribution = calculateQueueWaitDistribution(records ?? []);
+  const { buckets, slPercent, midPercent, longPercent, totalValidCalls } = distribution;
+
+  console.log("Registros filtrados:", totalValidCalls);
+
+  // Guard against empty data
+  if (!buckets || buckets.length === 0 || totalValidCalls === 0) {
+    return (
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+        <div className="text-center py-8">
+          <p className="text-slate-500 text-sm">No hay datos de asignaciones fallidas para este periodo.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Recovery potential: calls in 10-60s window (closest to SL threshold)
   const recoveryPotential = buckets
@@ -28,7 +41,7 @@ export function QueueWaitDistribution({ records }: Props) {
         <p className="text-xs text-slate-400 mt-0.5">Llamadas asignadas a agente pero no atendidas - Zona de recuperación (&lt;60s): {recoveryPotential} llamadas</p>
       </div>
       <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={data} margin={{ top: 20, right: 10, bottom: 0, left: 0 }}>
+        <BarChart data={buckets} margin={{ top: 20, right: 10, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
           <XAxis
             dataKey="label"
@@ -82,11 +95,11 @@ export function QueueWaitDistribution({ records }: Props) {
         <div className="text-center bg-red-50 rounded-lg p-3">
           <p className="text-xs text-slate-400 font-semibold">✗ Perdido</p>
           <p className="text-2xl font-bold text-red-600 font-mono">{longPercent}%</p>
-          <p className="text-xs text-slate-500 mt-1">{'>'}60 segundos</p>
+          <p className="text-xs text-slate-500 mt-1">&gt;60 segundos</p>
         </div>
         <div className="text-center bg-blue-50 rounded-lg p-3">
           <p className="text-xs text-slate-400 font-semibold">📊 Potencial</p>
-          <p className="text-2xl font-bold text-blue-600 font-mono">{total > 0 ? Math.round((recoveryPotential / total) * 100) : 0}%</p>
+          <p className="text-2xl font-bold text-blue-600 font-mono">{totalValidCalls > 0 ? Math.round((recoveryPotential / totalValidCalls) * 100) : 0}%</p>
           <p className="text-xs text-slate-500 mt-1">{recoveryPotential} llamadas</p>
         </div>
       </div>
