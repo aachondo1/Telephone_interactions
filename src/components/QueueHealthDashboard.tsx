@@ -95,12 +95,11 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
     ? filteredKPIs.reduce((sum, q) => sum + q.avgHandleTimeSeconds, 0) / filteredKPIs.length
     : 0;
 
-  // SL%: Nivel de Operación (% de colas con ASA <= 20s)
-  const slQueues = filteredKPIs.filter(q => q.avgQueueTimeSeconds <= 20).length;
-  const serviceLevelPercent = filteredKPIs.length > 0 ? (slQueues / filteredKPIs.length) * 100 : 0;
+  // SL%: Nivel de Servicio General (% de llamadas atendidas en <= 20s)
+  const serviceLevelPercent = kpis.serviceLevel.overallSL;
 
   // Tasa de Abandono %
-  const abandonRate = totalCalls > 0 ? (totalAbandons / totalCalls) * 100 : 0;
+  const abandonRate = Math.round((totalAbandons / totalCalls) * 100) || 0;
 
   // Erlang C: Capacidad del sistema
   const erlangC = totalCalls > 0 ? (totalAbandons / totalCalls) : 0;
