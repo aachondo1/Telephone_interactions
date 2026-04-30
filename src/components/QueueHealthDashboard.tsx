@@ -10,7 +10,6 @@ import { QueueHealthMetricsCards } from './QueueHealthMetricsCards';
 import { AbandonFunnelChart } from './AbandonFunnelChart';
 import { QueueHealthInsights } from './QueueHealthInsights';
 import { TechnicalLeaksPanel } from './TechnicalLeaksPanel';
-import { ASAATADiagnosis } from './ASAATADiagnosis';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { calculateQueuePerformanceHeatmap } from '../lib/kpi';
 
@@ -32,9 +31,6 @@ export function QueueHealthDashboard({ records }: Props) {
     <div className="space-y-6">
       {/* KPI Cards */}
       <QueueHealthMetricsCards metrics={metrics} />
-
-      {/* ASA vs ATA Diagnosis */}
-      {metrics.length > 0 && <ASAATADiagnosis metric={metrics[0]} />}
 
       {/* Abandon Funnel */}
       <AbandonFunnelChart data={funnelData} />
