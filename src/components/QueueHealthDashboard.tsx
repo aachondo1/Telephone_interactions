@@ -68,7 +68,7 @@ function getInboundRecords(records: CallRecord[]): CallRecord[] {
 
 export function QueueHealthDashboard({ kpis, records }: Props) {
   // Extraer todas las métricas clave directamente del objeto KPIs
-  const { serviceLevel, abandonStats, asa, ata, erlangC, queueStats } = kpis;
+  const { serviceLevel, abandonStats, asa, ata, erlangC, queueStats, bounceRate, bounceCount } = kpis;
   const serviceLevelPercent = serviceLevel.overallSL;
 
   const cleanedRecords = cleanRecords(records);
@@ -340,8 +340,9 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
           </div>
         </div>
 
-        {/* FILA 2: Erlang C en ancho completo */}
-        <div className="grid grid-cols-1 gap-4">
+        {/* FILA 2: Erlang C y Rebote */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Card: Erlang C */}
           <div className={`bg-white rounded-2xl p-6 shadow-sm border ${erlangC <= 0.8 ? 'border-emerald-100' : 'border-slate-100'}`}>
             <div className="flex items-start justify-between mb-4">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${erlangC <= 0.8 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'}`}>
@@ -383,10 +384,53 @@ export function QueueHealthDashboard({ kpis, records }: Props) {
             <p className={`text-2xl font-bold mb-1 ${erlangC <= 0.8 ? 'text-emerald-600' : 'text-slate-800'}`}>{erlangC.toFixed(1)}</p>
             <p className="text-xs text-slate-500">Intensidad de tráfico</p>
           </div>
+
+          {/* Card: Rebote (Rerouting) */}
+          <div className={`bg-white rounded-2xl p-6 shadow-sm border ${bounceRate > 5 ? 'border-red-100' : 'border-purple-100'}`}>
+            <div className="flex items-start justify-between mb-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${bounceRate > 5 ? 'bg-red-50 text-red-600' : 'bg-purple-50 text-purple-600'}`}>
+                <Zap size={20} />
+              </div>
+              <span className="text-xs text-slate-400 font-medium">{bounceRate > 5 ? '> 5% (Alerta)' : '≤ 5% (Ideal)'}</span>
+            </div>
+            <div className="flex items-start justify-between gap-2 mb-2 relative">
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Rebote (Rerouting)</p>
+              <button
+                onClick={() => toggleTooltip('bounce')}
+                className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
+              >
+                <Info size={16} />
+              </button>
+              {tooltips.bounce && (
+                <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl z-50 p-4 text-xs text-slate-700 border border-slate-100 w-80">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-semibold text-slate-800">Definición</p>
+                      <p className="text-slate-600">Porcentaje de llamadas que timbran en más de un ejecutivo antes de ser atendidas o abandonadas. Indica fallas en disponibilidad inmediata.</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Fórmula</p>
+                      <p className="text-slate-600 font-mono text-xs">(Llamadas con >1 alerta) / (Total asignadas) × 100</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Unidad</p>
+                      <p className="text-slate-600">Porcentaje (%)</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">Benchmark</p>
+                      <p className="text-slate-600">≤ 5% (Ideal). Impacto directo en ASA.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <p className={`text-2xl font-bold mb-1 ${bounceRate > 5 ? 'text-red-600' : 'text-purple-600'}`}>{Math.round(bounceRate)}%</p>
+            <p className="text-xs text-slate-500">{bounceCount} eventos de re-ruteo detectados</p>
+          </div>
         </div>
       </div>
 
-      {/* FILA 2: Análisis Dual (Embudo + Fugas) */}
+      {/* FILA 3: Análisis Dual (Embudo + Fugas) */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <div className="mb-6">
           <h3 className="text-lg font-bold text-slate-800">Embudo Completo de Llamadas</h3>

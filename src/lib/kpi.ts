@@ -264,6 +264,8 @@ export type KPISummary = {
   asa: number;
   ata: number;
   erlangC: number;
+  bounceRate: number;
+  bounceCount: number;
 };
 
 export function formatDuration(seconds: number): string {
@@ -929,6 +931,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     asa: 0,
     ata: 0,
     erlangC: 0,
+    bounceRate: 0,
+    bounceCount: 0,
   };
   if (total === 0) return empty;
 
@@ -1253,6 +1257,16 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const estimatedAgents = Math.max(1, Math.ceil(total / 10));
   const erlangC = estimatedAgents > 0 ? offeredTraffic / estimatedAgents : 0;
 
+  // Calcular Bounce Rate: llamadas asignadas a agente que timbran en >1 ejecutivo
+  // assignedCalls: registros con segmentos_alerta >= 1
+  // bouncedCalls: registros con segmentos_alerta > 1
+  const assignedCalls = validRecords.filter(r => (r.alert_segments ?? 0) >= 1);
+  const bouncedCalls = assignedCalls.filter(r => (r.alert_segments ?? 0) > 1);
+  const bounceRate = assignedCalls.length > 0
+    ? Math.round((bouncedCalls.length / assignedCalls.length) * 100)
+    : 0;
+  const bounceCount = bouncedCalls.length;
+
   return {
     totalCalls: total,
     avgDurationSeconds,
@@ -1297,6 +1311,8 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     asa,
     ata,
     erlangC,
+    bounceRate,
+    bounceCount,
   };
 }
 
