@@ -4,10 +4,12 @@ import {
   calculateQueueHealthMetrics,
   calculateAbandonFunnel,
   generateQueueHealthInsights,
+  calculateTechnicalLeaks,
 } from '../lib/kpi';
 import { QueueHealthMetricsCards } from './QueueHealthMetricsCards';
 import { AbandonFunnelChart } from './AbandonFunnelChart';
 import { QueueHealthInsights } from './QueueHealthInsights';
+import { TechnicalLeaksPanel } from './TechnicalLeaksPanel';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { calculateQueuePerformanceHeatmap } from '../lib/kpi';
 
@@ -18,6 +20,7 @@ type Props = {
 export function QueueHealthDashboard({ records }: Props) {
   const metrics = useMemo(() => calculateQueueHealthMetrics(records), [records]);
   const funnelData = useMemo(() => calculateAbandonFunnel(records), [records]);
+  const technicalLeaks = useMemo(() => calculateTechnicalLeaks(records), [records]);
   const heatmapData = useMemo(() => calculateQueuePerformanceHeatmap(records), [records]);
   const insights = useMemo(
     () => generateQueueHealthInsights(metrics, funnelData, records),
@@ -34,6 +37,9 @@ export function QueueHealthDashboard({ records }: Props) {
 
       {/* Insights */}
       <QueueHealthInsights insights={insights} />
+
+      {/* Technical Leaks */}
+      <TechnicalLeaksPanel data={technicalLeaks} />
 
       {/* Heatmap */}
       <QueuePerformanceHeatmap data={heatmapData} />

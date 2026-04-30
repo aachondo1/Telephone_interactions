@@ -1295,6 +1295,13 @@ export type AbandonFunnelData = {
   totalAbandons: number;
 };
 
+export type TechnicalLeaksData = {
+  shortAbandons: number;
+  ivrDrops: number;
+  totalTechnicalLeaks: number;
+  percentOfInbound: number;
+};
+
 export type QueueHealthInsight = {
   type: 'staffing' | 'availability' | 'quality';
   severity: 'critical' | 'warning' | 'info';
@@ -1405,6 +1412,25 @@ export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData
   const totalAbandons = records.filter(r => !r.attended).length;
 
   return { ivrFugues, queueFugues, alertFugues, totalAbandons };
+}
+
+export function calculateTechnicalLeaks(records: CallRecord[]): TechnicalLeaksData {
+  const SHORT_ABANDON_THRESHOLD = 5;
+
+  const inboundCalls = records.filter(r => isInbound(r.call_direction));
+
+  const shortAbandons = inboundCalls.filter(r =>
+    !r.attended && (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD)
+  ).length;
+
+  const ivrDrops = inboundCalls.filter(r => r.flow_exit === false).length;
+
+  const totalTechnicalLeaks = shortAbandons + ivrDrops;
+  const percentOfInbound = inboundCalls.length > 0
+    ? Math.round((totalTechnicalLeaks / inboundCalls.length) * 100)
+    : 0;
+
+  return { shortAbandons, ivrDrops, totalTechnicalLeaks, percentOfInbound };
 }
 
 export function generateQueueHealthInsights(
