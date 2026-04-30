@@ -35,7 +35,6 @@ import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Laye
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
 import type { AgentStatusRecord } from '../lib/supabase';
-import { InterventionImpact } from './InterventionImpact';
 import { supabase } from '../lib/supabase';
 
 type Props = {
@@ -570,17 +569,6 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
           </div>
           <StaffingDemandChart data={kpis.hourlyDemand} />
           <PhoneOccupancyChart data={kpis.executiveOccupancy} />
-        </div>
-      )}
-
-      {activeSection === 'intervencion' && (
-        <div className="space-y-6">
-          <SectionHeader
-            icon={Zap}
-            title="Intervención"
-            description="Impacto de intervenciones en las métricas de atención"
-          />
-          <InterventionImpact records={filteredRecords} />
         </div>
       )}
 
