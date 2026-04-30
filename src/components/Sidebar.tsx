@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import type { DataQualityReport } from '../lib/kpi';
 
-export type Section = 'inicio' | 'llamadas' | 'colas' | 'ejecutivos' | 'planificacion' | 'intervencion' | 'audit';
+export type Section = 'inicio' | 'llamadas' | 'colas' | 'queue-health' | 'ejecutivos' | 'planificacion' | 'intervencion' | 'audit';
 
 type Props = {
   activeSection: Section;
@@ -27,6 +27,7 @@ const NAV_ITEMS: NavItemDef[] = [
   { id: 'inicio',         label: 'Inicio',         icon: LayoutDashboard, group: 'analysis' },
   { id: 'llamadas',       label: 'Llamadas',       icon: PhoneCall,       group: 'analysis' },
   { id: 'colas',          label: 'Colas',           icon: Layers,          group: 'analysis' },
+  { id: 'queue-health',   label: 'Salud de Cola',   icon: Layers,          group: 'analysis' },
   { id: 'ejecutivos',     label: 'Ejecutivos',      icon: Users,           group: 'analysis' },
   { id: 'planificacion',  label: 'Planificación',   icon: Calendar,        group: 'analysis' },
   { id: 'intervencion',   label: 'Intervención',    icon: Zap,             group: 'tools' },

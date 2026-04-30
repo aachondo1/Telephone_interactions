@@ -26,6 +26,8 @@ import { ExecutiveTalkTimeByWeekday } from './ExecutiveTalkTimeByWeekday';
 import { ExecutivesDetailTable } from './ExecutivesDetailTable';
 import { ExecutiveDashboard } from './ExecutiveDashboard';
 import { SectionHeader } from './SectionHeader';
+import { QueueHealthDashboard } from './QueueHealthDashboard';
+import { QueuesDashboard } from './QueuesDashboard';
 import { calculateKPIs, logKPIDebugInfo } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
@@ -444,20 +446,21 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
         <div className="space-y-6">
           <SectionHeader
             icon={Layers}
-            title="Análisis de Colas"
-            description="Rendimiento, ocupación y patrones de atención por cola"
+            title="Análisis Comparativo de Colas"
+            description="Comparación de eficiencia, service level y saturación entre colas"
           />
-          <QueueKPICards stats={kpis.queueStats} totalCalls={kpis.totalCalls} />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <QueueBarChart stats={kpis.queueStats} />
-            <QueuePieChart stats={kpis.queueStats} />
-          </div>
-          <QueuePerformanceHeatmap data={kpis.queuePerformanceHeatmap} />
-          <QueueAttendanceEvolution data={kpis.queueAttendanceEvolution} />
-          <QueueUnattendedHeatmap data={kpis.queueUnattendedHeatmap} />
-          <QueueLoadVariability data={kpis.queueLoadVariability} />
-          <QueuesDetailTable stats={kpis.queueStats} />
-          <TopCallersTable records={filteredRecords} />
+          <QueuesDashboard stats={kpis.queueStats} records={filteredRecords} />
+        </div>
+      )}
+
+      {activeSection === 'queue-health' && (
+        <div className="space-y-6">
+          <SectionHeader
+            icon={Layers}
+            title="Salud de Cola"
+            description="Métricas de desempeño individual, tiempos de espera y abandonos"
+          />
+          <QueueHealthDashboard stats={kpis.queueStats} records={filteredRecords.filter(r => r.queue)} totalCalls={filteredRecords.filter(r => r.queue).length} />
         </div>
       )}
 
