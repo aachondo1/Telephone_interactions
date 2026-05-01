@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { Sankey, Sink, Source, Link, Node, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import type { AbandonFunnelData } from '../lib/kpi';
 import { Tooltip as UITooltip } from './Tooltip';
 import { TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
@@ -33,86 +33,72 @@ export function AbandonFunnelChart({ data }: Props) {
   const attendedPercent = validCalls > 0 ? Math.round((attendedCalls / validCalls) * 100) : 0;
   const abandonedPercent = validCalls > 0 ? Math.round((realAbandonedCalls / validCalls) * 100) : 0;
 
-  // Funnel stages for visualization
-  const funnelChartData = [
-    {
-      stage: 'Entrantes Brutas',
-      count: totalInbound,
-      percentage: 100,
-      color: '#326295',
-      description: '100% (Base)',
-    },
-    {
-      stage: 'Llamadas Válidas',
-      count: validCalls,
-      percentage: validCallsPercent,
-      color: '#5a9ad5',
-      description: `${validCallsPercent}% (Nueva Base)`,
-    },
-    {
-      stage: 'Atendidas',
-      count: attendedCalls,
-      percentage: attendedPercent,
-      color: '#84BD00',
-      description: `${attendedPercent}% de válidas`,
-    },
-    {
-      stage: 'Abandonadas',
-      count: realAbandonedCalls,
-      percentage: abandonedPercent,
-      color: '#ef4444',
-      description: `${abandonedPercent}% de válidas`,
-    },
+  // Sankey diagram nodes and links
+  const nodes = [
+    { name: 'Entrantes Brutas' },
+    { name: 'Fuga IVR' },
+    { name: 'Abandono Corto' },
+    { name: 'Llamadas Válidas' },
+    { name: 'Atendidas' },
+    { name: 'Abandonadas' },
   ];
+
+  const links = [
+    { source: 0, target: 1, value: ivrFugues, stroke: '#a78bfa' },
+    { source: 0, target: 2, value: shortAbandons, stroke: '#fbbf24' },
+    { source: 0, target: 3, value: validCalls, stroke: '#60a5fa' },
+    { source: 3, target: 4, value: attendedCalls, stroke: '#84bd00' },
+    { source: 3, target: 5, value: realAbandonedCalls, stroke: '#ef4444' },
+  ];
+
+  const sankey = {
+    nodes,
+    links,
+  };
 
   return (
     <div className="space-y-6">
-      {/* Main Funnel Chart */}
+      {/* Sankey Diagram */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <div className="mb-6">
           <h3 className="text-lg font-bold text-slate-800">Embudo de Llamadas (Lógica Sincera)</h3>
           <p className="text-sm text-slate-400 mt-1">
-            3 etapas: Entrantes → Válidas → Atendidas/Abandonadas
+            Flujo de llamadas desde entrada hasta resolución: Entrantes → Pérdidas/Válidas → Atendidas/Abandonadas
           </p>
         </div>
 
         {totalInbound === 0 ? (
-          <div className="flex items-center justify-center h-64 text-slate-400">
+          <div className="flex items-center justify-center h-80 text-slate-400">
             <p>Sin datos para analizar</p>
           </div>
         ) : (
-          <div className="h-80 mb-8">
+          <div className="h-96 mb-8">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={funnelChartData}
-                margin={{ top: 5, right: 30, left: 0, bottom: 60 }}
+              <Sankey
+                data={sankey}
+                node={{ fill: '#8884d8', fillOpacity: 1 }}
+                link={{ stroke: '#d1d5db', strokeOpacity: 0.5 }}
+                nodePadding={150}
+                margin={{ top: 20, right: 160, bottom: 20, left: 20 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis
-                  dataKey="stage"
-                  angle={-45}
-                  textAnchor="end"
-                  height={100}
-                  tick={{ fontSize: 11 }}
+                <Node
+                  shape="rect"
+                  fill="#ffffff"
+                  stroke="#e2e8f0"
+                  fillOpacity={1}
                 />
-                <YAxis />
-                <Tooltip
-                  formatter={(value) => `${value} llamadas`}
+                <Link stroke="#d1d5db" strokeOpacity={0.3} />
+                <RechartsTooltip
                   contentStyle={{
                     backgroundColor: '#ffffff',
                     border: '1px solid #e2e8f0',
                     borderRadius: '12px',
-                    color: '#65646A',
-                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-                    zIndex: 50,
+                    padding: '8px 12px',
+                    fontSize: '12px',
                   }}
+                  formatter={(value) => `${value} llamadas`}
                 />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {funnelChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
+              </Sankey>
             </ResponsiveContainer>
           </div>
         )}
