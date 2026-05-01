@@ -1,4 +1,4 @@
-import { Sankey, Link, Node, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
+import { Sankey, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import type { AbandonFunnelData } from '../lib/kpi';
 
 type Props = {
@@ -56,18 +56,11 @@ export function AbandonFunnelChart({ data }: Props) {
           <ResponsiveContainer width="100%" height="100%">
             <Sankey
               data={sankey}
-              node={{ fill: '#8884d8', fillOpacity: 1 }}
-              link={{ stroke: '#d1d5db', strokeOpacity: 0.5 }}
+              node={{ fill: '#ffffff', stroke: '#e2e8f0', fillOpacity: 1 }}
+              link={{ stroke: '#d1d5db', strokeOpacity: 0.3 }}
               nodePadding={150}
               margin={{ top: 20, right: 160, bottom: 20, left: 20 }}
             >
-              <Node
-                shape="rect"
-                fill="#ffffff"
-                stroke="#e2e8f0"
-                fillOpacity={1}
-              />
-              <Link stroke="#d1d5db" strokeOpacity={0.3} />
               <RechartsTooltip
                 contentStyle={{
                   backgroundColor: '#ffffff',
