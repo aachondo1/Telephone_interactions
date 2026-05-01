@@ -1424,56 +1424,73 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
   for (const [queue, queueRecords] of queueMap) {
     const inboundCalls = queueRecords.filter(r => isInbound(r.call_direction));
 
-    // UNIFIED FILTER (consistent with calculateServiceLevelPerceptual):
-    // Valid calls = Inbound + Attended + Not short abandon + Not IVR drop
-    const validCallsForSL = inboundCalls.filter(r => {
-      // Must be attended
-      if (!r.attended) return false;
+    // UNIFIED FILTER: Define what constitutes a "Valid Call" (reached queue, passed through IVR)
+    // Filters:
+    // 1. Inbound only
+    // 2. Reached queue (flow_exit !== false)
+    // 3. Exclude short abandons (< 5 seconds - noise)
+    // Valid calls = Attended calls + Real Abandoned calls (queue/alert only)
 
-      // Exclude short abandons (< 5 seconds) - only matters if unattended, but we're filtering for attended
+    // Attended calls: Must reach queue, be attended, not short abandon
+    const attendedCalls = inboundCalls.filter(r => {
+      if (!r.attended) return false;
       const isShortAbandon = r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD;
       if (isShortAbandon) return false;
+      const exitedInIVR = r.flow_exit === false;
+      if (exitedInIVR) return false;
+      return true;
+    }).length;
 
-      // Exclude IVR drops
+    // Real Abandoned calls: Unattended but reached queue, abandoned in queue/alert, not short abandon
+    const realAbandonedCalls = inboundCalls.filter(r =>
+      !r.attended && (r.abandon_type === 'queue' || r.abandon_type === 'alert') &&
+      r.flow_exit !== false && // Must have reached queue (NOT IVR drop)
+      (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD) // NOT short abandon
+    ).length;
+
+    // CRITICAL: Single denominator for both SL% and Abandonment Rate
+    // These are the calls that reached the queue and didn't short-abandon
+    const totalValidCalls = attendedCalls + realAbandonedCalls;
+
+    // Service Level: Perceptual wait time (queue + alert) <= 20s / Total valid calls
+    const answeredWithin20s = inboundCalls.filter(r => {
+      // Must be attended and pass the valid call filters
+      if (!r.attended) return false;
+      const isShortAbandon = r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD;
+      if (isShortAbandon) return false;
       const exitedInIVR = r.flow_exit === false;
       if (exitedInIVR) return false;
 
-      return true;
-    });
-
-    const attendedCalls = validCallsForSL.length;
-
-    // Abandonos reales: Solo en queue o alert (después de llegar a la cola)
-    // Excluye IVR abandonos que se cuentan en "Fugas Técnicas"
-    const realAbandonedCalls = inboundCalls.filter(r =>
-      !r.attended && (r.abandon_type === 'queue' || r.abandon_type === 'alert') &&
-      r.flow_exit !== false && // Not IVR drop
-      (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD) // Not short abandon
-    ).length;
-
-    // Service Level: Perceptual wait time (queue + alert) <= 20s / Total valid calls
-    const answeredWithin20s = validCallsForSL.filter(r => {
+      // Check perceptual wait time
       const queueTime = r.queue_time_seconds ?? 0;
       const alertTime = r.alert_time_seconds ?? 0;
       const totalWaitTime = queueTime + alertTime;
       return totalWaitTime <= SL_THRESHOLD_SECONDS;
     }).length;
 
-    const serviceLevelPercent = validCallsForSL.length > 0
-      ? Math.round((answeredWithin20s / validCallsForSL.length) * 100)
+    const serviceLevelPercent = totalValidCalls > 0
+      ? Math.round((answeredWithin20s / totalValidCalls) * 100)
       : 0;
 
-    // Tasa de Abandono: Real abandonadas en cola/alerta / (Atendidas + Reales abandonadas)
-    // Denominador: Solo llamadas que llegaron a la cola (excluyendo IVR, excluyendo short abandons)
-    const totalValidDenominator = attendedCalls + realAbandonedCalls;
-    const abandonmentRatePercent = totalValidDenominator > 0
-      ? Math.round((realAbandonedCalls / totalValidDenominator) * 100)
+    // Tasa de Abandono: Real abandonadas en cola/alerta / Total válidas
+    // Uses same denominator as SL% to ensure: SL% + Abandonment% = 100% (mathematically consistent)
+    const abandonmentRatePercent = totalValidCalls > 0
+      ? Math.round((realAbandonedCalls / totalValidCalls) * 100)
       : 0;
 
     const abandonedCalls = realAbandonedCalls;
 
-    // AWT Global: promedio de espera PERCEPTUAL (queue + alert) de todas las llamadas válidas
-    const allWaitTimes = validCallsForSL
+    // AWT Global: Promedio de espera PERCEPTUAL (queue + alert) de TODAS las llamadas válidas
+    // (both attended and real abandoned - reflects overall queue experience)
+    const allValidRecords = inboundCalls.filter(r => {
+      const isShortAbandon = r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD;
+      if (isShortAbandon) return false;
+      const exitedInIVR = r.flow_exit === false;
+      if (exitedInIVR) return false;
+      return true;
+    });
+
+    const allWaitTimes = allValidRecords
       .map(r => {
         const queueTime = r.queue_time_seconds ?? 0;
         const alertTime = r.alert_time_seconds ?? 0;
@@ -1485,8 +1502,8 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       ? Math.round(allWaitTimes.reduce((a, b) => a + b, 0) / allWaitTimes.length)
       : 0;
 
-    // ASA: Promedio de espera PERCEPTUAL solo de llamadas ATENDIDAS (velocidad percibida del equipo)
-    const answeredWaitTimes = validCallsForSL
+    // ASA: Promedio de espera PERCEPTUAL solo de llamadas ATENDIDAS (velocidad del equipo)
+    const answeredWaitTimes = allValidRecords
       .filter(r => r.attended)
       .map(r => {
         const queueTime = r.queue_time_seconds ?? 0;
@@ -1500,9 +1517,8 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       : 0;
 
     // ATA: Promedio de espera PERCEPTUAL de llamadas ABANDONADAS en cola/alerta (paciencia del cliente)
-    const abandonedWaitTimes = inboundCalls
-      .filter(r => !r.attended && (r.abandon_type === 'queue' || r.abandon_type === 'alert') &&
-              r.flow_exit !== false && (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD))
+    const abandonedWaitTimes = allValidRecords
+      .filter(r => !r.attended && (r.abandon_type === 'queue' || r.abandon_type === 'alert'))
       .map(r => {
         const queueTime = r.queue_time_seconds ?? 0;
         const alertTime = r.alert_time_seconds ?? 0;
