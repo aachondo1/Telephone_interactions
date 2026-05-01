@@ -12,7 +12,6 @@ import { QueueWaitDistribution } from './QueueWaitDistribution';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { calculateQueuePerformanceHeatmap } from '../lib/kpi';
 import { Tooltip } from './Tooltip';
-import { PhoneOff, AlertCircle, Activity } from 'lucide-react';
 
 type Props = {
   records: CallRecord[];
@@ -26,71 +25,8 @@ export function QueueHealthDashboard({ records }: Props) {
 
   return (
     <div className="space-y-8">
-      {/* KPI Cards */}
-      <QueueHealthMetricsCards metrics={metrics} />
-
-      {/* Operational KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-purple-50 text-purple-600">
-              <PhoneOff size={20} />
-            </div>
-            <span className="text-xs text-slate-400 font-medium">Menor es mejor</span>
-          </div>
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <p className="text-xs text-slate-400 uppercase tracking-wide">Tasa de Rebote</p>
-            <Tooltip
-              definition="Porcentaje de llamadas atendidas que fueron devueltas a cola (alert_segments > 1)"
-              formula="Llamadas atendidas con rebotes / Llamadas atendidas × 100"
-              unit="Porcentaje (%)"
-              benchmark="Menor es mejor. Alta tasa indica falta de disponibilidad"
-            />
-          </div>
-          <p className="text-2xl font-bold text-slate-800 mb-1">{operationalKPIs.bounceRatePercent}%</p>
-          <p className="text-xs text-slate-500">De llamadas atendidas</p>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-50 text-blue-600">
-              <AlertCircle size={20} />
-            </div>
-            <span className="text-xs text-slate-400 font-medium">Mayor es mejor</span>
-          </div>
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <p className="text-xs text-slate-400 uppercase tracking-wide">Resolución IVR</p>
-            <Tooltip
-              definition="Porcentaje de llamadas que fueron resueltas en el IVR sin entrar a cola (flow_exit = false)"
-              formula="Llamadas IVR sin entra a cola / Llamadas inbound × 100"
-              unit="Porcentaje (%)"
-              benchmark="Mayor es mejor. Alivia carga de colas"
-            />
-          </div>
-          <p className="text-2xl font-bold text-slate-800 mb-1">{operationalKPIs.ivrResolutionRatePercent}%</p>
-          <p className="text-xs text-slate-500">De llamadas inbound</p>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-emerald-50 text-emerald-600">
-              <Activity size={20} />
-            </div>
-            <span className="text-xs text-slate-400 font-medium">Mayor es mejor</span>
-          </div>
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <p className="text-xs text-slate-400 uppercase tracking-wide">Éxito de Alertas</p>
-            <Tooltip
-              definition="Probabilidad de que un ejecutivo atienda una alerta (inversión de tasa de no responden)"
-              formula="1 - (Total 'No responden' / Total alertas) × 100"
-              unit="Porcentaje (%)"
-              benchmark="Mayor es mejor. Refleja disponibilidad real del equipo"
-            />
-          </div>
-          <p className="text-2xl font-bold text-slate-800 mb-1">{operationalKPIs.alertSuccessRatio}%</p>
-          <p className="text-xs text-slate-500">Probabilidad de respuesta</p>
-        </div>
-      </div>
+      {/* Metrics Cards: 2 rows x 4 columns */}
+      <QueueHealthMetricsCards metrics={metrics} operationalKPIs={operationalKPIs} />
 
       {/* Abandon Funnel */}
       <AbandonFunnelChart data={funnelData} />

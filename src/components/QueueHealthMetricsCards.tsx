@@ -1,9 +1,10 @@
-import { TrendingUp, TrendingDown, Clock, Zap } from 'lucide-react';
-import type { QueueHealthMetric } from '../lib/kpi';
+import { TrendingUp, TrendingDown, Clock, Zap, PhoneOff, AlertCircle, Activity } from 'lucide-react';
+import type { QueueHealthMetric, OperationalKPIs } from '../lib/kpi';
 import { Tooltip } from './Tooltip';
 
 type Props = {
   metrics: QueueHealthMetric[];
+  operationalKPIs: OperationalKPIs;
 };
 
 export function QueueHealthMetricsCards({ metrics }: Props) {
@@ -91,6 +92,54 @@ export function QueueHealthMetricsCards({ metrics }: Props) {
     },
   ];
 
+  const operationalCards = [
+    {
+      label: 'Tasa de Rebote',
+      value: `${operationalKPIs.bounceRatePercent}%`,
+      sub: 'De llamadas atendidas',
+      icon: PhoneOff,
+      color: 'bg-purple-50 text-purple-600',
+      border: 'border-purple-100',
+      benchmark: 'Menor es mejor',
+      tooltip: {
+        definition: 'Porcentaje de llamadas atendidas que fueron devueltas a cola (alert_segments > 1)',
+        formula: 'Llamadas atendidas con rebotes / Llamadas atendidas × 100',
+        unit: 'Porcentaje (%)',
+        benchmark: 'Menor es mejor. Alta tasa indica falta de disponibilidad',
+      },
+    },
+    {
+      label: 'Resolución IVR',
+      value: `${operationalKPIs.ivrResolutionRatePercent}%`,
+      sub: 'De llamadas inbound',
+      icon: AlertCircle,
+      color: 'bg-blue-50 text-blue-600',
+      border: 'border-blue-100',
+      benchmark: 'Mayor es mejor',
+      tooltip: {
+        definition: 'Porcentaje de llamadas que fueron resueltas en el IVR sin entrar a cola (flow_exit = false)',
+        formula: 'Llamadas IVR sin entrar a cola / Llamadas inbound × 100',
+        unit: 'Porcentaje (%)',
+        benchmark: 'Mayor es mejor. Alivia carga de colas',
+      },
+    },
+    {
+      label: 'Éxito de Alertas',
+      value: `${operationalKPIs.alertSuccessRatio}%`,
+      sub: 'Probabilidad de respuesta',
+      icon: Activity,
+      color: 'bg-emerald-50 text-emerald-600',
+      border: 'border-emerald-100',
+      benchmark: 'Mayor es mejor',
+      tooltip: {
+        definition: 'Probabilidad de que un ejecutivo atienda una alerta (inversión de tasa de no responden)',
+        formula: '1 - (Total "No responden" / Total alertas) × 100',
+        unit: 'Porcentaje (%)',
+        benchmark: 'Mayor es mejor. Refleja disponibilidad real del equipo',
+      },
+    },
+  ];
+
   const supplementaryCards = [
     {
       label: 'Erlang C (Carga)',
@@ -109,9 +158,12 @@ export function QueueHealthMetricsCards({ metrics }: Props) {
     },
   ];
 
+  // Combine operational cards with Erlang C for second row (4 columns)
+  const secondRowCards = [...operationalCards, supplementaryCards[0]];
+
   return (
     <div className="space-y-4">
-      {/* Primary Metrics: SL%, Abandono%, ASA, ATA */}
+      {/* Row 1: Primary Metrics (SL%, Abandono%, ASA, ATA) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map(({ label, value, sub, icon: Icon, color, border, benchmark, tooltip }) => (
           <div key={label} className={`bg-white rounded-2xl p-6 shadow-sm border ${border}`}>
@@ -139,9 +191,9 @@ export function QueueHealthMetricsCards({ metrics }: Props) {
         ))}
       </div>
 
-      {/* Supplementary Metrics: Erlang C */}
-      <div className="grid grid-cols-1 gap-4">
-        {supplementaryCards.map(({ label, value, sub, icon: Icon, color, border, benchmark, tooltip }) => (
+      {/* Row 2: Operational KPIs + Erlang C */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {secondRowCards.map(({ label, value, sub, icon: Icon, color, border, benchmark, tooltip }) => (
           <div key={label} className={`bg-white rounded-2xl p-6 shadow-sm border ${border}`}>
             <div className="flex items-start justify-between mb-4">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
