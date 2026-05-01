@@ -1849,18 +1849,27 @@ export function calculateOperationalKPIs(records: CallRecord[]): OperationalKPIs
 }
 
 export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWaitDistributionData {
+  const SHORT_ABANDON_THRESHOLD = 5;
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
 
-  // Hardened filter: Only calls that were assigned to an agent but not attended
-  // This isolates "Failed Assignment" cases where customer was queued & agent was assigned but call abandoned
-  const validCalls = inboundCalls.filter(r => {
-    const salioDelIVR = r.flow_exit !== false; // Exited IVR successfully
-    const tieneAsignacion = r.executive !== null && r.executive !== undefined && r.executive !== ''; // Agent assigned
-    const noFueAtendida = !r.attended; // Not handled
-    return salioDelIVR && tieneAsignacion && noFueAtendida;
+  // CRITICAL: Use EXACT same filter as calculateAbandonFunnel's realAbandonedCalls
+  // This is a DETAILED BREAKDOWN of the "Abandonos Reales" from Level 3 of the funnel
+  //
+  // Filter:
+  // 1. abandoned === true (was not attended)
+  // 2. time_to_abandon >= 5s (not short abandon - these are real business decisions)
+  // 3. flow_exit !== false (must have reached queue, not IVR drop)
+  //
+  // This ensures: SUM of all buckets = 1,363 (or whatever the embudo shows as realAbandonedCalls)
+  const realAbandonedCalls = inboundCalls.filter(r => {
+    const isAbandoned = !r.attended;
+    const isRealAbandonment = (r.time_to_abandon ?? 0) >= SHORT_ABANDON_THRESHOLD;
+    const reachedQueue = r.flow_exit !== false;
+    return isAbandoned && isRealAbandonment && reachedQueue;
   });
 
-  // New buckets: granular ranges to capture atypical cases
+  // Buckets: Time-to-Abandon using PERCEPTUAL wait time (queue + alert)
+  // NOT just queue_time_seconds, because customer experiences both
   const buckets = [
     { label: '<10s', min: 0, max: 10 },
     { label: '10-20s', min: 10, max: 20 },
@@ -1873,30 +1882,33 @@ export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWait
   ];
 
   const bucketData = buckets.map(b => {
-    const count = validCalls.filter(r => {
-      const qt = r.queue_time_seconds ?? 0;
-      return qt >= b.min && qt < b.max;
+    const count = realAbandonedCalls.filter(r => {
+      const perceptualWait = (r.time_to_abandon ?? 0);
+      return perceptualWait >= b.min && perceptualWait < b.max;
     }).length;
     return {
       label: b.label,
       count,
-      percentage: validCalls.length > 0 ? Math.round((count / validCalls.length) * 100) : 0,
+      percentage: realAbandonedCalls.length > 0 ? Math.round((count / realAbandonedCalls.length) * 100) : 0,
     };
   });
 
-  // SL metrics: ≤20s (SL compliance), 20-60s (recovery window), >60s (lost)
-  const slCount = validCalls.filter(r => (r.queue_time_seconds ?? 0) <= 20).length;
-  const midCount = validCalls.filter(r => {
-    const qt = r.queue_time_seconds ?? 0;
-    return qt > 20 && qt <= 60;
+  // Service Level metrics for abandoned calls:
+  // ≤20s (SL compliance zone - could be recovered with immediate answer)
+  // 20-60s (recovery window - customer still in reasonable patience range)
+  // >60s (lost - customer frustration too high)
+  const slCount = realAbandonedCalls.filter(r => (r.time_to_abandon ?? 0) <= 20).length;
+  const midCount = realAbandonedCalls.filter(r => {
+    const tta = r.time_to_abandon ?? 0;
+    return tta > 20 && tta <= 60;
   }).length;
-  const longCount = validCalls.filter(r => (r.queue_time_seconds ?? 0) > 60).length;
+  const longCount = realAbandonedCalls.filter(r => (r.time_to_abandon ?? 0) > 60).length;
 
   return {
     buckets: bucketData,
-    slPercent: validCalls.length > 0 ? Math.round((slCount / validCalls.length) * 100) : 0,
-    midPercent: validCalls.length > 0 ? Math.round((midCount / validCalls.length) * 100) : 0,
-    longPercent: validCalls.length > 0 ? Math.round((longCount / validCalls.length) * 100) : 0,
-    totalValidCalls: validCalls.length,
+    slPercent: realAbandonedCalls.length > 0 ? Math.round((slCount / realAbandonedCalls.length) * 100) : 0,
+    midPercent: realAbandonedCalls.length > 0 ? Math.round((midCount / realAbandonedCalls.length) * 100) : 0,
+    longPercent: realAbandonedCalls.length > 0 ? Math.round((longCount / realAbandonedCalls.length) * 100) : 0,
+    totalValidCalls: realAbandonedCalls.length,
   };
 }

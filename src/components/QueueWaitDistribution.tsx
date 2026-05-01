@@ -12,7 +12,13 @@ export function QueueWaitDistribution({ records }: Props) {
   const distribution = calculateQueueWaitDistribution(records ?? []);
   const { buckets, slPercent, midPercent, longPercent, totalValidCalls } = distribution;
 
-  console.log("Registros filtrados:", totalValidCalls);
+  // Coherence check: Sum of buckets MUST equal totalValidCalls
+  const sumBuckets = buckets.reduce((sum, b) => sum + b.count, 0);
+  const isCoherent = sumBuckets === totalValidCalls;
+
+  if (!isCoherent) {
+    console.warn(`⚠️ INCOHERENCIA EN DISTRIBUCIÓN: suma buckets (${sumBuckets}) ≠ totalValidCalls (${totalValidCalls})`);
+  }
 
   // Guard against empty data
   if (!buckets || buckets.length === 0 || totalValidCalls === 0) {
@@ -37,8 +43,13 @@ export function QueueWaitDistribution({ records }: Props) {
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-slate-700">📊 Análisis de Fugas: Espera tras Asignación</h3>
-        <p className="text-xs text-slate-400 mt-0.5">Llamadas asignadas a agente pero no atendidas - Zona de recuperación (&lt;60s): {recoveryPotential} llamadas</p>
+        <h3 className="text-sm font-semibold text-slate-700">📊 Zoom: Distribución de Abandonos Reales (Nivel 3)</h3>
+        <p className="text-xs text-slate-400 mt-0.5">
+          Desglose detallado de las {totalValidCalls} llamadas abandonadas del embudo (≥5s en cola/alerta)
+        </p>
+        <p className="text-xs text-slate-500 mt-1.5">
+          💡 <strong>Zona de recuperación (&lt;60s):</strong> {recoveryPotential} llamadas ({totalValidCalls > 0 ? Math.round((recoveryPotential / totalValidCalls) * 100) : 0}%) - clientes con baja frustración, rescatables con mejor SL
+        </p>
       </div>
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={buckets} margin={{ top: 20, right: 10, bottom: 0, left: 0 }}>
