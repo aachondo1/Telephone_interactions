@@ -25,7 +25,7 @@ export function QueueWaitDistribution({ records }: Props) {
     return (
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
         <div className="text-center py-8">
-          <p className="text-slate-500 text-sm">No hay datos de asignaciones fallidas para este periodo.</p>
+          <p className="text-slate-500 text-sm">No hay datos de abandonos para este periodo.</p>
         </div>
       </div>
     );
