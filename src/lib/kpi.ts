@@ -1879,18 +1879,14 @@ export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWait
   // CRITICAL: Use EXACT same filter as calculateAbandonFunnel's realAbandonedCalls
   // This is a DETAILED BREAKDOWN of the "Abandonos Reales" from Level 3 of the funnel
   //
-  // Filter:
-  // 1. abandoned === true (was not attended)
-  // 2. time_to_abandon >= 5s (not short abandon - these are real business decisions)
-  // 3. flow_exit !== false (must have reached queue, not IVR drop)
-  //
-  // This ensures: SUM of all buckets = 1,363 (or whatever the embudo shows as realAbandonedCalls)
-  const realAbandonedCalls = inboundCalls.filter(r => {
-    const isAbandoned = !r.attended;
-    const isRealAbandonment = (r.time_to_abandon ?? 0) >= SHORT_ABANDON_THRESHOLD;
-    const reachedQueue = r.flow_exit !== false;
-    return isAbandoned && isRealAbandonment && reachedQueue;
-  });
+  // Valid Calls: Inbound - IVR Fugues - Short Abandons
+  const validCallRecords = inboundCalls.filter(r =>
+    r.flow_exit !== false && // NOT IVR drop
+    (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD) // NOT short abandon
+  );
+
+  // Real Abandoned: Valid calls that were NOT attended
+  const realAbandonedCalls = validCallRecords.filter(r => !r.attended);
 
   // Buckets: Time-to-Abandon using PERCEPTUAL wait time (queue + alert)
   // NOT just queue_time_seconds, because customer experiences both
@@ -1907,7 +1903,9 @@ export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWait
 
   const bucketData = buckets.map(b => {
     const count = realAbandonedCalls.filter(r => {
-      const perceptualWait = (r.time_to_abandon ?? 0);
+      const queueTime = r.queue_time_seconds ?? 0;
+      const alertTime = r.alert_time_seconds ?? 0;
+      const perceptualWait = queueTime + alertTime;
       return perceptualWait >= b.min && perceptualWait < b.max;
     }).length;
     return {
@@ -1917,16 +1915,26 @@ export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWait
     };
   });
 
-  // Service Level metrics for abandoned calls:
+  // Service Level metrics for abandoned calls (using perceptual wait time):
   // ≤20s (SL compliance zone - could be recovered with immediate answer)
   // 20-60s (recovery window - customer still in reasonable patience range)
   // >60s (lost - customer frustration too high)
-  const slCount = realAbandonedCalls.filter(r => (r.time_to_abandon ?? 0) <= 20).length;
-  const midCount = realAbandonedCalls.filter(r => {
-    const tta = r.time_to_abandon ?? 0;
-    return tta > 20 && tta <= 60;
+  const slCount = realAbandonedCalls.filter(r => {
+    const queueTime = r.queue_time_seconds ?? 0;
+    const alertTime = r.alert_time_seconds ?? 0;
+    return (queueTime + alertTime) <= 20;
   }).length;
-  const longCount = realAbandonedCalls.filter(r => (r.time_to_abandon ?? 0) > 60).length;
+  const midCount = realAbandonedCalls.filter(r => {
+    const queueTime = r.queue_time_seconds ?? 0;
+    const alertTime = r.alert_time_seconds ?? 0;
+    const perceptualWait = queueTime + alertTime;
+    return perceptualWait > 20 && perceptualWait <= 60;
+  }).length;
+  const longCount = realAbandonedCalls.filter(r => {
+    const queueTime = r.queue_time_seconds ?? 0;
+    const alertTime = r.alert_time_seconds ?? 0;
+    return (queueTime + alertTime) > 60;
+  }).length;
 
   return {
     buckets: bucketData,
