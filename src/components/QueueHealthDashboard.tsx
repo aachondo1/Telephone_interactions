@@ -6,6 +6,7 @@ import {
 } from '../lib/kpi';
 import { QueueHealthMetricsCards } from './QueueHealthMetricsCards';
 import { AbandonFunnelChart } from './AbandonFunnelChart';
+import { AbandonTimeThresholds } from './AbandonTimeThresholds';
 import { QueueWaitDistribution } from './QueueWaitDistribution';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { calculateQueuePerformanceHeatmap } from '../lib/kpi';
@@ -27,6 +28,9 @@ export function QueueHealthDashboard({ records }: Props) {
 
       {/* Abandon Funnel */}
       <AbandonFunnelChart data={funnelData} />
+
+      {/* Abandon Time Thresholds */}
+      <AbandonTimeThresholds records={records} />
 
       {/* Wait Distribution Histogram */}
       <QueueWaitDistribution records={records} />
