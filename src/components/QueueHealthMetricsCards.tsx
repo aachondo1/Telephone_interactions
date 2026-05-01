@@ -7,7 +7,7 @@ type Props = {
   operationalKPIs: OperationalKPIs;
 };
 
-export function QueueHealthMetricsCards({ metrics }: Props) {
+export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
   const queue = metrics[0];
 
   if (!queue) {
