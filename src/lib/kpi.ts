@@ -1599,14 +1599,38 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
 
 export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData {
   const SHORT_ABANDON_THRESHOLD = 5;
+  const AUTOSERVICE_MIN_IVR_TIME = 45; // segundos: si IVR > 45s, cliente probablemente usó autoservicio
+  const ABANDON_MAX_IVR_TIME = 10; // segundos: si IVR < 10s, probablemente abandono prematuro
 
   // LEVEL 1: Raw Inbound (100% base)
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
   const totalInbound = inboundCalls.length;
 
   // Quality Filters (Removing Non-Valid Calls)
-  // 1. IVR Fugues: Llamadas que NO llegaron a la cola (flow_exit === false)
-  const ivrFugues = inboundCalls.filter(r => r.flow_exit === false).length;
+  // 1. IVR Fugues: Refined Logic
+  // Definición: Llamadas donde flow_exit !== true AND queue_time_seconds === 0
+  // = Nunca llegó a generar tiempo de espera para un agente
+  //
+  // Subcategorías (informativas):
+  // - Autoservicio Estimado: ivr_time > 45s (cliente interactuó, obtuvo info, colgó satisfecho)
+  // - Abandono Prematuro: ivr_time < 10s (cliente frustrado por menú confuso o error)
+
+  const ivrFuguesDetailed = inboundCalls.filter(r => {
+    const escapedIVR = r.flow_exit !== true; // NOT explicitly true (includes false and null)
+    const neverReachedQueue = (r.queue_time_seconds ?? 0) === 0; // Nunca generó tiempo de cola
+    return escapedIVR && neverReachedQueue;
+  });
+
+  const ivrFugues = ivrFuguesDetailed.length;
+
+  // Subcategorías para análisis (no afectan el funnel, solo informativas)
+  const ivrAutoservice = ivrFuguesDetailed.filter(r =>
+    (r.ivr_time_seconds ?? 0) >= AUTOSERVICE_MIN_IVR_TIME
+  ).length;
+
+  const ivrAbandonPremature = ivrFuguesDetailed.filter(r =>
+    (r.ivr_time_seconds ?? 0) < ABANDON_MAX_IVR_TIME && (r.ivr_time_seconds ?? 0) > 0
+  ).length;
 
   // 2. Short Abandons: Llamadas que SÍ llegaron a cola pero abandonadas en < 5s
   const shortAbandons = inboundCalls.filter(r =>
