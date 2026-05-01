@@ -1402,9 +1402,11 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
   const maxDate = dates[dates.length - 1];
   const daysInPeriod = Math.max(1, (maxDate - minDate) / (1000 * 60 * 60 * 24) + 1);
 
-  // Horario de negocios (08:00 - 19:00 lunes a viernes, 08:00 - 15:00 viernes)
-  // Estimamos 10.5 horas promedio por día hábil
-  const hoursPerBusinessDay = 10.5;
+  // Horario de negocios (jornada laboral actual en Chile)
+  // 38 horas semanales / 5 días = 7.6 horas por día hábil
+  // ⚠️ CRÍTICO: Este denominador determina la "intensidad de tráfico" (Erlang C)
+  // Una jornada de 38 horas vs 45 horas implica mayor densidad de tráfico con el mismo volumen de llamadas
+  const hoursPerBusinessDay = 7.6;
   const hoursInPeriod = daysInPeriod * hoursPerBusinessDay;
 
   // Umbrales para Service Level (estándar Chile)
