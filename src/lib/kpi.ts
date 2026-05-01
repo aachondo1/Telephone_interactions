@@ -1275,15 +1275,387 @@ export function getDataQualityReport(records: CallRecord[]): DataQualityReport {
   return report;
 }
 
-// CAMBIO 7: Exportar función para que Dashboard la use
-export function logKPIDebugInfo(records: CallRecord[]): void {
-  const quality = getDataQualityReport(records);
-  const demand = calculateHourlyDemand(records);
+// Queue Health Dashboard Types
+export type QueueHealthMetric = {
+  queue: string;
+  serviceLevelPercent: number;
+  abandonmentRatePercent: number;
+  awtSeconds: number;
+  awtFormatted: string;
+  asaSeconds: number;
+  asaFormatted: string;
+  ataSeconds: number;
+  ataFormatted: string;
+  erlangC: number;
+  staffingEfficiency: number;
+  slTrend: 'up' | 'down' | 'stable';
+  totalCalls: number;
+  attendedCalls: number;
+  abandonedCalls: number;
+};
 
-  console.group('📊 KPI Debug Info');
-  console.log('Data Quality:', quality);
-  console.log('Peak hour Erlang:', demand.points.reduce((max, h) =>
-    h.lun && h.lun > (max.lun ?? 0) ? h : max
-  ));
-  console.groupEnd();
+export type AbandonFunnelData = {
+  totalInbound: number;
+  ivrFugues: number;
+  shortAbandons: number;
+  queueFugues: number;
+  bounceAbandons: number;
+  attendedCalls: number;
+  totalAbandons: number;
+};
+
+export type TechnicalLeaksData = {
+  shortAbandons: number;
+  ivrDrops: number;
+  totalTechnicalLeaks: number;
+  percentOfInbound: number;
+};
+
+export type QueueHealthInsight = {
+  type: 'staffing' | 'availability' | 'quality';
+  severity: 'critical' | 'warning' | 'info';
+  queue: string;
+  hour?: number;
+  message: string;
+  metric: string;
+  value: number | string;
+  threshold: number | string;
+};
+
+export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthMetric[] {
+  if (records.length === 0) return [];
+
+  // Calcular período de tiempo para normalización
+  const dates = records
+    .filter(r => r.call_date)
+    .map(r => new Date(r.call_date + 'T00:00:00').getTime())
+    .sort((a, b) => a - b);
+
+  const minDate = dates[0];
+  const maxDate = dates[dates.length - 1];
+  const daysInPeriod = Math.max(1, (maxDate - minDate) / (1000 * 60 * 60 * 24) + 1);
+
+  // Horario de negocios (08:00 - 19:00 lunes a viernes, 08:00 - 15:00 viernes)
+  // Estimamos 10.5 horas promedio por día hábil
+  const hoursPerBusinessDay = 10.5;
+  const hoursInPeriod = daysInPeriod * hoursPerBusinessDay;
+
+  // Umbrales para Service Level (estándar Chile)
+  const SL_THRESHOLD_SECONDS = 20; // 80/20 - estándar de excelencia
+  const SHORT_ABANDON_THRESHOLD = 5; // Abandonos cortos (< 5s) no cuentan
+
+  const queueMap = new Map<string, CallRecord[]>();
+
+  for (const r of records) {
+    const queue = r.queue || 'Sin cola';
+    if (!queueMap.has(queue)) queueMap.set(queue, []);
+    queueMap.get(queue)!.push(r);
+  }
+
+  const metrics: QueueHealthMetric[] = [];
+
+  for (const [queue, queueRecords] of queueMap) {
+    const inboundCalls = queueRecords.filter(r => isInbound(r.call_direction));
+
+    // Filtrar llamadas válidas para SL: excluir abandonos cortos e IVR drops
+    const validCallsForSL = inboundCalls.filter(r => {
+      const isShortAbandon = !r.attended && (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD);
+      const exitedInIVR = r.flow_exit === false; // No llegó a la cola
+      return !isShortAbandon && !exitedInIVR;
+    });
+
+    const attendedCalls = validCallsForSL.filter(r => r.attended).length;
+
+    // Abandonos reales: Solo en queue o alert (después de llegar a la cola)
+    // Excluye IVR abandonos que se cuentan en "Fugas Técnicas"
+    const realAbandonedCalls = validCallsForSL.filter(r =>
+      !r.attended && (r.abandon_type === 'queue' || r.abandon_type === 'alert')
+    ).length;
+
+    // Service Level: Atendidas < 20s / Total de llamadas válidas
+    const answeredWithin20s = validCallsForSL.filter(r =>
+      r.attended && r.queue_time_seconds !== null && r.queue_time_seconds <= SL_THRESHOLD_SECONDS
+    ).length;
+
+    const serviceLevelPercent = validCallsForSL.length > 0
+      ? Math.round((answeredWithin20s / validCallsForSL.length) * 100)
+      : 0;
+
+    // Tasa de Abandono: Abandonadas en cola/alerta / Llamadas válidas
+    // Consistente con SL%: ambas usan validCallsForSL como denominador
+    const abandonmentRatePercent = validCallsForSL.length > 0
+      ? Math.round((realAbandonedCalls / validCallsForSL.length) * 100)
+      : 0;
+
+    const abandonedCalls = realAbandonedCalls;
+
+    // AWT Global: promedio de espera de todas las llamadas válidas
+    const queueTimes = validCallsForSL
+      .filter(r => r.queue_time_seconds !== null && r.queue_time_seconds >= 0)
+      .map(r => r.queue_time_seconds!);
+
+    const awtSeconds = queueTimes.length > 0
+      ? Math.round(queueTimes.reduce((a, b) => a + b, 0) / queueTimes.length)
+      : 0;
+
+    // ASA: Promedio de espera solo de llamadas ATENDIDAS (velocidad del equipo)
+    const answeredQueueTimes = validCallsForSL
+      .filter(r => r.attended && r.queue_time_seconds !== null && r.queue_time_seconds >= 0)
+      .map(r => r.queue_time_seconds!);
+
+    const asaSeconds = answeredQueueTimes.length > 0
+      ? Math.round(answeredQueueTimes.reduce((a, b) => a + b, 0) / answeredQueueTimes.length)
+      : 0;
+
+    // ATA: Promedio de espera solo de llamadas ABANDONADAS en cola/alerta (paciencia del cliente)
+    const abandonedQueueTimes = validCallsForSL
+      .filter(r => !r.attended && (r.abandon_type === 'queue' || r.abandon_type === 'alert') && r.queue_time_seconds !== null && r.queue_time_seconds >= 0)
+      .map(r => r.queue_time_seconds!);
+
+    const ataSeconds = abandonedQueueTimes.length > 0
+      ? Math.round(abandonedQueueTimes.reduce((a, b) => a + b, 0) / abandonedQueueTimes.length)
+      : 0;
+
+    const handleTimes = validCallsForSL
+      .filter(r => r.handle_time_seconds !== null && r.handle_time_seconds >= 0)
+      .map(r => r.handle_time_seconds!);
+
+    // Erlang C: intensidad de tráfico normalizado por horas del período
+    // Fórmula: SUM(handle_time_seconds) / (3600 × Horas del Período)
+    // Esto da el promedio de Erlangs por hora
+    const totalHandleTime = handleTimes.reduce((a, b) => a + b, 0);
+    const erlangC = Math.round((totalHandleTime / (3600 * hoursInPeriod)) * 10) / 10;
+
+    // Staffing Efficiency: Erlang C normalized (traffic intensity as % of 1.0)
+    const staffingEfficiency = (erlangC / 1.0) * 100;
+
+    // SL% Trend: Compare against 80% benchmark
+    const slTrend: 'up' | 'down' | 'stable' = serviceLevelPercent >= 80
+      ? 'up'
+      : serviceLevelPercent >= 70
+        ? 'stable'
+        : 'down';
+
+    metrics.push({
+      queue,
+      serviceLevelPercent,
+      abandonmentRatePercent,
+      awtSeconds,
+      awtFormatted: formatDuration(awtSeconds),
+      asaSeconds,
+      asaFormatted: formatDuration(asaSeconds),
+      ataSeconds,
+      ataFormatted: formatDuration(ataSeconds),
+      erlangC,
+      staffingEfficiency,
+      slTrend,
+      totalCalls: validCallsForSL.length,
+      attendedCalls,
+      abandonedCalls,
+    });
+  }
+
+  return metrics.sort((a, b) => b.totalCalls - a.totalCalls);
+}
+
+export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData {
+  const SHORT_ABANDON_THRESHOLD = 5;
+
+  // Total inbound calls (100% of funnel)
+  const inboundCalls = records.filter(r => isInbound(r.call_direction));
+  const totalInbound = inboundCalls.length;
+
+  // Stage 1: IVR Fugas (exitedInIVR: flow_exit === false)
+  const ivrFugues = inboundCalls.filter(r => r.flow_exit === false).length;
+
+  // Stage 2: Short Abandons (< 5 seconds in queue)
+  const shortAbandons = inboundCalls.filter(r =>
+    r.flow_exit !== false && // NOT an IVR drop
+    !r.attended &&
+    (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD)
+  ).length;
+
+  // Stage 3: Queue Abandons (excluding short abandons and bounces)
+  // These are calls that reached queue but were abandoned after exceeding threshold
+  const queueFugues = inboundCalls.filter(r =>
+    r.flow_exit !== false && // NOT an IVR drop
+    !r.attended &&
+    r.abandon_type === 'queue' &&
+    !r.is_bounce &&
+    (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD)
+  ).length;
+
+  // Stage 4: Bounce Abandons (calls with at least one bounce)
+  // These are unattended calls that had agent callbacks/bounces before abandoning
+  const bounceAbandons = inboundCalls.filter(r =>
+    r.flow_exit !== false && // NOT an IVR drop
+    !r.attended &&
+    r.is_bounce === true
+  ).length;
+
+  // Stage 5: Attended Calls (successful completions)
+  const attendedCalls = inboundCalls.filter(r => r.attended).length;
+
+  // Total abandons (all unattended inbound calls)
+  const totalAbandons = totalInbound - attendedCalls;
+
+  return {
+    totalInbound,
+    ivrFugues,
+    shortAbandons,
+    queueFugues,
+    bounceAbandons,
+    attendedCalls,
+    totalAbandons,
+  };
+}
+
+export function calculateTechnicalLeaks(records: CallRecord[]): TechnicalLeaksData {
+  const SHORT_ABANDON_THRESHOLD = 5;
+
+  const inboundCalls = records.filter(r => isInbound(r.call_direction));
+
+  // Filtros MUTUAMENTE EXCLUYENTES para evitar duplicación
+  // 1. IVR Drops: Llamadas que NO llegaron a la cola (flow_exit = false)
+  const ivrDrops = inboundCalls.filter(r => r.flow_exit === false).length;
+
+  // 2. Short Abandons: Llamadas que SÍ llegaron a cola (flow_exit != false)
+  //    pero cliente cuelga en < 5 segundos (antes de procesamiento)
+  const shortAbandons = inboundCalls.filter(r =>
+    r.flow_exit !== false && // Asegurar que NO es IVR drop
+    !r.attended &&
+    (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD)
+  ).length;
+
+  const totalTechnicalLeaks = shortAbandons + ivrDrops;
+  const percentOfInbound = inboundCalls.length > 0
+    ? Math.round((totalTechnicalLeaks / inboundCalls.length) * 100)
+    : 0;
+
+  return { shortAbandons, ivrDrops, totalTechnicalLeaks, percentOfInbound };
+}
+
+export function generateQueueHealthInsights(
+  metrics: QueueHealthMetric[],
+  funnelData: AbandonFunnelData,
+  records: CallRecord[]
+): QueueHealthInsight[] {
+  const insights: QueueHealthInsight[] = [];
+
+  // Alert 1: Understaffing
+  for (const metric of metrics) {
+    if (metric.serviceLevelPercent < 80 && metric.abandonmentRatePercent > 10) {
+      insights.push({
+        type: 'staffing',
+        severity: 'critical',
+        queue: metric.queue,
+        message: `Falta Personal: La cola ${metric.queue} está subdimensionada. Los clientes cuelgan por exceso de espera.`,
+        metric: 'Service Level & Abandonment Rate',
+        value: `SL: ${metric.serviceLevelPercent}%, Abandonos: ${metric.abandonmentRatePercent}%`,
+        threshold: 'SL > 80%, Abandonos < 10%',
+      });
+    }
+  }
+
+  // Alert 2: High bounce abandons
+  const bounceAbandons = funnelData.bounceAbandons;
+  const totalAbandons = funnelData.totalAbandons;
+  if (totalAbandons > 0 && bounceAbandons / totalAbandons > 0.05) {
+    insights.push({
+      type: 'availability',
+      severity: 'warning',
+      queue: 'General',
+      message: `Abandonos tras Rebote Elevados: Los clientes están siendo devueltos frecuentemente antes de ser atendidos. Revisar estrategia de enrutamiento y disponibilidad de agentes.`,
+      metric: 'Bounce Abandon Rate',
+      value: `${Math.round((bounceAbandons / totalAbandons) * 100)}%`,
+      threshold: '< 5%',
+    });
+  }
+
+  // Alert 3: Quality / Re-entry issues
+  const topCallers = new Map<string, number>();
+  for (const r of records) {
+    if (r.ani_hash) {
+      topCallers.set(r.ani_hash, (topCallers.get(r.ani_hash) || 0) + 1);
+    }
+  }
+  const reentryPercent = topCallers.size > 0
+    ? Array.from(topCallers.values()).filter(count => count > 1).length / topCallers.size * 100
+    : 0;
+
+  if (reentryPercent > 15) {
+    insights.push({
+      type: 'quality',
+      severity: 'warning',
+      queue: 'General',
+      message: `Revisar Calidad: Los clientes están volviendo a llamar mucho. Posible falta de resolución o agentes muy dependientes del Hold.`,
+      metric: 'Re-entry %',
+      value: `${Math.round(reentryPercent)}%`,
+      threshold: '< 15%',
+    });
+  }
+
+  return insights;
+}
+
+// Queue Wait Distribution (consistent with health metrics filtering)
+export type QueueWaitDistributionData = {
+  buckets: Array<{ label: string; count: number; percentage: number }>;
+  slPercent: number;
+  midPercent: number;
+  longPercent: number;
+  totalValidCalls: number;
+};
+
+export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWaitDistributionData {
+  const inboundCalls = records.filter(r => isInbound(r.call_direction));
+
+  // Hardened filter: Only calls that were assigned to an agent but not attended
+  // This isolates "Failed Assignment" cases where customer was queued & agent was assigned but call abandoned
+  const validCalls = inboundCalls.filter(r => {
+    const salioDelIVR = r.flow_exit !== false; // Exited IVR successfully
+    const tieneAsignacion = r.executive !== null && r.executive !== undefined && r.executive !== ''; // Agent assigned
+    const noFueAtendida = !r.attended; // Not handled
+    return salioDelIVR && tieneAsignacion && noFueAtendida;
+  });
+
+  // New buckets: granular ranges to capture atypical cases
+  const buckets = [
+    { label: '<10s', min: 0, max: 10 },
+    { label: '10-20s', min: 10, max: 20 },
+    { label: '20-30s', min: 20, max: 30 },
+    { label: '30-60s', min: 30, max: 60 },
+    { label: '60-120s', min: 60, max: 120 },
+    { label: '120-300s', min: 120, max: 300 },
+    { label: '300-600s', min: 300, max: 600 },
+    { label: '>600s', min: 600, max: Infinity },
+  ];
+
+  const bucketData = buckets.map(b => {
+    const count = validCalls.filter(r => {
+      const qt = r.queue_time_seconds ?? 0;
+      return qt >= b.min && qt < b.max;
+    }).length;
+    return {
+      label: b.label,
+      count,
+      percentage: validCalls.length > 0 ? Math.round((count / validCalls.length) * 100) : 0,
+    };
+  });
+
+  // SL metrics: ≤20s (SL compliance), 20-60s (recovery window), >60s (lost)
+  const slCount = validCalls.filter(r => (r.queue_time_seconds ?? 0) <= 20).length;
+  const midCount = validCalls.filter(r => {
+    const qt = r.queue_time_seconds ?? 0;
+    return qt > 20 && qt <= 60;
+  }).length;
+  const longCount = validCalls.filter(r => (r.queue_time_seconds ?? 0) > 60).length;
+
+  return {
+    buckets: bucketData,
+    slPercent: validCalls.length > 0 ? Math.round((slCount / validCalls.length) * 100) : 0,
+    midPercent: validCalls.length > 0 ? Math.round((midCount / validCalls.length) * 100) : 0,
+    longPercent: validCalls.length > 0 ? Math.round((longCount / validCalls.length) * 100) : 0,
+    totalValidCalls: validCalls.length,
+  };
 }

@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect } from 'react';
 import { KPICards } from './KPICards';
 import { HourlyChart } from './HourlyChart';
 import { ExecutivesTable } from './ExecutivesTable';
-import { QueuesTable } from './QueuesTable';
 import { DirectionChart } from './DirectionChart';
 import { DurationExtremes } from './DurationExtremes';
 import { FilterBar, DEFAULT_FILTERS } from './FilterBar';
@@ -25,8 +24,9 @@ import { ExecutiveTalkTimeByDay } from './ExecutiveTalkTimeByDay';
 import { ExecutiveTalkTimeByWeekday } from './ExecutiveTalkTimeByWeekday';
 import { ExecutivesDetailTable } from './ExecutivesDetailTable';
 import { ExecutiveDashboard } from './ExecutiveDashboard';
+import { QueueHealthDashboard } from './QueueHealthDashboard';
 import { SectionHeader } from './SectionHeader';
-import { calculateKPIs, logKPIDebugInfo } from '../lib/kpi';
+import { calculateKPIs } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
@@ -34,7 +34,6 @@ import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Laye
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
 import type { AgentStatusRecord } from '../lib/supabase';
-import { InterventionImpact } from './InterventionImpact';
 import { supabase } from '../lib/supabase';
 
 type Props = {
@@ -359,10 +358,6 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
   const kpis = useMemo(() => calculateKPIs(filteredRecords), [filteredRecords]);
 
-  useEffect(() => {
-    logKPIDebugInfo(records);
-  }, [records]);
-
   // Scroll to top when section changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -431,7 +426,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
           <HourlyChart data={kpis.hourlyDistribution} />
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <ExecutivesTable stats={kpis.executiveStats} />
-            <QueuesTable stats={kpis.queueStats} />
+            {/* QueuesTable removed - table now integrated in QueueHealthDashboard with proper styling */}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <DirectionChart stats={kpis.directionStats} />
@@ -458,6 +453,17 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
           <QueueLoadVariability data={kpis.queueLoadVariability} />
           <QueuesDetailTable stats={kpis.queueStats} />
           <TopCallersTable records={filteredRecords} />
+        </div>
+      )}
+
+      {activeSection === 'salud-colas' && (
+        <div className="space-y-6">
+          <SectionHeader
+            icon={Activity}
+            title="Salud de Colas"
+            description="KPIs críticos, análisis de fugas y alertas automáticas de gestión"
+          />
+          <QueueHealthDashboard records={filteredRecords} />
         </div>
       )}
 
@@ -558,17 +564,6 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
           </div>
           <StaffingDemandChart data={kpis.hourlyDemand} />
           <PhoneOccupancyChart data={kpis.executiveOccupancy} />
-        </div>
-      )}
-
-      {activeSection === 'intervencion' && (
-        <div className="space-y-6">
-          <SectionHeader
-            icon={Zap}
-            title="Intervención"
-            description="Impacto de intervenciones en las métricas de atención"
-          />
-          <InterventionImpact records={filteredRecords} />
         </div>
       )}
 
