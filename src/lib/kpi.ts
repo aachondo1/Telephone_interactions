@@ -1342,6 +1342,13 @@ export function getDataQualityReport(records: CallRecord[]): DataQualityReport {
   return report;
 }
 
+// Operational KPIs
+export type OperationalKPIs = {
+  bounceRatePercent: number;
+  ivrResolutionRatePercent: number;
+  alertSuccessRatio: number;
+};
+
 // Queue Health Dashboard Types
 export type QueueHealthMetric = {
   queue: string;
@@ -1722,6 +1729,64 @@ export type QueueWaitDistributionData = {
   longPercent: number;
   totalValidCalls: number;
 };
+
+// 1. Bounce Rate Operativo: % de llamadas atendidas que tuvieron al menos 1 rebote
+export function calculateBounceRate(records: CallRecord[]): number {
+  const inboundCalls = records.filter(r => isInbound(r.call_direction));
+  const attendedCalls = inboundCalls.filter(r => r.attended).length;
+
+  if (attendedCalls === 0) return 0;
+
+  const bouncedCalls = inboundCalls.filter(r => r.attended && r.alert_segments > 1).length;
+  return Math.round((bouncedCalls / attendedCalls) * 100);
+}
+
+// 2. Índice de Resolución en IVR: % de llamadas que salieron del IVR (no entraron a cola)
+export function calculateIVRResolutionRate(records: CallRecord[]): number {
+  const inboundCalls = records.filter(r => isInbound(r.call_direction));
+
+  if (inboundCalls.length === 0) return 0;
+
+  const ivrExits = inboundCalls.filter(r => r.flow_exit === false).length;
+  return Math.round((ivrExits / inboundCalls.length) * 100);
+}
+
+// 3. Alert Success Ratio: Probabilidad de que un ejecutivo atienda cuando le suena
+export function calculateAlertSuccessRatio(records: CallRecord[]): number {
+  const inboundCalls = records.filter(r => isInbound(r.call_direction));
+
+  if (inboundCalls.length === 0) return 0;
+
+  let totalAlertSegments = 0;
+  let totalNoRespond = 0;
+
+  for (const r of inboundCalls) {
+    totalAlertSegments += r.alert_segments || 0;
+
+    // Parse alerted_users JSON to count "No responden"
+    if (r.alerted_users) {
+      try {
+        const users = JSON.parse(r.alerted_users);
+        totalNoRespond += (users['No responden'] || 0);
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }
+
+  if (totalAlertSegments === 0) return 0;
+
+  const successRatio = 1 - (totalNoRespond / totalAlertSegments);
+  return Math.round(successRatio * 100);
+}
+
+export function calculateOperationalKPIs(records: CallRecord[]): OperationalKPIs {
+  return {
+    bounceRatePercent: calculateBounceRate(records),
+    ivrResolutionRatePercent: calculateIVRResolutionRate(records),
+    alertSuccessRatio: calculateAlertSuccessRatio(records),
+  };
+}
 
 export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWaitDistributionData {
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
