@@ -1369,13 +1369,29 @@ export type QueueHealthMetric = {
 };
 
 export type AbandonFunnelData = {
+  // Level 1: Raw Inbound
   totalInbound: number;
   ivrFugues: number;
   shortAbandons: number;
-  queueFugues: number;
-  bounceAbandons: number;
+
+  // Level 2: Valid Calls (New 100% Reference)
+  validCalls: number;
+
+  // Level 3: Final Distribution
   attendedCalls: number;
-  totalAbandons: number;
+  realAbandonedCalls: number;
+
+  // Perceptual Metrics
+  asaPerceptualSeconds: number; // Average queue + alert time for attended
+  ataPerceptualSeconds: number; // Average queue + alert time for abandoned
+  avgIvrSeconds: number; // Average wait in IVR before exit
+
+  // Data Integrity Check
+  integrityCheck: {
+    expected: number;
+    actual: number;
+    isValid: boolean;
+  };
 };
 
 export type TechnicalLeaksData = {
@@ -1584,52 +1600,96 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
 export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData {
   const SHORT_ABANDON_THRESHOLD = 5;
 
-  // Total inbound calls (100% of funnel)
+  // LEVEL 1: Raw Inbound (100% base)
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
   const totalInbound = inboundCalls.length;
 
-  // Stage 1: IVR Fugas (exitedInIVR: flow_exit === false)
+  // Quality Filters (Removing Non-Valid Calls)
+  // 1. IVR Fugues: Llamadas que NO llegaron a la cola (flow_exit === false)
   const ivrFugues = inboundCalls.filter(r => r.flow_exit === false).length;
 
-  // Stage 2: Short Abandons (< 5 seconds in queue)
+  // 2. Short Abandons: Llamadas que SÍ llegaron a cola pero abandonadas en < 5s
   const shortAbandons = inboundCalls.filter(r =>
-    r.flow_exit !== false && // NOT an IVR drop
+    r.flow_exit !== false && // DID reach queue
     !r.attended &&
     (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD)
   ).length;
 
-  // Stage 3: Queue Abandons (excluding short abandons and bounces)
-  // These are calls that reached queue but were abandoned after exceeding threshold
-  const queueFugues = inboundCalls.filter(r =>
-    r.flow_exit !== false && // NOT an IVR drop
-    !r.attended &&
-    r.abandon_type === 'queue' &&
-    !r.is_bounce &&
-    (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD)
-  ).length;
+  // LEVEL 2: Valid Calls (New 100% reference for rest of funnel)
+  // Valid = Inbound - IVR Fugues - Short Abandons
+  const validCallRecords = inboundCalls.filter(r =>
+    r.flow_exit !== false && // NOT IVR drop
+    (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD) // NOT short abandon
+  );
+  const validCalls = validCallRecords.length;
 
-  // Stage 4: Bounce Abandons (calls with at least one bounce)
-  // These are unattended calls that had agent callbacks/bounces before abandoning
-  const bounceAbandons = inboundCalls.filter(r =>
-    r.flow_exit !== false && // NOT an IVR drop
-    !r.attended &&
-    r.is_bounce === true
-  ).length;
+  // LEVEL 3: Final Distribution (from Valid Calls)
+  // Attended: Valid calls that were answered
+  const attendedCalls = validCallRecords.filter(r => r.attended).length;
 
-  // Stage 5: Attended Calls (successful completions)
-  const attendedCalls = inboundCalls.filter(r => r.attended).length;
+  // Real Abandoned: Valid calls that were NOT attended (abandoned in queue/alert after 5s)
+  const realAbandonedCalls = validCallRecords.filter(r => !r.attended).length;
 
-  // Total abandons (all unattended inbound calls)
-  const totalAbandons = totalInbound - attendedCalls;
+  // PERCEPTUAL METRICS
+  // ASA Perceptual: Average of (queue_time + alert_time) for attended calls only
+  const attendedRecords = validCallRecords.filter(r => r.attended);
+  const attendedWaitTimes = attendedRecords
+    .map(r => {
+      const queueTime = r.queue_time_seconds ?? 0;
+      const alertTime = r.alert_time_seconds ?? 0;
+      return queueTime + alertTime;
+    })
+    .filter(t => t >= 0);
+
+  const asaPerceptualSeconds = attendedWaitTimes.length > 0
+    ? Math.round(attendedWaitTimes.reduce((a, b) => a + b, 0) / attendedWaitTimes.length)
+    : 0;
+
+  // ATA Perceptual: Average of (queue_time + alert_time) for abandoned calls only
+  const abandonedRecords = validCallRecords.filter(r => !r.attended);
+  const abandonedWaitTimes = abandonedRecords
+    .map(r => {
+      const queueTime = r.queue_time_seconds ?? 0;
+      const alertTime = r.alert_time_seconds ?? 0;
+      return queueTime + alertTime;
+    })
+    .filter(t => t >= 0);
+
+  const ataPerceptualSeconds = abandonedWaitTimes.length > 0
+    ? Math.round(abandonedWaitTimes.reduce((a, b) => a + b, 0) / abandonedWaitTimes.length)
+    : 0;
+
+  // Average IVR Time: Only for calls that exited in IVR
+  const ivrRecords = inboundCalls.filter(r => r.flow_exit === false);
+  const ivrWaitTimes = ivrRecords
+    .map(r => r.ivr_time_seconds ?? 0)
+    .filter(t => t >= 0);
+
+  const avgIvrSeconds = ivrWaitTimes.length > 0
+    ? Math.round(ivrWaitTimes.reduce((a, b) => a + b, 0) / ivrWaitTimes.length)
+    : 0;
+
+  // DATA INTEGRITY CHECK
+  // Total Inbound must equal: IVR Fugues + Short Abandons + Attended + Real Abandoned
+  const integrityExpected = totalInbound;
+  const integrityActual = ivrFugues + shortAbandons + attendedCalls + realAbandonedCalls;
+  const integrityCheck = {
+    expected: integrityExpected,
+    actual: integrityActual,
+    isValid: integrityExpected === integrityActual,
+  };
 
   return {
     totalInbound,
     ivrFugues,
     shortAbandons,
-    queueFugues,
-    bounceAbandons,
+    validCalls,
     attendedCalls,
-    totalAbandons,
+    realAbandonedCalls,
+    asaPerceptualSeconds,
+    ataPerceptualSeconds,
+    avgIvrSeconds,
+    integrityCheck,
   };
 }
 
