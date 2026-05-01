@@ -30,6 +30,17 @@ export type ParsedCallRecord = {
   isBounce: boolean;
   holdTimeSeconds: number;
   acwSeconds: number;
+  ivrTotalSeconds: number;
+  usersNotRespond: string;
+  transfers: number;
+  abandonTimeSeconds: number;
+  conversationTotalSeconds: number;
+  disconnectionType: string;
+  finalizationDate: string | null;
+  partialResultTimestamp: string | null;
+  filters: string;
+  campaign: string;
+  conversationInitiator: string;
 };
 
 export type AnomalyEntry = {
@@ -72,6 +83,17 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   alertTime: ['total de alertas', 'alert time', 'ring time', 'tiempo de alerta', 'tiempo de timbre'],
   flowExit: ['salida de flujo', 'flow exit', 'ivr exit', 'salida ivr'],
   alertedUsers: ['usuarios - alertados', 'alerted users', 'agentes alertados', 'usuarios alertados'],
+  ivrTotal: ['ivr total', 'ivr time', 'tiempo ivr', 'total ivr'],
+  usersNotRespond: ['usuarios - no responden', 'users not respond', 'no responden', 'usuarios sin respuesta'],
+  transfers: ['transferencias', 'transfers', 'derivaciones'],
+  abandonTime: ['tiempo en abandonar', 'abandon time', 'tiempo abandono', 'wait before abandon'],
+  conversationTotal: ['conversación total', 'conversation total', 'total conversation', 'tiempo conversación'],
+  disconnectionType: ['tipo de desconexión', 'tipo desconexion', 'disconnection type', 'tipo'],
+  finalizationDate: ['fecha de finalización', 'fecha finalizacion', 'finalization date', 'fecha fin'],
+  partialResultTimestamp: ['marca de hora del resultado parcial', 'partial result timestamp', 'resultado parcial'],
+  filters: ['filtros', 'filters'],
+  campaign: ['campaña', 'campaign'],
+  conversationInitiator: ['iniciador de conversación', 'conversation initiator', 'iniciador'],
 };
 
 function findColumn(headers: string[], aliases: string[]): string | null {
@@ -454,6 +476,54 @@ export async function transformRows(
     const abandonType = calculateAbandonType(attended, flowExit, queueTimeSeconds, alertedUsers, originalCallId, anomalies);
     const isBounce = calculateIsBounce(alertSegments, alertedUsers, allUsers);
 
+    // Parse new enhanced fields
+    const ivrTotalSeconds = columnMap.ivrTotal
+      ? parseNumericField(row[columnMap.ivrTotal] ?? '0')
+      : 0;
+
+    const usersNotRespond = columnMap.usersNotRespond
+      ? (row[columnMap.usersNotRespond] ?? '')
+      : '';
+
+    const transfers = columnMap.transfers
+      ? parseNumericField(row[columnMap.transfers] ?? '0')
+      : 0;
+
+    const abandonTimeSeconds = columnMap.abandonTime
+      ? parseNumericField(row[columnMap.abandonTime] ?? '0')
+      : 0;
+
+    const conversationTotalSeconds = columnMap.conversationTotal
+      ? parseNumericField(row[columnMap.conversationTotal] ?? '0')
+      : durationSeconds;
+
+    const disconnectionType = columnMap.disconnectionType
+      ? (row[columnMap.disconnectionType] ?? '')
+      : '';
+
+    const finalizationDateRaw = columnMap.finalizationDate
+      ? (row[columnMap.finalizationDate] ?? '')
+      : '';
+    const { callDate: finalizationDate } = finalizationDateRaw
+      ? parseDateTime(finalizationDateRaw)
+      : { callDate: null };
+
+    const partialResultTimestamp = columnMap.partialResultTimestamp
+      ? (row[columnMap.partialResultTimestamp] ?? '')
+      : '';
+
+    const filters = columnMap.filters
+      ? (row[columnMap.filters] ?? '')
+      : '';
+
+    const campaign = columnMap.campaign
+      ? (row[columnMap.campaign] ?? '')
+      : '';
+
+    const conversationInitiator = columnMap.conversationInitiator
+      ? (row[columnMap.conversationInitiator] ?? '')
+      : '';
+
     const record: ParsedCallRecord = {
       originalCallId,
       rawDate,
@@ -482,6 +552,17 @@ export async function transformRows(
       isBounce,
       holdTimeSeconds,
       acwSeconds,
+      ivrTotalSeconds,
+      usersNotRespond,
+      transfers,
+      abandonTimeSeconds,
+      conversationTotalSeconds,
+      disconnectionType,
+      finalizationDate: finalizationDate ?? null,
+      partialResultTimestamp,
+      filters,
+      campaign,
+      conversationInitiator,
     };
 
     results.push(record);
