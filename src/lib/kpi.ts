@@ -1539,7 +1539,7 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       ? Math.round(abandonedWaitTimes.reduce((a, b) => a + b, 0) / abandonedWaitTimes.length)
       : 0;
 
-    const handleTimes = validCallsForSL
+    const handleTimes = allValidRecords
       .filter(r => r.handle_time_seconds !== null && r.handle_time_seconds >= 0)
       .map(r => r.handle_time_seconds!);
 
@@ -1572,7 +1572,7 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       erlangC,
       staffingEfficiency,
       slTrend,
-      totalCalls: validCallsForSL.length,
+      totalCalls: totalValidCalls,
       attendedCalls,
       abandonedCalls,
     });
