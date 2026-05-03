@@ -7,7 +7,6 @@ import {
 } from '../lib/kpi';
 import { QueueHealthMetricsCards } from './QueueHealthMetricsCards';
 import { AbandonFunnelChart } from './AbandonFunnelChart';
-import { AbandonTimeThresholds } from './AbandonTimeThresholds';
 import { QueueWaitDistribution } from './QueueWaitDistribution';
 import { WaitDistributionChart } from './WaitDistributionChart';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
@@ -34,9 +33,6 @@ export function QueueHealthDashboard({ records }: Props) {
 
       {/* Wait Distribution for Attended Calls (Replaces Level 3 analysis) */}
       <WaitDistributionChart records={records} />
-
-      {/* Abandon Time Thresholds */}
-      <AbandonTimeThresholds records={records} />
 
       {/* Wait Distribution Histogram */}
       <QueueWaitDistribution records={records} />
