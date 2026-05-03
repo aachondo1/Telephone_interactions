@@ -25,8 +25,8 @@ export function QueueHealthDashboard({ records }: Props) {
 
   return (
     <div className="space-y-8">
-      {/* Metrics Cards: 2 rows x 4 columns */}
-      <QueueHealthMetricsCards metrics={metrics} operationalKPIs={operationalKPIs} />
+      {/* Metrics Cards: 2 rows x 4 columns + abandonment breakdown */}
+      <QueueHealthMetricsCards metrics={metrics} operationalKPIs={operationalKPIs} funnelData={funnelData} />
 
       {/* Abandon Funnel */}
       <AbandonFunnelChart data={funnelData} />
