@@ -362,23 +362,22 @@ export async function transformRows(
     const allUsers = parseExecutives(rawUser);
     // Only the last user in the list actually handled the call
     let executives = allUsers.length > 0 ? [allUsers[allUsers.length - 1]] : [];
-    let attended = executives.length > 0;
 
-    // CAMBIO 4: Validar que duraciones > 0 para llamadas atendidas
+    // CRITICAL: attended should be based on DURATION, not just presence of executives
+    // If durationSeconds > 0, the call was actually answered and conversation occurred
+    // If durationSeconds = 0, no conversation happened, so it's unattended (abandoned in queue/alert)
     const originalCallId = columnMap.callId
       ? (row[columnMap.callId] ?? String(i))
       : String(i);
 
-    if (attended && durationSeconds <= 0) {
-      anomalies.push({
-        type: 'attended_call_zero_duration',
-        callId: originalCallId,
-        durationSeconds,
-        actionTaken: 'marking_as_unattended',
-        severity: 'CRITICAL',
-        timestamp: new Date(),
-      });
-      attended = false;  // Corregir automáticamente
+    let attended = durationSeconds > 0;
+
+    // If attended but no executive listed, mark as SIN ATENDER
+    if (attended && executives.length === 0) {
+      executives = ['DESCONOCIDO'];
+    }
+    // If not attended, clear executives list
+    if (!attended) {
       executives = ['SIN ATENDER'];
     }
 
