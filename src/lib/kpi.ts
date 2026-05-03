@@ -1856,33 +1856,24 @@ export function calculateMenuAbandonRate(records: CallRecord[]): number {
   return Math.round((menuAbandons.length / inboundCalls.length) * 100);
 }
 
-// 3. Alert Success Ratio: Probabilidad de que un ejecutivo atienda cuando le suena
+// 3. Alert Success Ratio: Porcentaje de llamadas alertadas que fueron contestadas
+// Medida: ¿Qué porcentaje de ejecuciones de alertas resultaron en que un ejecutivo respondiera?
+// Se calcula como: Llamadas atendidas / Llamadas que fueron alertadas (con alert_segments > 0)
 export function calculateAlertSuccessRatio(records: CallRecord[]): number {
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
 
   if (inboundCalls.length === 0) return 0;
 
-  let totalAlertSegments = 0;
-  let totalNoRespond = 0;
+  // Llamadas que FUERON ALERTADAS (tuvieron intentos de asignación a ejecutivos)
+  const alertedCalls = inboundCalls.filter(r => (r.alert_segments || 0) > 0);
 
-  for (const r of inboundCalls) {
-    totalAlertSegments += r.alert_segments || 0;
+  if (alertedCalls.length === 0) return 0;
 
-    // Parse alerted_users JSON to count "No responden"
-    if (r.alerted_users) {
-      try {
-        const users = JSON.parse(r.alerted_users);
-        totalNoRespond += (users['No responden'] || 0);
-      } catch {
-        // Ignore parse errors
-      }
-    }
-  }
+  // Llamadas alertadas que fueron ATENDIDAS (éxito = ejecutivo respondió)
+  const successfulAlerts = alertedCalls.filter(r => r.attended).length;
 
-  if (totalAlertSegments === 0) return 0;
-
-  const successRatio = 1 - (totalNoRespond / totalAlertSegments);
-  return Math.round(successRatio * 100);
+  const successRatio = (successfulAlerts / alertedCalls.length) * 100;
+  return Math.round(successRatio);
 }
 
 export function calculateOperationalKPIs(records: CallRecord[]): OperationalKPIs {

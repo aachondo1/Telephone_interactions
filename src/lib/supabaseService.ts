@@ -76,6 +76,7 @@ export async function saveUpload(
       alert_time_seconds: record.alertTimeSeconds,
       flow_exit: record.flowExit,
       alerted_users: record.alertedUsers || null,
+      users_not_respond: record.usersNotRespond || null,
       abandon_type: record.abandonType,
       is_bounce: record.isBounce,
       hold_time_seconds: record.holdTimeSeconds,
