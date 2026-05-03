@@ -1422,6 +1422,8 @@ export type QueueHealthMetric = {
   totalCalls: number;
   attendedCalls: number;
   abandonedCalls: number;
+  abandonInQueue: number;
+  abandonInAlert: number;
 };
 
 export type AbandonFunnelData = {
@@ -1632,6 +1634,8 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       totalCalls: totalValidCalls,
       attendedCalls,
       abandonedCalls,
+      abandonInQueue: states.notAssigned.length,
+      abandonInAlert: states.assignedNoConversation.length,
     });
   }
 
