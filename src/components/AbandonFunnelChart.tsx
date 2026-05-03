@@ -8,91 +8,63 @@ type Props = {
 
 // Stage definitions for tooltips
 const stageDefinitions = {
-  'Entrantes Brutas': {
+  'Inbound': {
     definition: 'Total de todas las llamadas entrantes (inbound) recibidas, sin ningún filtro aplicado',
     unit: 'Cantidad absoluta',
     benchmark: 'Base 100% para analizar el flujo',
   },
-  'Abandon en Menú': {
-    definition: 'Llamadas que el cliente abandonó dentro del menú IVR después de pasar más de 10 segundos navegando. Indica frustración con la interfaz automática.',
+  'Llegaron a Cola': {
+    definition: 'Llamadas que salieron del menú IVR y llegaron a la cola (queue_time > 0). Inbound que pasaron de la IVR a espera de agente.',
     unit: 'Cantidad absoluta',
-    benchmark: 'Menor es mejor (objetivo: <5%)',
+    benchmark: 'Mayor es mejor - indica que IVR no es bloqueador',
   },
-  'Error de Marcación': {
-    definition: 'Llamadas que el cliente abandonó muy rápido en el IVR (<10 segundos). Generalmente accidental o cambio de idea inmediato.',
+  'Asignadas a Ejecutivo': {
+    definition: 'Llamadas asignadas a un agente (alert_time > 0). Agente fue alertado aunque no haya contestado. Visualiza dónde se pierden llamadas sin ser atendidas.',
     unit: 'Cantidad absoluta',
-    benchmark: 'Menor es mejor (pequeño porcentaje es normal)',
+    benchmark: 'Muestra intentos de conexión con agente',
   },
-  'Abandon Corto': {
-    definition: 'Llamadas que llegaron a la cola pero fueron abandonadas en los primeros 5 segundos. Clientes que no quisieron esperar.',
+  'Conversación Real': {
+    definition: 'Llamadas con conversación efectiva (conversation_total_seconds > 0). Contacto real con agente. Métrica de productividad.',
     unit: 'Cantidad absoluta',
-    benchmark: 'Menor es mejor (indica baja paciencia inicial)',
-  },
-  'Llamadas Válidas': {
-    definition: 'Llamadas que pasaron todos los filtros de calidad: salieron del IVR, llegaron a la cola y esperaron más de 5 segundos. Base para análisis de operacional.',
-    formula: 'Entrantes - (Abandon Menú + Error + Abandon Corto)',
-    unit: 'Cantidad absoluta',
-    benchmark: 'Nueva base 100% para resto del embudo',
-  },
-  'Atendidas': {
-    definition: 'Llamadas válidas que fueron contestadas y atendidas por un agente. Métrica de productividad.',
-    unit: 'Cantidad absoluta',
-    benchmark: 'Mayor es mejor (objetivo: >90% de válidas)',
-  },
-  'Abandonadas': {
-    definition: 'Llamadas válidas que no fueron atendidas. El cliente abandonó después de esperar en cola/alerta más de 5 segundos.',
-    unit: 'Cantidad absoluta',
-    benchmark: 'Menor es mejor (objetivo: <10%)',
+    benchmark: 'Mayor es mejor (objetivo: maximizar)',
   },
 };
 
 export function AbandonFunnelChart({ data }: Props) {
   const {
     totalInbound,
-    ivrMenuAbandons,
-    ivrErrors,
-    shortAbandons,
-    validCalls,
-    attendedCalls,
-    realAbandonedCalls,
+    reachedQueue,
+    assigned,
+    conversationReal,
+    abandonInQueue,
+    abandonInAlert,
   } = data;
 
-  // Create funnel stages as bar chart data
+  // Create new 4-level funnel structure
+  // Level 1: Inbound (100%)
+  // Level 2: Reached Queue
+  // Level 3: Assigned to Agent
+  // Level 4: Conversation Real
   const funnelData = [
     {
-      stage: 'Entrantes Brutas',
+      stage: 'Inbound',
       calls: totalInbound,
       fill: '#3b82f6',
     },
     {
-      stage: 'Abandon en Menú',
-      calls: ivrMenuAbandons,
-      fill: '#d946ef',
-    },
-    {
-      stage: 'Error de Marcación',
-      calls: ivrErrors,
-      fill: '#a78bfa',
-    },
-    {
-      stage: 'Abandon Corto',
-      calls: shortAbandons,
-      fill: '#fbbf24',
-    },
-    {
-      stage: 'Llamadas Válidas',
-      calls: validCalls,
+      stage: 'Llegaron a Cola',
+      calls: reachedQueue,
       fill: '#60a5fa',
     },
     {
-      stage: 'Atendidas',
-      calls: attendedCalls,
-      fill: '#84bd00',
+      stage: 'Asignadas a Ejecutivo',
+      calls: assigned,
+      fill: '#fbbf24',
     },
     {
-      stage: 'Abandonadas',
-      calls: realAbandonedCalls,
-      fill: '#ef4444',
+      stage: 'Conversación Real',
+      calls: conversationReal,
+      fill: '#84bd00',
     },
   ];
 
@@ -105,9 +77,9 @@ export function AbandonFunnelChart({ data }: Props) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
       <div className="mb-6">
-        <h3 className="text-lg font-bold text-slate-800">Embudo de Llamadas (Lógica Sincera)</h3>
+        <h3 className="text-lg font-bold text-slate-800">Embudo de Llamadas (4 Niveles Operativos)</h3>
         <p className="text-sm text-slate-400 mt-1">
-          Flujo de llamadas desde entrada hasta resolución: Entrantes → Pérdidas/Válidas → Atendidas/Abandonadas
+          Flujo de llamadas: Inbound → Cola → Asignadas → Conversación Real. Abandons desglosados por estado.
         </p>
       </div>
 
@@ -146,12 +118,13 @@ export function AbandonFunnelChart({ data }: Props) {
             </ResponsiveContainer>
           </div>
 
-          {/* Detailed Breakdown Table */}
+          {/* Funnel Breakdown Table */}
           <div className="overflow-x-auto">
+            <h4 className="text-sm font-semibold text-slate-700 mb-3">Flujo del Embudo</h4>
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-2 text-left font-semibold text-slate-700">Etapa</th>
+                  <th className="px-4 py-2 text-left font-semibold text-slate-700">Nivel</th>
                   <th className="px-4 py-2 text-right font-semibold text-slate-700">Llamadas</th>
                   <th className="px-4 py-2 text-right font-semibold text-slate-700">% del Total</th>
                 </tr>
@@ -187,6 +160,29 @@ export function AbandonFunnelChart({ data }: Props) {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Abandonment Breakdown */}
+          <div className="pt-4 border-t border-slate-200">
+            <h4 className="text-sm font-semibold text-slate-700 mb-3">Desglose de Abandonos</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-red-50 rounded-lg p-4">
+                <p className="text-xs text-slate-600 mb-1">Estado 1: Abandono en Cola</p>
+                <p className="text-2xl font-bold text-red-600">{abandonInQueue.toLocaleString('es-ES')}</p>
+                <p className="text-xs text-slate-500 mt-1">Nunca asignadas a agente</p>
+              </div>
+              <div className="bg-amber-50 rounded-lg p-4">
+                <p className="text-xs text-slate-600 mb-1">Estado 2: Abandono en Escritorio</p>
+                <p className="text-2xl font-bold text-amber-600">{abandonInAlert.toLocaleString('es-ES')}</p>
+                <p className="text-xs text-slate-500 mt-1">Asignadas pero no contestadas</p>
+              </div>
+            </div>
+            <div className="mt-3 bg-slate-50 rounded-lg p-3">
+              <p className="text-xs font-medium text-slate-700 mb-1">Total Abandonos: <span className="text-lg font-bold">{(abandonInQueue + abandonInAlert).toLocaleString('es-ES')}</span></p>
+              <p className="text-xs text-slate-600">
+                Tasa de abandono: {reachedQueue > 0 ? (((abandonInQueue + abandonInAlert) / reachedQueue) * 100).toFixed(1) : 0}% de llamadas que llegaron a cola
+              </p>
+            </div>
           </div>
         </div>
       )}

@@ -1,10 +1,11 @@
 import { TrendingUp, TrendingDown, Clock, Zap, PhoneOff, AlertCircle, Activity } from 'lucide-react';
-import type { QueueHealthMetric, OperationalKPIs } from '../lib/kpi';
+import type { QueueHealthMetric, OperationalKPIs, AbandonFunnelData } from '../lib/kpi';
 import { Tooltip } from './Tooltip';
 
 type Props = {
   metrics: QueueHealthMetric[];
   operationalKPIs: OperationalKPIs;
+  funnelData?: AbandonFunnelData;
 };
 
 function formatDuration(seconds: number): string {
@@ -14,7 +15,7 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
+export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }: Props) {
   // Calculate aggregate metrics across all queues (weighted averages)
   const validQueues = metrics.filter(m => (m.attendedCalls > 0 || m.abandonedCalls > 0) && m.queue !== 'Sin cola');
 
@@ -194,8 +195,45 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
     },
   ];
 
+  // Abandonment breakdown cards (if funnelData available)
+  const abandonmentBreakdownCards = funnelData ? [
+    {
+      label: 'Abandonos en Cola',
+      value: funnelData.abandonInQueue.toLocaleString('es-ES'),
+      sub: 'Nunca asignadas a agente',
+      icon: PhoneOff,
+      color: 'bg-red-50 text-red-600',
+      border: 'border-red-100',
+      benchmark: 'Estado 1',
+      tooltip: {
+        definition: 'Llamadas abandonadas en cola sin ser asignadas a un agente (alert_time = 0)',
+        formula: 'queue_time ≥ 10s AND alert_time = 0 AND conversation_total = 0',
+        unit: 'Cantidad absoluta',
+        benchmark: 'Indica falta de staffing',
+      },
+    },
+    {
+      label: 'Abandonos en Escritorio',
+      value: funnelData.abandonInAlert.toLocaleString('es-ES'),
+      sub: 'Asignadas pero no contestadas',
+      icon: PhoneOff,
+      color: 'bg-amber-50 text-amber-600',
+      border: 'border-amber-100',
+      benchmark: 'Estado 2',
+      tooltip: {
+        definition: 'Llamadas asignadas a un agente pero no contestadas (alert_time > 0, conversation = 0)',
+        formula: 'queue_time ≥ 10s AND alert_time > 0 AND conversation_total = 0',
+        unit: 'Cantidad absoluta',
+        benchmark: 'Indica agentes no disponibles o poco atentos',
+      },
+    },
+  ] : [];
+
   // Combine operational cards with Erlang C for second row (4 columns)
   const secondRowCards = [...operationalCards, supplementaryCards[0]];
+
+  // Third row: Abandonment breakdown (if available)
+  const thirdRowCards = abandonmentBreakdownCards;
 
   return (
     <div className="space-y-4">
@@ -254,6 +292,36 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
           </div>
         ))}
       </div>
+
+      {/* Row 3: Abandonment Breakdown (if available) */}
+      {thirdRowCards.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {thirdRowCards.map(({ label, value, sub, icon: Icon, color, border, benchmark, tooltip }) => (
+            <div key={label} className={`bg-white rounded-2xl p-6 shadow-sm border ${border}`}>
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
+                  <Icon size={20} />
+                </div>
+                <span className="text-xs text-slate-400 font-medium">{benchmark}</span>
+              </div>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
+                {tooltip && (
+                  <Tooltip
+                    label={label}
+                    definition={tooltip.definition}
+                    formula={tooltip.formula}
+                    unit={tooltip.unit}
+                    benchmark={tooltip.benchmark}
+                  />
+                )}
+              </div>
+              <p className="text-2xl font-bold text-slate-800 mb-1">{value}</p>
+              <p className="text-xs text-slate-500">{sub}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

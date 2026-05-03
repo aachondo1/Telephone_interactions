@@ -363,14 +363,19 @@ export async function transformRows(
     // Only the last user in the list actually handled the call
     let executives = allUsers.length > 0 ? [allUsers[allUsers.length - 1]] : [];
 
-    // CRITICAL: attended should be based on DURATION, not just presence of executives
-    // If durationSeconds > 0, the call was actually answered and conversation occurred
-    // If durationSeconds = 0, no conversation happened, so it's unattended (abandoned in queue/alert)
+    // CRITICAL: attended should be based on CONVERSATION TIME, not total duration
+    // conversationTotalSeconds only has data when a human agent actually talked to customer
+    // durationSeconds includes IVR time, so it's poisoned for determining real attendance
+    // This is the "Regla de Oro": conversation happened = attended; no conversation = abandoned
     const originalCallId = columnMap.callId
       ? (row[columnMap.callId] ?? String(i))
       : String(i);
 
-    let attended = durationSeconds > 0;
+    const conversationTotalSeconds = columnMap.conversationTotal
+      ? parseNumericField(row[columnMap.conversationTotal] ?? '0')
+      : durationSeconds;
+
+    let attended = conversationTotalSeconds > 0;
 
     // If attended but no executive listed, mark as SIN ATENDER
     if (attended && executives.length === 0) {
@@ -519,10 +524,6 @@ export async function transformRows(
     const abandonTimeSeconds = columnMap.abandonTime
       ? parseNumericField(row[columnMap.abandonTime] ?? '0')
       : 0;
-
-    const conversationTotalSeconds = columnMap.conversationTotal
-      ? parseNumericField(row[columnMap.conversationTotal] ?? '0')
-      : durationSeconds;
 
     const disconnectionType = columnMap.disconnectionType
       ? (row[columnMap.disconnectionType] ?? '')
