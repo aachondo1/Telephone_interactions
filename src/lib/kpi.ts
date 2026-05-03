@@ -373,7 +373,10 @@ export function calculateQueuePerformanceHeatmap(records: CallRecord[]): QueueHe
   const queueMap = new Map<string, Map<number, Map<number, number>>>();
 
   for (const r of records) {
-    const queue = r.queue || 'Sin cola';
+    // Skip records without an assigned queue (exclude "Sin cola")
+    if (!r.queue || r.queue.trim() === '') continue;
+
+    const queue = r.queue;
     const hour = r.call_hour ?? -1;
     const date = r.call_date;
 
@@ -1422,6 +1425,8 @@ export type QueueHealthMetric = {
   totalCalls: number;
   attendedCalls: number;
   abandonedCalls: number;
+  abandonInQueue: number;
+  abandonInAlert: number;
 };
 
 export type AbandonFunnelData = {
@@ -1632,6 +1637,8 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
       totalCalls: totalValidCalls,
       attendedCalls,
       abandonedCalls,
+      abandonInQueue: states.notAssigned.length,
+      abandonInAlert: states.assignedNoConversation.length,
     });
   }
 
@@ -2003,5 +2010,76 @@ export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWait
     midPercent: realAbandonedCalls.length > 0 ? Math.round((midCount / realAbandonedCalls.length) * 100) : 0,
     longPercent: realAbandonedCalls.length > 0 ? Math.round((longCount / realAbandonedCalls.length) * 100) : 0,
     totalValidCalls: realAbandonedCalls.length,
+  };
+}
+
+// Wait Time Distribution for ATTENDED calls (Calls that were actually answered)
+// Shows queue_time distribution and quality of successful connection experience
+// Used to analyze: "After we answer, how long did customers wait in queue?"
+export type AttendedWaitDistributionData = {
+  buckets: Array<{ label: string; count: number; percentage: number; color: string }>;
+  averageWaitTime: number;
+  totalAttendedCalls: number;
+  slZone: number; // 0-20s
+  midZone: number; // 21-40s
+  warningZone: number; // 41s-2m
+  criticalZone: number; // >2m
+};
+
+export function calculateAttendedWaitDistribution(records: CallRecord[]): AttendedWaitDistributionData {
+  const inboundCalls = records.filter(r => isInbound(r.call_direction));
+
+  // Filter: Only inbound calls that were attended AND had actual conversation
+  const attendedCalls = inboundCalls.filter(r =>
+    r.attended && (r.conversation_total_seconds ?? 0) > 0
+  );
+
+  const buckets = [
+    { label: '0-20s', min: 0, max: 20, color: '#84BD00' }, // bice-green (SL zone)
+    { label: '21-40s', min: 20, max: 40, color: '#9ac924' }, // bice-green lighter
+    { label: '41-60s', min: 40, max: 60, color: '#fbbf24' }, // amber lighter
+    { label: '1-2m', min: 60, max: 120, color: '#f59e0b' }, // amber
+    { label: '2-5m', min: 120, max: 300, color: '#f87171' }, // red lighter
+    { label: '5-10m', min: 300, max: 600, color: '#ef4444' }, // red
+    { label: '+10m', min: 600, max: Infinity, color: '#dc2626' }, // red darker
+  ];
+
+  const bucketData = buckets.map(b => {
+    const count = attendedCalls.filter(r => {
+      const queueTime = r.queue_time_seconds ?? 0;
+      return queueTime >= b.min && queueTime < b.max;
+    }).length;
+    return {
+      label: b.label,
+      count,
+      percentage: attendedCalls.length > 0 ? Math.round((count / attendedCalls.length) * 100) : 0,
+      color: b.color,
+    };
+  });
+
+  // Calculate average wait time
+  const totalWaitTime = attendedCalls.reduce((sum, r) => sum + (r.queue_time_seconds ?? 0), 0);
+  const averageWaitTime = attendedCalls.length > 0 ? Math.round(totalWaitTime / attendedCalls.length) : 0;
+
+  // Zone metrics (for summary cards)
+  const slZone = attendedCalls.filter(r => (r.queue_time_seconds ?? 0) <= 20).length;
+  const midZone = attendedCalls.filter(r => {
+    const qt = r.queue_time_seconds ?? 0;
+    return qt > 20 && qt <= 40;
+  }).length;
+  const warningZone = attendedCalls.filter(r => {
+    const qt = r.queue_time_seconds ?? 0;
+    return qt > 40 && qt <= 120;
+  }).length;
+  const criticalZone = attendedCalls.filter(r => (r.queue_time_seconds ?? 0) > 120).length;
+
+  return {
+    buckets: bucketData,
+    averageWaitTime,
+    totalAttendedCalls: attendedCalls.length,
+    slZone,
+    midZone,
+    warningZone,
+    criticalZone,
   };
 }

@@ -7,8 +7,8 @@ import {
 } from '../lib/kpi';
 import { QueueHealthMetricsCards } from './QueueHealthMetricsCards';
 import { AbandonFunnelChart } from './AbandonFunnelChart';
-import { AbandonTimeThresholds } from './AbandonTimeThresholds';
 import { QueueWaitDistribution } from './QueueWaitDistribution';
+import { WaitDistributionChart } from './WaitDistributionChart';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { calculateQueuePerformanceHeatmap } from '../lib/kpi';
 import { Tooltip } from './Tooltip';
@@ -31,8 +31,8 @@ export function QueueHealthDashboard({ records }: Props) {
       {/* Abandon Funnel */}
       <AbandonFunnelChart data={funnelData} />
 
-      {/* Abandon Time Thresholds */}
-      <AbandonTimeThresholds records={records} />
+      {/* Wait Distribution for Attended Calls (Replaces Level 3 analysis) */}
+      <WaitDistributionChart records={records} />
 
       {/* Wait Distribution Histogram */}
       <QueueWaitDistribution records={records} />
@@ -66,6 +66,16 @@ export function QueueHealthDashboard({ records }: Props) {
                       Abandonos
                       <Tooltip
                         definition="Cantidad de llamadas abandonadas en cola o alerta (no incluye IVR ni short abandons)"
+                        unit="Cantidad absoluta"
+                        benchmark="Menor es mejor"
+                      />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-right font-semibold text-white">
+                    <div className="flex items-center justify-end gap-1">
+                      Escritorio
+                      <Tooltip
+                        definition="Llamadas donde el agente fue alertado pero no contestó o el cliente colgó mientras esperaba la respuesta del agente"
                         unit="Cantidad absoluta"
                         benchmark="Menor es mejor"
                       />
@@ -132,6 +142,7 @@ export function QueueHealthDashboard({ records }: Props) {
                     <td className="px-6 py-4 font-medium text-slate-800">{m.queue}</td>
                     <td className="px-6 py-4 text-right text-slate-600">{m.attendedCalls}</td>
                     <td className="px-6 py-4 text-right text-slate-600">{m.abandonedCalls}</td>
+                    <td className="px-6 py-4 text-right text-slate-600">{m.abandonInAlert}</td>
                     <td className="px-6 py-4 text-right">
                       <span
                         className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
