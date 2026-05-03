@@ -7,10 +7,18 @@ type Props = {
   operationalKPIs: OperationalKPIs;
 };
 
-export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
-  const queue = metrics[0];
+function formatDuration(seconds: number): string {
+  if (seconds < 0) seconds = 0;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
 
-  if (!queue) {
+export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
+  // Calculate aggregate metrics across all queues (weighted averages)
+  const validQueues = metrics.filter(m => (m.attendedCalls > 0 || m.abandonedCalls > 0) && m.queue !== 'Sin cola');
+
+  if (validQueues.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center">
         <p className="text-slate-500">Sin datos disponibles</p>
@@ -18,11 +26,39 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
     );
   }
 
+  // Weighted average calculations
+  const totalValidCalls = validQueues.reduce((sum, m) => sum + m.totalCalls, 0);
+  const totalAttendedCalls = validQueues.reduce((sum, m) => sum + m.attendedCalls, 0);
+  const totalAbandonedCalls = validQueues.reduce((sum, m) => sum + m.abandonedCalls, 0);
+
+  // SL%: Weighted average by total calls
+  const serviceLevelPercent = totalValidCalls > 0
+    ? Math.round(validQueues.reduce((sum, m) => sum + (m.serviceLevelPercent * m.totalCalls), 0) / totalValidCalls)
+    : 0;
+
+  // Abandonment %: Weighted average by total calls
+  const abandonmentRatePercent = totalValidCalls > 0
+    ? Math.round(validQueues.reduce((sum, m) => sum + (m.abandonmentRatePercent * m.totalCalls), 0) / totalValidCalls)
+    : 0;
+
+  // ASA: Weighted average by attended calls
+  const asaSeconds = totalAttendedCalls > 0
+    ? Math.round(validQueues.reduce((sum, m) => sum + (m.asaSeconds * m.attendedCalls), 0) / totalAttendedCalls)
+    : 0;
+
+  // ATA: Weighted average by abandoned calls
+  const ataSeconds = totalAbandonedCalls > 0
+    ? Math.round(validQueues.reduce((sum, m) => sum + (m.ataSeconds * m.abandonedCalls), 0) / totalAbandonedCalls)
+    : 0;
+
+  // Erlang C: Simple average across queues
+  const erlangC = Math.round((validQueues.reduce((sum, m) => sum + m.erlangC, 0) / validQueues.length) * 10) / 10;
+
   // Diagnóstico: Comparar ASA vs ATA
   const getDiagnosis = () => {
-    if (queue.asaSeconds > queue.ataSeconds) {
+    if (asaSeconds > ataSeconds) {
       return { message: 'Equipo lento', color: 'bg-red-50 text-red-600', border: 'border-red-100' };
-    } else if (queue.asaSeconds < queue.ataSeconds) {
+    } else if (asaSeconds < ataSeconds) {
       return { message: 'Equipo rápido', color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' };
     }
     return { message: 'En el límite', color: 'bg-amber-50 text-amber-600', border: 'border-amber-100' };
@@ -32,11 +68,11 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
   const cards = [
     {
       label: 'Nivel de Servicio (SL%)',
-      value: `${queue.serviceLevelPercent}%`,
+      value: `${serviceLevelPercent}%`,
       sub: 'Espera perceptual ≤ 20s',
       icon: TrendingUp,
-      color: queue.serviceLevelPercent >= 80 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600',
-      border: queue.serviceLevelPercent >= 80 ? 'border-emerald-100' : 'border-red-100',
+      color: serviceLevelPercent >= 80 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600',
+      border: serviceLevelPercent >= 80 ? 'border-emerald-100' : 'border-red-100',
       benchmark: '≥ 80%',
       tooltip: {
         definition: 'Porcentaje de llamadas atendidas dentro de 20 segundos (INCLUYENDO tiempo en cola + tiempo en alerta)',
@@ -47,11 +83,11 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
     },
     {
       label: 'Tasa de Abandono',
-      value: `${queue.abandonmentRatePercent}%`,
+      value: `${abandonmentRatePercent}%`,
       sub: 'Clientes perdidos',
       icon: TrendingDown,
-      color: queue.abandonmentRatePercent <= 10 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600',
-      border: queue.abandonmentRatePercent <= 10 ? 'border-emerald-100' : 'border-orange-100',
+      color: abandonmentRatePercent <= 10 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600',
+      border: abandonmentRatePercent <= 10 ? 'border-emerald-100' : 'border-orange-100',
       benchmark: '≤ 10%',
       tooltip: {
         definition: 'Porcentaje de clientes que cuelgan antes de ser atendidos (en cola o alerta)',
@@ -62,7 +98,7 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
     },
     {
       label: 'ASA (Velocidad de Respuesta)',
-      value: queue.asaFormatted,
+      value: formatDuration(asaSeconds),
       sub: 'Solo llamadas atendidas (perceptual)',
       icon: Clock,
       color: 'bg-blue-50 text-blue-600',
@@ -77,7 +113,7 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
     },
     {
       label: 'ATA (Paciencia del Cliente)',
-      value: queue.ataFormatted,
+      value: formatDuration(ataSeconds),
       sub: 'Solo llamadas abandonadas (perceptual)',
       icon: Clock,
       color: diagnosis.color,
@@ -143,11 +179,11 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
   const supplementaryCards = [
     {
       label: 'Erlang C (Carga)',
-      value: queue.erlangC.toFixed(1),
+      value: erlangC.toFixed(1),
       sub: 'Intensidad de tráfico',
       icon: Zap,
-      color: queue.erlangC <= 0.8 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600',
-      border: queue.erlangC <= 0.8 ? 'border-emerald-100' : 'border-amber-100',
+      color: erlangC <= 0.8 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600',
+      border: erlangC <= 0.8 ? 'border-emerald-100' : 'border-amber-100',
       benchmark: '≤ 0.8 ideal',
       tooltip: {
         definition: 'Intensidad de tráfico normalizada: promedio de agentes ocupados durante el período',
