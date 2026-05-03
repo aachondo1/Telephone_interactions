@@ -230,9 +230,12 @@ export type ExecutiveOccupancyEntry = {
   executive: string;
   avgOccupancyPct: number;
   weeklyTalkMinutes: number;
+  weeklyAlertMinutes: number;
+  weeklyAhtPMinutes: number;
   weeklyFreeMinutes: number;
   weeklyShiftMinutes: number;
   daysWithCalls: number;
+  occupancyAlertFlag?: boolean;
 };
 
 export type ExecutiveOccupancyData = {
@@ -253,6 +256,18 @@ export type HourlyDemandData = {
   points: HourlyDemandPoint[];
   peakErlangs: number;
   weekdayCounts: { lun: number; mar: number; mie: number; jue: number; vie: number };
+};
+
+export type InterventionMetrics = {
+  queueName: string;
+  callsWithAlert: number;
+  callsWithoutAlert: number;
+  avgAlertTimeSeconds: number;
+  avgHandleTimeSeconds: number;
+  alertTimeAsPercentageOfAHT: number;
+  erlangsByAlerts: number;
+  erlangsByHandle: number;
+  erlangTotal: number;
 };
 
 export type TopCallerQueueEntry = {
@@ -346,6 +361,7 @@ export type KPISummary = {
   weeklyAttentionHeatmap: WeeklyAttentionHeatmapData;
   executiveOccupancy: ExecutiveOccupancyData;
   hourlyDemand: HourlyDemandData;
+  interventionMetrics: InterventionMetrics[];
   hourlyDistribution: HourBucket[];
   dailyDistribution: DailyBucket[];
   dailyAttendedVsUnattended: DailyAttendanceBucket[];
@@ -676,11 +692,86 @@ function timeStringToMinutes(timeStr: string | null): number | null {
   return hours * 60 + minutes;
 }
 
+export function calculateInterventionImpact(records: CallRecord[]): InterventionMetrics[] {
+  if (records.length === 0) return [];
+
+  const MAX_REASONABLE_ALERT_SECONDS = 120;
+  const queueMetrics = new Map<string, {
+    callsWithAlert: number;
+    callsWithoutAlert: number;
+    totalAlertSeconds: number;
+    totalHandleSeconds: number;
+    count: number;
+    uniqueDays: Set<string>;
+  }>();
+
+  for (const r of records) {
+    if (!r.queue || !r.call_date) continue;
+
+    if (!queueMetrics.has(r.queue)) {
+      queueMetrics.set(r.queue, {
+        callsWithAlert: 0,
+        callsWithoutAlert: 0,
+        totalAlertSeconds: 0,
+        totalHandleSeconds: 0,
+        count: 0,
+        uniqueDays: new Set(),
+      });
+    }
+
+    const metrics = queueMetrics.get(r.queue)!;
+    metrics.uniqueDays.add(r.call_date);
+    metrics.count += 1;
+
+    const handleTimeSeconds = Math.max(r.handle_time_seconds || 0, r.duration_seconds + 45);
+    metrics.totalHandleSeconds += handleTimeSeconds;
+
+    let alertTimeSeconds = r.alert_time_seconds ?? 0;
+    if (alertTimeSeconds > MAX_REASONABLE_ALERT_SECONDS || alertTimeSeconds > handleTimeSeconds) {
+      alertTimeSeconds = 0;
+    }
+
+    if (alertTimeSeconds > 0) {
+      metrics.callsWithAlert += 1;
+    } else {
+      metrics.callsWithoutAlert += 1;
+    }
+    metrics.totalAlertSeconds += alertTimeSeconds;
+  }
+
+  const result: InterventionMetrics[] = Array.from(queueMetrics.entries())
+    .map(([queueName, metrics]) => {
+      const dayCount = Math.max(1, metrics.uniqueDays.size);
+      const avgAlertTimeSeconds = metrics.count > 0 ? Math.round(metrics.totalAlertSeconds / metrics.count) : 0;
+      const avgHandleTimeSeconds = metrics.count > 0 ? Math.round(metrics.totalHandleSeconds / metrics.count) : 0;
+      const ahtP = avgHandleTimeSeconds + avgAlertTimeSeconds;
+      const alertTimeAsPercentageOfAHT = ahtP > 0 ? Math.round((metrics.totalAlertSeconds / (metrics.totalHandleSeconds + metrics.totalAlertSeconds)) * 1000) / 10 : 0;
+
+      return {
+        queueName,
+        callsWithAlert: metrics.callsWithAlert,
+        callsWithoutAlert: metrics.callsWithoutAlert,
+        avgAlertTimeSeconds,
+        avgHandleTimeSeconds,
+        alertTimeAsPercentageOfAHT,
+        erlangsByAlerts: Math.round((metrics.totalAlertSeconds / 3600 / dayCount) * 100) / 100,
+        erlangsByHandle: Math.round((metrics.totalHandleSeconds / 3600 / dayCount) * 100) / 100,
+        erlangTotal: Math.round(((metrics.totalHandleSeconds + metrics.totalAlertSeconds) / 3600 / dayCount) * 100) / 100,
+      };
+    })
+    .sort((a, b) => b.erlangTotal - a.erlangTotal);
+
+  return result;
+}
+
 export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOccupancyData {
   if (records.length === 0) return { entries: [] };
 
   const execDayMap = new Map<string, Set<string>>();
   const execDayTalkMap = new Map<string, Map<string, number>>();
+  const execDayAlertMap = new Map<string, Map<string, number>>();
+
+  const MAX_REASONABLE_ALERT_SECONDS = 120;
 
   for (const r of records) {
     if (!r.executive || r.executive === 'SIN ATENDER' || !r.call_date || !r.attended) continue;
@@ -688,19 +779,29 @@ export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOcc
     if (!execDayMap.has(r.executive)) {
       execDayMap.set(r.executive, new Set());
       execDayTalkMap.set(r.executive, new Map());
+      execDayAlertMap.set(r.executive, new Map());
     }
 
     execDayMap.get(r.executive)!.add(r.call_date);
 
-    const dayMap = execDayTalkMap.get(r.executive)!;
-    if (!dayMap.has(r.call_date)) dayMap.set(r.call_date, 0);
+    const dayTalkMap = execDayTalkMap.get(r.executive)!;
+    const dayAlertMap = execDayAlertMap.get(r.executive)!;
+    if (!dayTalkMap.has(r.call_date)) dayTalkMap.set(r.call_date, 0);
+    if (!dayAlertMap.has(r.call_date)) dayAlertMap.set(r.call_date, 0);
 
     const callTime = timeStringToMinutes(r.call_time);
     if (callTime === null) continue;
 
     const handleTimeSeconds = Math.max(r.handle_time_seconds || 0, r.duration_seconds + 45);
     const handleMin = Math.ceil(handleTimeSeconds / 60);
-    dayMap.set(r.call_date, dayMap.get(r.call_date)! + handleMin);
+    dayTalkMap.set(r.call_date, dayTalkMap.get(r.call_date)! + handleMin);
+
+    let alertTimeSeconds = r.alert_time_seconds ?? 0;
+    if (alertTimeSeconds > MAX_REASONABLE_ALERT_SECONDS || alertTimeSeconds > handleTimeSeconds) {
+      alertTimeSeconds = 0;
+    }
+    const alertMin = Math.ceil(alertTimeSeconds / 60);
+    dayAlertMap.set(r.call_date, dayAlertMap.get(r.call_date)! + alertMin);
   }
 
   const WEEKLY_SHIFT_MINUTES = 2280;
@@ -711,17 +812,25 @@ export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOcc
       if (daysWithActivity < 3) return null;
 
       const dayTalkMap = execDayTalkMap.get(executive)!;
+      const dayAlertMap = execDayAlertMap.get(executive)!;
       const totalTalkMin = Array.from(dayTalkMap.values()).reduce((sum, min) => sum + min, 0);
+      const totalAlertMin = Array.from(dayAlertMap.values()).reduce((sum, min) => sum + min, 0);
       const avgDailyTalkMin = Math.round(totalTalkMin / daysWithActivity);
+      const avgDailyAlertMin = Math.round(totalAlertMin / daysWithActivity);
       const weeklyAvgTalkMin = avgDailyTalkMin * 5;
+      const weeklyAvgAlertMin = avgDailyAlertMin * 5;
+      const weeklyAhtPMin = weeklyAvgTalkMin + weeklyAvgAlertMin;
 
       return {
         executive,
-        avgOccupancyPct: Math.min(100, Math.round((weeklyAvgTalkMin / WEEKLY_SHIFT_MINUTES) * 100)),
+        avgOccupancyPct: Math.min(100, Math.round((weeklyAhtPMin / WEEKLY_SHIFT_MINUTES) * 100)),
         weeklyTalkMinutes: weeklyAvgTalkMin,
-        weeklyFreeMinutes: Math.max(0, WEEKLY_SHIFT_MINUTES - weeklyAvgTalkMin),
+        weeklyAlertMinutes: weeklyAvgAlertMin,
+        weeklyAhtPMinutes: weeklyAhtPMin,
+        weeklyFreeMinutes: Math.max(0, WEEKLY_SHIFT_MINUTES - weeklyAhtPMin),
         weeklyShiftMinutes: WEEKLY_SHIFT_MINUTES,
         daysWithCalls: daysWithActivity,
+        occupancyAlertFlag: Math.round((weeklyAhtPMin / WEEKLY_SHIFT_MINUTES) * 100) >= 85,
       };
     })
     .filter((e): e is ExecutiveOccupancyEntry => e !== null)
@@ -754,6 +863,7 @@ export function calculateHourlyDemand(records: CallRecord[]): HourlyDemandData {
     vie: datesByWeekday.get(5)?.size ?? 0,
   };
 
+  const MAX_REASONABLE_ALERT_SECONDS = 120;
   const durationMap = new Map<number, Map<number, number>>();
   for (const r of records) {
     if (!r.call_date || r.call_hour === null || r.call_hour === undefined) continue;
@@ -761,7 +871,15 @@ export function calculateHourlyDemand(records: CallRecord[]): HourlyDemandData {
     if (day < 1 || day > 5) continue;
     if (!durationMap.has(day)) durationMap.set(day, new Map());
     const hm = durationMap.get(day)!;
-    hm.set(r.call_hour, (hm.get(r.call_hour) ?? 0) + r.duration_seconds);
+
+    const handleTimeSeconds = Math.max(r.handle_time_seconds || 0, r.duration_seconds + 45);
+    let alertTimeSeconds = r.alert_time_seconds ?? 0;
+    if (alertTimeSeconds > MAX_REASONABLE_ALERT_SECONDS || alertTimeSeconds > handleTimeSeconds) {
+      alertTimeSeconds = 0;
+    }
+    const ahtPSeconds = handleTimeSeconds + alertTimeSeconds;
+
+    hm.set(r.call_hour, (hm.get(r.call_hour) ?? 0) + ahtPSeconds);
   }
 
   const dayKeys = [1, 2, 3, 4, 5] as const;
@@ -1086,6 +1204,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     weeklyAttentionHeatmap: { weeks: [], weekLabels: [], queues: [], data: [] },
     executiveOccupancy: { entries: [] },
     hourlyDemand: { points: [], peakErlangs: 0, weekdayCounts: { lun: 0, mar: 0, mie: 0, jue: 0, vie: 0 } },
+    interventionMetrics: [],
     hourlyDistribution: [],
     dailyDistribution: [],
     dailyAttendedVsUnattended: [],
@@ -1393,6 +1512,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const weeklyAttentionHeatmap = calculateWeeklyAttentionHeatmap(validRecords);
   const executiveOccupancy = calculateExecutiveOccupancy(validRecords);
   const hourlyDemand = calculateHourlyDemand(validRecords);
+  const interventionMetrics = calculateInterventionImpact(validRecords);
   const topCallers = calculateTopCallers(validRecords, 10);
   const serviceLevel = calculateServiceLevel(validRecords);
   const abandonStats = calculateAbandonStats(validRecords);
@@ -1427,6 +1547,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     weeklyAttentionHeatmap,
     executiveOccupancy,
     hourlyDemand,
+    interventionMetrics,
     hourlyDistribution,
     dailyDistribution,
     dailyAttendedVsUnattended,
