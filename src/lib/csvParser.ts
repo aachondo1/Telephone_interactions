@@ -110,6 +110,16 @@ export function detectColumns(headers: string[]): Record<string, string> {
   for (const [key, aliases] of Object.entries(COLUMN_ALIASES)) {
     const found = findColumn(headers, aliases);
     if (found) map[key] = found;
+
+    // DEBUG: Log IVR column detection
+    if (key === 'ivrTotal') {
+      console.log(`[CSV Parse DEBUG] Detectando ${key}:`, {
+        aliases,
+        headers_available: headers,
+        found,
+        normalized_headers: headers.map(h => h.toLowerCase().trim()),
+      });
+    }
   }
   return map;
 }
@@ -352,23 +362,22 @@ export async function transformRows(
     const allUsers = parseExecutives(rawUser);
     // Only the last user in the list actually handled the call
     let executives = allUsers.length > 0 ? [allUsers[allUsers.length - 1]] : [];
-    let attended = executives.length > 0;
 
-    // CAMBIO 4: Validar que duraciones > 0 para llamadas atendidas
+    // CRITICAL: attended should be based on DURATION, not just presence of executives
+    // If durationSeconds > 0, the call was actually answered and conversation occurred
+    // If durationSeconds = 0, no conversation happened, so it's unattended (abandoned in queue/alert)
     const originalCallId = columnMap.callId
       ? (row[columnMap.callId] ?? String(i))
       : String(i);
 
-    if (attended && durationSeconds <= 0) {
-      anomalies.push({
-        type: 'attended_call_zero_duration',
-        callId: originalCallId,
-        durationSeconds,
-        actionTaken: 'marking_as_unattended',
-        severity: 'CRITICAL',
-        timestamp: new Date(),
-      });
-      attended = false;  // Corregir automáticamente
+    let attended = durationSeconds > 0;
+
+    // If attended but no executive listed, mark as SIN ATENDER
+    if (attended && executives.length === 0) {
+      executives = ['DESCONOCIDO'];
+    }
+    // If not attended, clear executives list
+    if (!attended) {
       executives = ['SIN ATENDER'];
     }
 
@@ -400,12 +409,18 @@ export async function transformRows(
     } else if (isOutbound) {
       queue = 'Saliente';
     } else if (rawQueue === '') {
-      // Inbound with no queue = check duration
-      if (isInbound && durationSeconds < 90) {
-        // Inbound, < 1:30, no queue = invalid
+      // Inbound with no queue = check if it's an IVR abandon
+      const ivrTotalSeconds = columnMap.ivrTotal
+        ? parseNumericField(row[columnMap.ivrTotal] ?? '0')
+        : 0;
+
+      // Allow inbound calls that have IVR data (they're IVR abandons)
+      // Only discard truly invalid calls: inbound < 90s with NO IVR interaction AND NOT abandoned in IVR
+      if (isInbound && durationSeconds < 90 && ivrTotalSeconds === 0) {
+        // Inbound, < 1:30, no queue, no IVR = invalid
         continue;
       }
-      // Has no queue = unassigned
+      // Has no queue = unassigned (but valid if it's an IVR abandon)
       queue = '';
     } else {
       continue;
@@ -480,6 +495,18 @@ export async function transformRows(
     const ivrTotalSeconds = columnMap.ivrTotal
       ? parseNumericField(row[columnMap.ivrTotal] ?? '0')
       : 0;
+
+    // DEBUG: Log IVR parsing for first few records
+    if (i < 5) {
+      console.log(`[CSV Parse DEBUG] Record ${i} IVR:`, {
+        columnMapHasIvrTotal: !!columnMap.ivrTotal,
+        ivrColumnName: columnMap.ivrTotal,
+        rawValue: columnMap.ivrTotal ? row[columnMap.ivrTotal] : 'NO COLUMN',
+        parsedSeconds: ivrTotalSeconds,
+        flowExit,
+        queue,
+      });
+    }
 
     const usersNotRespond = columnMap.usersNotRespond
       ? (row[columnMap.usersNotRespond] ?? '')
@@ -662,9 +689,11 @@ function parseNumericField(raw: string): number {
 }
 
 function parseFlowExit(raw: string): boolean {
-  if (!raw || raw.trim() === '') return true;
+  if (!raw || raw.trim() === '') return false;  // Empty = didn't exit IVR (NaN/null means abandoned)
   const s = raw.trim().toLowerCase();
-  return s === 'sí' || s === 'si' || s === 'yes' || s === '1' || s === 'true';
+  // 1.0 or numeric 1 means exited successfully
+  if (s === '1' || s === '1.0' || s === 'true' || s === 'sí' || s === 'si' || s === 'yes') return true;
+  return false;
 }
 
 function calculateAbandonType(

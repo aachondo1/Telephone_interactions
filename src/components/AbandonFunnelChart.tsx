@@ -1,174 +1,194 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import type { AbandonFunnelData } from '../lib/kpi';
+import { Tooltip as InfoTooltip } from './Tooltip';
 
 type Props = {
   data: AbandonFunnelData;
 };
 
-export function AbandonFunnelChart({ data }: Props) {
-  const { totalInbound, ivrFugues, shortAbandons, queueFugues, bounceAbandons, attendedCalls } = data;
+// Stage definitions for tooltips
+const stageDefinitions = {
+  'Entrantes Brutas': {
+    definition: 'Total de todas las llamadas entrantes (inbound) recibidas, sin ningún filtro aplicado',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Base 100% para analizar el flujo',
+  },
+  'Abandon en Menú': {
+    definition: 'Llamadas que el cliente abandonó dentro del menú IVR después de pasar más de 10 segundos navegando. Indica frustración con la interfaz automática.',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Menor es mejor (objetivo: <5%)',
+  },
+  'Error de Marcación': {
+    definition: 'Llamadas que el cliente abandonó muy rápido en el IVR (<10 segundos). Generalmente accidental o cambio de idea inmediato.',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Menor es mejor (pequeño porcentaje es normal)',
+  },
+  'Abandon Corto': {
+    definition: 'Llamadas que llegaron a la cola pero fueron abandonadas en los primeros 5 segundos. Clientes que no quisieron esperar.',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Menor es mejor (indica baja paciencia inicial)',
+  },
+  'Llamadas Válidas': {
+    definition: 'Llamadas que pasaron todos los filtros de calidad: salieron del IVR, llegaron a la cola y esperaron más de 5 segundos. Base para análisis de operacional.',
+    formula: 'Entrantes - (Abandon Menú + Error + Abandon Corto)',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Nueva base 100% para resto del embudo',
+  },
+  'Atendidas': {
+    definition: 'Llamadas válidas que fueron contestadas y atendidas por un agente. Métrica de productividad.',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Mayor es mejor (objetivo: >90% de válidas)',
+  },
+  'Abandonadas': {
+    definition: 'Llamadas válidas que no fueron atendidas. El cliente abandonó después de esperar en cola/alerta más de 5 segundos.',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Menor es mejor (objetivo: <10%)',
+  },
+};
 
-  // Build funnel data: each stage shows cumulative loss
-  // Gradient colors: BICE blue (#326295) transitioning to lighter tones, ending in BICE green (#84BD00)
-  const chartData = [
+export function AbandonFunnelChart({ data }: Props) {
+  const {
+    totalInbound,
+    ivrMenuAbandons,
+    ivrErrors,
+    shortAbandons,
+    validCalls,
+    attendedCalls,
+    realAbandonedCalls,
+  } = data;
+
+  // Create funnel stages as bar chart data
+  const funnelData = [
     {
-      stage: 'Entrantes',
-      count: totalInbound,
-      percentage: 100,
-      color: '#326295', // bice-blue
+      stage: 'Entrantes Brutas',
+      calls: totalInbound,
+      fill: '#3b82f6',
     },
     {
-      stage: 'Después IVR',
-      count: totalInbound - ivrFugues,
-      percentage: totalInbound > 0 ? Math.round(((totalInbound - ivrFugues) / totalInbound) * 100) : 0,
-      color: '#4a7ab0', // bice-blue lighter
+      stage: 'Abandon en Menú',
+      calls: ivrMenuAbandons,
+      fill: '#d946ef',
     },
     {
-      stage: 'Después Abandono Corto',
-      count: totalInbound - ivrFugues - shortAbandons,
-      percentage: totalInbound > 0 ? Math.round(((totalInbound - ivrFugues - shortAbandons) / totalInbound) * 100) : 0,
-      color: '#6b98c7', // bice-blue lighter
+      stage: 'Error de Marcación',
+      calls: ivrErrors,
+      fill: '#a78bfa',
     },
     {
-      stage: 'Después Cola',
-      count: totalInbound - ivrFugues - shortAbandons - queueFugues,
-      percentage: totalInbound > 0 ? Math.round(((totalInbound - ivrFugues - shortAbandons - queueFugues) / totalInbound) * 100) : 0,
-      color: '#8db3d9', // bice-blue lighter
+      stage: 'Abandon Corto',
+      calls: shortAbandons,
+      fill: '#fbbf24',
     },
     {
-      stage: 'Después Rebote',
-      count: totalInbound - ivrFugues - shortAbandons - queueFugues - bounceAbandons,
-      percentage: totalInbound > 0 ? Math.round(((totalInbound - ivrFugues - shortAbandons - queueFugues - bounceAbandons) / totalInbound) * 100) : 0,
-      color: '#b0cce8', // bice-blue very light
+      stage: 'Llamadas Válidas',
+      calls: validCalls,
+      fill: '#60a5fa',
     },
     {
       stage: 'Atendidas',
-      count: attendedCalls,
-      percentage: totalInbound > 0 ? Math.round((attendedCalls / totalInbound) * 100) : 0,
-      color: '#84BD00', // bice-green
+      calls: attendedCalls,
+      fill: '#84bd00',
+    },
+    {
+      stage: 'Abandonadas',
+      calls: realAbandonedCalls,
+      fill: '#ef4444',
     },
   ];
+
+  // Calculate percentages relative to total inbound
+  const funnelDataWithPercent = funnelData.map(item => ({
+    ...item,
+    percentage: totalInbound > 0 ? ((item.calls / totalInbound) * 100).toFixed(1) : '0',
+  }));
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
       <div className="mb-6">
-        <h3 className="text-lg font-bold text-slate-800">Embudo Completo de Llamadas</h3>
+        <h3 className="text-lg font-bold text-slate-800">Embudo de Llamadas (Lógica Sincera)</h3>
         <p className="text-sm text-slate-400 mt-1">
-          Flujo desde 100% de llamadas entrantes hasta atendidas
+          Flujo de llamadas desde entrada hasta resolución: Entrantes → Pérdidas/Válidas → Atendidas/Abandonadas
         </p>
       </div>
 
       {totalInbound === 0 ? (
-        <div className="flex items-center justify-center h-64 text-slate-400">
+        <div className="flex items-center justify-center h-80 text-slate-400">
           <p>Sin datos para analizar</p>
         </div>
       ) : (
-        <>
-          <div className="h-80 mb-8">
+        <div className="space-y-6">
+          {/* Bar Chart Funnel */}
+          <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={chartData}
-                margin={{ top: 5, right: 30, left: 0, bottom: 60 }}
+                data={funnelData}
+                layout="vertical"
+                margin={{ top: 5, right: 30, left: 200, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis
-                  dataKey="stage"
-                  angle={-45}
-                  textAnchor="end"
-                  height={100}
-                  tick={{ fontSize: 11 }}
-                />
-                <YAxis />
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis dataKey="stage" type="category" width={190} />
                 <Tooltip
-                  formatter={(value) => `${value} llamadas`}
                   contentStyle={{
                     backgroundColor: '#ffffff',
                     border: '1px solid #e2e8f0',
-                    borderRadius: '12px',
-                    color: '#65646A',
-                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-                    zIndex: 50,
+                    borderRadius: '8px',
+                    padding: '8px 12px',
                   }}
+                  formatter={(value) => `${value} llamadas`}
                 />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                <Bar dataKey="calls" radius={[0, 8, 8, 0]}>
+                  {funnelData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Detailed breakdown grid */}
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-blue-50 rounded-xl p-4">
-                <p className="text-xs text-slate-400 mb-1">Llamadas Entrantes</p>
-                <p className="text-3xl font-bold text-blue-600">{totalInbound}</p>
-                <p className="text-xs text-slate-500 mt-2">100% (Base del Embudo)</p>
-              </div>
-
-              <div className="bg-green-50 rounded-xl p-4">
-                <p className="text-xs text-slate-400 mb-1">Atendidas</p>
-                <p className="text-3xl font-bold text-green-600">{attendedCalls}</p>
-                <p className="text-xs text-slate-500 mt-2">
-                  {totalInbound > 0 ? Math.round((attendedCalls / totalInbound) * 100) : 0}% de entrantes
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
-              <div className="bg-purple-50 rounded-xl p-3">
-                <p className="text-xs text-slate-400 mb-1">Fuga IVR</p>
-                <p className="text-2xl font-bold text-purple-600">{ivrFugues}</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {totalInbound > 0 ? Math.round((ivrFugues / totalInbound) * 100) : 0}% de entrantes
-                </p>
-                <p className="text-xs text-slate-400 mt-1">Menú/Sistema</p>
-              </div>
-
-              <div className="bg-yellow-50 rounded-xl p-3">
-                <p className="text-xs text-slate-400 mb-1">Abandono Corto</p>
-                <p className="text-2xl font-bold text-yellow-600">{shortAbandons}</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {totalInbound > 0 ? Math.round((shortAbandons / totalInbound) * 100) : 0}% de entrantes
-                </p>
-                <p className="text-xs text-slate-400 mt-1">&lt;5 segundos</p>
-              </div>
-
-              <div className="bg-orange-50 rounded-xl p-3">
-                <p className="text-xs text-slate-400 mb-1">Fuga Cola</p>
-                <p className="text-2xl font-bold text-orange-600">{queueFugues}</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {totalInbound > 0 ? Math.round((queueFugues / totalInbound) * 100) : 0}% de entrantes
-                </p>
-                <p className="text-xs text-slate-400 mt-1">Espera excesiva</p>
-              </div>
-
-              <div className="bg-red-50 rounded-xl p-3">
-                <p className="text-xs text-slate-400 mb-1">Abandono tras Rebote</p>
-                <p className="text-2xl font-bold text-red-600">{bounceAbandons}</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {totalInbound > 0 ? Math.round((bounceAbandons / totalInbound) * 100) : 0}% de entrantes
-                </p>
-                <p className="text-xs text-slate-400 mt-1">Tras devolución de agente</p>
-              </div>
-            </div>
-
-            {/* Verification row */}
-            <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
-              <p className="text-xs text-slate-600 font-medium mb-2">Verificación de Coherencia:</p>
-              <p className="text-xs text-slate-500">
-                {ivrFugues} + {shortAbandons} + {queueFugues} + {bounceAbandons} + {attendedCalls} = {ivrFugues + shortAbandons + queueFugues + bounceAbandons + attendedCalls}
-                {ivrFugues + shortAbandons + queueFugues + bounceAbandons + attendedCalls === totalInbound ? (
-                  <span className="text-green-600 font-medium"> ✓ Correcto</span>
-                ) : (
-                  <span className="text-red-600 font-medium"> ✗ Error</span>
-                )}
-              </p>
-            </div>
+          {/* Detailed Breakdown Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-2 text-left font-semibold text-slate-700">Etapa</th>
+                  <th className="px-4 py-2 text-right font-semibold text-slate-700">Llamadas</th>
+                  <th className="px-4 py-2 text-right font-semibold text-slate-700">% del Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {funnelDataWithPercent.map((row, idx) => {
+                  const stageDef = stageDefinitions[row.stage as keyof typeof stageDefinitions];
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="px-4 py-2 font-medium text-slate-800">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: row.fill }}
+                          />
+                          <div className="flex items-center gap-1">
+                            {row.stage}
+                            {stageDef && (
+                              <InfoTooltip
+                                definition={stageDef.definition}
+                                formula={stageDef.formula}
+                                unit={stageDef.unit}
+                                benchmark={stageDef.benchmark}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-right text-slate-600">{row.calls.toLocaleString('es-ES')}</td>
+                      <td className="px-4 py-2 text-right text-slate-600">{row.percentage}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

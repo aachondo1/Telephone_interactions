@@ -1345,7 +1345,7 @@ export function getDataQualityReport(records: CallRecord[]): DataQualityReport {
 // Operational KPIs
 export type OperationalKPIs = {
   bounceRatePercent: number;
-  ivrResolutionRatePercent: number;
+  menuAbandonRatePercent: number;
   alertSuccessRatio: number;
 };
 
@@ -1369,13 +1369,30 @@ export type QueueHealthMetric = {
 };
 
 export type AbandonFunnelData = {
+  // Level 1: Raw Inbound
   totalInbound: number;
-  ivrFugues: number;
-  shortAbandons: number;
-  queueFugues: number;
-  bounceAbandons: number;
+  ivrMenuAbandons: number; // flow_exit !== true + ivr_time > 10s
+  ivrErrors: number; // flow_exit !== true + ivr_time <= 10s
+  shortAbandons: number; // Queue abandons < 5s
+
+  // Level 2: Valid Calls (New 100% Reference)
+  validCalls: number;
+
+  // Level 3: Final Distribution
   attendedCalls: number;
-  totalAbandons: number;
+  realAbandonedCalls: number;
+
+  // Perceptual Metrics
+  asaPerceptualSeconds: number; // Average queue + alert time for attended
+  ataPerceptualSeconds: number; // Average queue + alert time for abandoned
+  avgIvrSeconds: number; // Average wait in IVR before exit
+
+  // Data Integrity Check
+  integrityCheck: {
+    expected: number;
+    actual: number;
+    isValid: boolean;
+  };
 };
 
 export type TechnicalLeaksData = {
@@ -1583,53 +1600,121 @@ export function calculateQueueHealthMetrics(records: CallRecord[]): QueueHealthM
 
 export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData {
   const SHORT_ABANDON_THRESHOLD = 5;
+  const AUTOSERVICE_MIN_IVR_TIME = 45; // segundos: si IVR > 45s, cliente probablemente usó autoservicio
+  const ABANDON_MAX_IVR_TIME = 10; // segundos: si IVR < 10s, probablemente abandono prematuro
 
-  // Total inbound calls (100% of funnel)
+  // LEVEL 1: Raw Inbound (100% base)
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
   const totalInbound = inboundCalls.length;
 
-  // Stage 1: IVR Fugas (exitedInIVR: flow_exit === false)
-  const ivrFugues = inboundCalls.filter(r => r.flow_exit === false).length;
+  // Quality Filters (Removing Non-Valid Calls)
+  // CRITICAL: IVR en BiceHipotecaria SOLO enruta. Sin autoservicio, cualquier flow_exit !== true es una pérdida.
+  //
+  // 1. Abandono en Menú (Fuga): flow_exit !== true + ivr_time > 10s
+  //    = Cliente intentó navegar menú, se confundió/aburrió, colgó
+  //
+  // 2. Error de Marcación: flow_exit !== true + ivr_time <= 10s
+  //    = Cliente colgó apenas escuchó saludo (toque accidental o cambio de idea)
 
-  // Stage 2: Short Abandons (< 5 seconds in queue)
+  const ivrMenuAbandons = inboundCalls.filter(r => {
+    const escapedIVR = r.flow_exit !== true;
+    const spentTimeInMenu = (r.ivr_time_seconds ?? 0) > ABANDON_MAX_IVR_TIME;
+    return escapedIVR && spentTimeInMenu;
+  }).length;
+
+  const ivrErrors = inboundCalls.filter(r => {
+    const escapedIVR = r.flow_exit !== true;
+    const quickExit = (r.ivr_time_seconds ?? 0) <= ABANDON_MAX_IVR_TIME;
+    return escapedIVR && quickExit;
+  }).length;
+
+  // Total IVR losses
+  const totalIvrLosses = ivrMenuAbandons + ivrErrors;
+
+  // 2. Short Abandons: Llamadas que SÍ llegaron a cola pero abandonadas en < 5s
   const shortAbandons = inboundCalls.filter(r =>
-    r.flow_exit !== false && // NOT an IVR drop
+    r.flow_exit !== false && // DID reach queue
     !r.attended &&
     (r.queue_time_seconds === null || r.queue_time_seconds < SHORT_ABANDON_THRESHOLD)
   ).length;
 
-  // Stage 3: Queue Abandons (excluding short abandons and bounces)
-  // These are calls that reached queue but were abandoned after exceeding threshold
-  const queueFugues = inboundCalls.filter(r =>
-    r.flow_exit !== false && // NOT an IVR drop
-    !r.attended &&
-    r.abandon_type === 'queue' &&
-    !r.is_bounce &&
-    (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD)
-  ).length;
+  // LEVEL 2: Valid Calls (New 100% reference for rest of funnel)
+  // Valid = Inbound - IVR Losses (Menu Abandons + Errors) - Short Queue Abandons
+  // Only calls that reached the queue AND survived initial 5s threshold count as "valid"
+  const validCallRecords = inboundCalls.filter(r =>
+    r.flow_exit !== false && // DID reach queue (flow_exit = true or neutral)
+    (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD) // NOT short abandon
+  );
+  const validCalls = validCallRecords.length;
 
-  // Stage 4: Bounce Abandons (calls with at least one bounce)
-  // These are unattended calls that had agent callbacks/bounces before abandoning
-  const bounceAbandons = inboundCalls.filter(r =>
-    r.flow_exit !== false && // NOT an IVR drop
-    !r.attended &&
-    r.is_bounce === true
-  ).length;
+  // LEVEL 3: Final Distribution (from Valid Calls)
+  // Attended: Valid calls that were answered
+  const attendedCalls = validCallRecords.filter(r => r.attended).length;
 
-  // Stage 5: Attended Calls (successful completions)
-  const attendedCalls = inboundCalls.filter(r => r.attended).length;
+  // Real Abandoned: Valid calls that were NOT attended (abandoned in queue/alert after 5s)
+  const realAbandonedCalls = validCallRecords.filter(r => !r.attended).length;
 
-  // Total abandons (all unattended inbound calls)
-  const totalAbandons = totalInbound - attendedCalls;
+  // PERCEPTUAL METRICS
+  // ASA Perceptual: Average of (queue_time + alert_time) for attended calls only
+  const attendedRecords = validCallRecords.filter(r => r.attended);
+  const attendedWaitTimes = attendedRecords
+    .map(r => {
+      const queueTime = r.queue_time_seconds ?? 0;
+      const alertTime = r.alert_time_seconds ?? 0;
+      return queueTime + alertTime;
+    })
+    .filter(t => t >= 0);
+
+  const asaPerceptualSeconds = attendedWaitTimes.length > 0
+    ? Math.round(attendedWaitTimes.reduce((a, b) => a + b, 0) / attendedWaitTimes.length)
+    : 0;
+
+  // ATA Perceptual: Average of (queue_time + alert_time) for abandoned calls only
+  const abandonedRecords = validCallRecords.filter(r => !r.attended);
+  const abandonedWaitTimes = abandonedRecords
+    .map(r => {
+      const queueTime = r.queue_time_seconds ?? 0;
+      const alertTime = r.alert_time_seconds ?? 0;
+      return queueTime + alertTime;
+    })
+    .filter(t => t >= 0);
+
+  const ataPerceptualSeconds = abandonedWaitTimes.length > 0
+    ? Math.round(abandonedWaitTimes.reduce((a, b) => a + b, 0) / abandonedWaitTimes.length)
+    : 0;
+
+  // Average IVR Time: Only for calls that exited in IVR
+  const ivrRecords = inboundCalls.filter(r => r.flow_exit === false);
+  const ivrWaitTimes = ivrRecords
+    .map(r => r.ivr_time_seconds ?? 0)
+    .filter(t => t >= 0);
+
+  const avgIvrSeconds = ivrWaitTimes.length > 0
+    ? Math.round(ivrWaitTimes.reduce((a, b) => a + b, 0) / ivrWaitTimes.length)
+    : 0;
+
+  // DATA INTEGRITY CHECK
+  // Total Inbound must equal: (Menu Abandons + Errors) + Short Abandons + Attended + Real Abandoned
+  const integrityExpected = totalInbound;
+  const integrityActual = ivrMenuAbandons + ivrErrors + shortAbandons + attendedCalls + realAbandonedCalls;
+  const integrityCheck = {
+    expected: integrityExpected,
+    actual: integrityActual,
+    isValid: integrityExpected === integrityActual,
+  };
 
   return {
     totalInbound,
-    ivrFugues,
+    ivrMenuAbandons,
+    ivrErrors,
     shortAbandons,
-    queueFugues,
-    bounceAbandons,
+    validCalls,
     attendedCalls,
-    totalAbandons,
+    realAbandonedCalls,
+    asaPerceptualSeconds,
+    ataPerceptualSeconds,
+    avgIvrSeconds,
+    integrityCheck,
   };
 }
 
@@ -1741,66 +1826,82 @@ export function calculateBounceRate(records: CallRecord[]): number {
   return Math.round((bouncedCalls / attendedCalls) * 100);
 }
 
-// 2. Índice de Resolución en IVR: % de llamadas que salieron del IVR (no entraron a cola)
-export function calculateIVRResolutionRate(records: CallRecord[]): number {
+// 2. Menu Abandon Rate: % de llamadas que abandonaron en IVR después de 10s (frustración/confusión)
+export function calculateMenuAbandonRate(records: CallRecord[]): number {
+  const MENU_INTERACTION_THRESHOLD = 10;
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
 
   if (inboundCalls.length === 0) return 0;
 
-  const ivrExits = inboundCalls.filter(r => r.flow_exit === false).length;
-  return Math.round((ivrExits / inboundCalls.length) * 100);
+  // Menu abandons: Calls that DID NOT explicitly reach queue (flow_exit !== true)
+  // AND spent time navigating menu (ivr_time > 10s = customer attempted to navigate)
+  // This matches the ivrMenuAbandons filter in calculateAbandonFunnel
+  const menuAbandons = inboundCalls.filter(r => {
+    const escapedIVR = r.flow_exit !== true; // NOT explicitly true (false or null)
+    const spentTimeInMenu = (r.ivr_time_seconds ?? 0) > MENU_INTERACTION_THRESHOLD;
+    return escapedIVR && spentTimeInMenu;
+  });
+
+  // DEBUG: Log metrics to understand data
+  const ivrExitsCount = inboundCalls.filter(r => r.flow_exit !== true).length;
+  const withIvrTimeCount = inboundCalls.filter(r => (r.ivr_time_seconds ?? 0) > 0).length;
+
+  console.log(`[MenuAbandonRate DEBUG]
+    Total inbound: ${inboundCalls.length}
+    Calls with flow_exit !== true: ${ivrExitsCount}
+    Calls with ivr_time_seconds > 0: ${withIvrTimeCount}
+    Menu abandons (flow_exit !== true AND ivr_time > 10s): ${menuAbandons.length}
+  `);
+
+  return Math.round((menuAbandons.length / inboundCalls.length) * 100);
 }
 
-// 3. Alert Success Ratio: Probabilidad de que un ejecutivo atienda cuando le suena
+// 3. Alert Success Ratio: Porcentaje de llamadas alertadas que fueron contestadas
+// Medida: ¿Qué porcentaje de ejecuciones de alertas resultaron en que un ejecutivo respondiera?
+// Se calcula como: Llamadas atendidas / Llamadas que fueron alertadas (con alert_segments > 0)
 export function calculateAlertSuccessRatio(records: CallRecord[]): number {
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
 
   if (inboundCalls.length === 0) return 0;
 
-  let totalAlertSegments = 0;
-  let totalNoRespond = 0;
+  // Llamadas que FUERON ALERTADAS (tuvieron intentos de asignación a ejecutivos)
+  const alertedCalls = inboundCalls.filter(r => (r.alert_segments || 0) > 0);
 
-  for (const r of inboundCalls) {
-    totalAlertSegments += r.alert_segments || 0;
+  if (alertedCalls.length === 0) return 0;
 
-    // Parse alerted_users JSON to count "No responden"
-    if (r.alerted_users) {
-      try {
-        const users = JSON.parse(r.alerted_users);
-        totalNoRespond += (users['No responden'] || 0);
-      } catch {
-        // Ignore parse errors
-      }
-    }
-  }
+  // Llamadas alertadas que fueron ATENDIDAS (éxito = ejecutivo respondió)
+  const successfulAlerts = alertedCalls.filter(r => r.attended).length;
 
-  if (totalAlertSegments === 0) return 0;
-
-  const successRatio = 1 - (totalNoRespond / totalAlertSegments);
-  return Math.round(successRatio * 100);
+  const successRatio = (successfulAlerts / alertedCalls.length) * 100;
+  return Math.round(successRatio);
 }
 
 export function calculateOperationalKPIs(records: CallRecord[]): OperationalKPIs {
   return {
     bounceRatePercent: calculateBounceRate(records),
-    ivrResolutionRatePercent: calculateIVRResolutionRate(records),
+    menuAbandonRatePercent: calculateMenuAbandonRate(records),
     alertSuccessRatio: calculateAlertSuccessRatio(records),
   };
 }
 
 export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWaitDistributionData {
+  const SHORT_ABANDON_THRESHOLD = 5;
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
 
-  // Hardened filter: Only calls that were assigned to an agent but not attended
-  // This isolates "Failed Assignment" cases where customer was queued & agent was assigned but call abandoned
-  const validCalls = inboundCalls.filter(r => {
-    const salioDelIVR = r.flow_exit !== false; // Exited IVR successfully
-    const tieneAsignacion = r.executive !== null && r.executive !== undefined && r.executive !== ''; // Agent assigned
-    const noFueAtendida = !r.attended; // Not handled
-    return salioDelIVR && tieneAsignacion && noFueAtendida;
-  });
+  // CRITICAL: Use EXACT same filter as calculateAbandonFunnel's realAbandonedCalls
+  // This is a DETAILED BREAKDOWN of the "Abandonos Reales" from Level 3 of the funnel
+  //
+  // Valid Calls: Inbound - IVR Fugues - Short Abandons
+  const validCallRecords = inboundCalls.filter(r =>
+    r.flow_exit !== false && // NOT IVR drop
+    (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD) // NOT short abandon
+  );
 
-  // New buckets: granular ranges to capture atypical cases
+  // Real Abandoned: Valid calls that were NOT attended
+  const realAbandonedCalls = validCallRecords.filter(r => !r.attended);
+
+  // Buckets: Time-to-Abandon using PERCEPTUAL wait time (queue + alert)
+  // NOT just queue_time_seconds, because customer experiences both
   const buckets = [
     { label: '<10s', min: 0, max: 10 },
     { label: '10-20s', min: 10, max: 20 },
@@ -1813,30 +1914,45 @@ export function calculateQueueWaitDistribution(records: CallRecord[]): QueueWait
   ];
 
   const bucketData = buckets.map(b => {
-    const count = validCalls.filter(r => {
-      const qt = r.queue_time_seconds ?? 0;
-      return qt >= b.min && qt < b.max;
+    const count = realAbandonedCalls.filter(r => {
+      const queueTime = r.queue_time_seconds ?? 0;
+      const alertTime = r.alert_time_seconds ?? 0;
+      const perceptualWait = queueTime + alertTime;
+      return perceptualWait >= b.min && perceptualWait < b.max;
     }).length;
     return {
       label: b.label,
       count,
-      percentage: validCalls.length > 0 ? Math.round((count / validCalls.length) * 100) : 0,
+      percentage: realAbandonedCalls.length > 0 ? Math.round((count / realAbandonedCalls.length) * 100) : 0,
     };
   });
 
-  // SL metrics: ≤20s (SL compliance), 20-60s (recovery window), >60s (lost)
-  const slCount = validCalls.filter(r => (r.queue_time_seconds ?? 0) <= 20).length;
-  const midCount = validCalls.filter(r => {
-    const qt = r.queue_time_seconds ?? 0;
-    return qt > 20 && qt <= 60;
+  // Service Level metrics for abandoned calls (using perceptual wait time):
+  // ≤20s (SL compliance zone - could be recovered with immediate answer)
+  // 20-60s (recovery window - customer still in reasonable patience range)
+  // >60s (lost - customer frustration too high)
+  const slCount = realAbandonedCalls.filter(r => {
+    const queueTime = r.queue_time_seconds ?? 0;
+    const alertTime = r.alert_time_seconds ?? 0;
+    return (queueTime + alertTime) <= 20;
   }).length;
-  const longCount = validCalls.filter(r => (r.queue_time_seconds ?? 0) > 60).length;
+  const midCount = realAbandonedCalls.filter(r => {
+    const queueTime = r.queue_time_seconds ?? 0;
+    const alertTime = r.alert_time_seconds ?? 0;
+    const perceptualWait = queueTime + alertTime;
+    return perceptualWait > 20 && perceptualWait <= 60;
+  }).length;
+  const longCount = realAbandonedCalls.filter(r => {
+    const queueTime = r.queue_time_seconds ?? 0;
+    const alertTime = r.alert_time_seconds ?? 0;
+    return (queueTime + alertTime) > 60;
+  }).length;
 
   return {
     buckets: bucketData,
-    slPercent: validCalls.length > 0 ? Math.round((slCount / validCalls.length) * 100) : 0,
-    midPercent: validCalls.length > 0 ? Math.round((midCount / validCalls.length) * 100) : 0,
-    longPercent: validCalls.length > 0 ? Math.round((longCount / validCalls.length) * 100) : 0,
-    totalValidCalls: validCalls.length,
+    slPercent: realAbandonedCalls.length > 0 ? Math.round((slCount / realAbandonedCalls.length) * 100) : 0,
+    midPercent: realAbandonedCalls.length > 0 ? Math.round((midCount / realAbandonedCalls.length) * 100) : 0,
+    longPercent: realAbandonedCalls.length > 0 ? Math.round((longCount / realAbandonedCalls.length) * 100) : 0,
+    totalValidCalls: realAbandonedCalls.length,
   };
 }

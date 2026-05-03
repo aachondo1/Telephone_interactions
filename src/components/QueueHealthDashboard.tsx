@@ -3,9 +3,11 @@ import type { CallRecord } from '../lib/supabase';
 import {
   calculateQueueHealthMetrics,
   calculateAbandonFunnel,
+  calculateOperationalKPIs,
 } from '../lib/kpi';
 import { QueueHealthMetricsCards } from './QueueHealthMetricsCards';
 import { AbandonFunnelChart } from './AbandonFunnelChart';
+import { AbandonTimeThresholds } from './AbandonTimeThresholds';
 import { QueueWaitDistribution } from './QueueWaitDistribution';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import { calculateQueuePerformanceHeatmap } from '../lib/kpi';
@@ -18,15 +20,19 @@ type Props = {
 export function QueueHealthDashboard({ records }: Props) {
   const metrics = useMemo(() => calculateQueueHealthMetrics(records), [records]);
   const funnelData = useMemo(() => calculateAbandonFunnel(records), [records]);
+  const operationalKPIs = useMemo(() => calculateOperationalKPIs(records), [records]);
   const heatmapData = useMemo(() => calculateQueuePerformanceHeatmap(records), [records]);
 
   return (
     <div className="space-y-8">
-      {/* KPI Cards */}
-      <QueueHealthMetricsCards metrics={metrics} />
+      {/* Metrics Cards: 2 rows x 4 columns */}
+      <QueueHealthMetricsCards metrics={metrics} operationalKPIs={operationalKPIs} />
 
       {/* Abandon Funnel */}
       <AbandonFunnelChart data={funnelData} />
+
+      {/* Abandon Time Thresholds */}
+      <AbandonTimeThresholds records={records} />
 
       {/* Wait Distribution Histogram */}
       <QueueWaitDistribution records={records} />

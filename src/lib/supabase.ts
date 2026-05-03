@@ -41,6 +41,12 @@ export type CallRecord = {
   is_bounce: boolean;
   hold_time_seconds: number;
   acw_seconds: number;
+  // IVR and timing metrics (new fields from Genesys Cloud)
+  ivr_time_seconds: number | null;
+  time_to_abandon: number | null;
+  exit_reason: string | null;
+  // Calculated field: abandoned = true if call was not attended
+  abandoned: boolean;
 };
 
 export type CallRecordInsert = Omit<CallRecord, 'id'>;
