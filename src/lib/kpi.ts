@@ -793,7 +793,7 @@ function isMobileNumber(aniMasked: string): boolean {
   return aniMasked.startsWith('+569');
 }
 
-export function calculateTopCallers(records: CallRecord[], limit = 10, mobileOnly = false, inboundOnly = false): TopCallerEntry[] {
+export function calculateTopCallers(records: CallRecord[], limit = 10, mobileOnly = false, inboundOnly = false, assignedToQueueOnly = true): TopCallerEntry[] {
   type Accumulator = {
     aniMasked: string;
     callCount: number;
@@ -809,6 +809,7 @@ export function calculateTopCallers(records: CallRecord[], limit = 10, mobileOnl
     if (!r.ani_hash) continue;
     if (mobileOnly && !isMobileNumber(r.ani_masked)) continue;
     if (inboundOnly && !isInbound(r.call_direction)) continue;
+    if (assignedToQueueOnly && !r.queue) continue;
 
     let acc = callerMap.get(r.ani_hash);
     if (!acc) {

@@ -44,7 +44,7 @@ export function TopCallersTable({ records }: Props) {
       <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <Phone size={16} className="text-sky-600" />
-          <h3 className="text-sm font-semibold text-slate-700">Top 10 números con más llamadas</h3>
+          <h3 className="text-sm font-semibold text-slate-700">Top 10 números con más llamadas asignadas a cola</h3>
         </div>
         <div className="flex items-center gap-2">
           <button
