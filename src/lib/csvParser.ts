@@ -690,9 +690,11 @@ function parseNumericField(raw: string): number {
 }
 
 function parseFlowExit(raw: string): boolean {
-  if (!raw || raw.trim() === '') return true;
+  if (!raw || raw.trim() === '') return false;  // Empty = didn't exit IVR (NaN/null means abandoned)
   const s = raw.trim().toLowerCase();
-  return s === 'sí' || s === 'si' || s === 'yes' || s === '1' || s === 'true';
+  // 1.0 or numeric 1 means exited successfully
+  if (s === '1' || s === '1.0' || s === 'true' || s === 'sí' || s === 'si' || s === 'yes') return true;
+  return false;
 }
 
 function calculateAbandonType(
