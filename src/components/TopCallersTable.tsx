@@ -34,8 +34,9 @@ function queueColor(queue: string): string {
 
 export function TopCallersTable({ records }: Props) {
   const [mobileOnly, setMobileOnly] = useState(false);
+  const [inboundOnly, setInboundOnly] = useState(false);
 
-  const data: TopCallerEntry[] = calculateTopCallers(records, 10, mobileOnly);
+  const data: TopCallerEntry[] = calculateTopCallers(records, 10, mobileOnly, inboundOnly);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -43,25 +44,39 @@ export function TopCallersTable({ records }: Props) {
       <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <Phone size={16} className="text-sky-600" />
-          <h3 className="text-sm font-semibold text-slate-700">Top 10 números con más llamadas</h3>
+          <h3 className="text-sm font-semibold text-slate-700">Top 10 números con más llamadas asignadas a cola</h3>
         </div>
-        <button
-          type="button"
-          onClick={() => setMobileOnly(v => !v)}
-          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-            mobileOnly
-              ? 'bg-sky-600 border-sky-600 text-white'
-              : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'
-          }`}
-        >
-          <Filter size={12} />
-          Solo celulares
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setInboundOnly(v => !v)}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              inboundOnly
+                ? 'bg-sky-600 border-sky-600 text-white'
+                : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'
+            }`}
+          >
+            <Filter size={12} />
+            Solo entrantes
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileOnly(v => !v)}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              mobileOnly
+                ? 'bg-sky-600 border-sky-600 text-white'
+                : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'
+            }`}
+          >
+            <Filter size={12} />
+            Solo celulares
+          </button>
+        </div>
       </div>
 
       {data.length === 0 ? (
         <div className="px-6 py-10 text-center text-sm text-slate-400">
-          No hay datos de teléfono en el período seleccionado.
+          No hay datos disponibles
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -167,7 +182,8 @@ export function TopCallersTable({ records }: Props) {
 
       <div className="px-6 py-3 border-t border-slate-50 text-xs text-slate-400">
         Los números están parcialmente anonimizados (últimos 4 dígitos visibles).
-        {mobileOnly && ' Filtrando solo números de 11 dígitos (celulares).'}
+        {inboundOnly && ' Filtrando solo llamadas entrantes.'}
+        {mobileOnly && ' Filtrando solo números celulares (+569).'}
       </div>
     </div>
   );
