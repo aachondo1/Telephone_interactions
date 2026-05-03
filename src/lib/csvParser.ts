@@ -110,6 +110,16 @@ export function detectColumns(headers: string[]): Record<string, string> {
   for (const [key, aliases] of Object.entries(COLUMN_ALIASES)) {
     const found = findColumn(headers, aliases);
     if (found) map[key] = found;
+
+    // DEBUG: Log IVR column detection
+    if (key === 'ivrTotal') {
+      console.log(`[CSV Parse DEBUG] Detectando ${key}:`, {
+        aliases,
+        headers_available: headers,
+        found,
+        normalized_headers: headers.map(h => h.toLowerCase().trim()),
+      });
+    }
   }
   return map;
 }
@@ -486,6 +496,18 @@ export async function transformRows(
     const ivrTotalSeconds = columnMap.ivrTotal
       ? parseNumericField(row[columnMap.ivrTotal] ?? '0')
       : 0;
+
+    // DEBUG: Log IVR parsing for first few records
+    if (i < 5) {
+      console.log(`[CSV Parse DEBUG] Record ${i} IVR:`, {
+        columnMapHasIvrTotal: !!columnMap.ivrTotal,
+        ivrColumnName: columnMap.ivrTotal,
+        rawValue: columnMap.ivrTotal ? row[columnMap.ivrTotal] : 'NO COLUMN',
+        parsedSeconds: ivrTotalSeconds,
+        flowExit,
+        queue,
+      });
+    }
 
     const usersNotRespond = columnMap.usersNotRespond
       ? (row[columnMap.usersNotRespond] ?? '')
