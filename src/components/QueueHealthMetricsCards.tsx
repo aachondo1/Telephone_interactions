@@ -15,7 +15,7 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
+export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }: Props) {
   // Calculate aggregate metrics across all queues (weighted averages)
   const validQueues = metrics.filter(m => (m.attendedCalls > 0 || m.abandonedCalls > 0) && m.queue !== 'Sin cola');
 
