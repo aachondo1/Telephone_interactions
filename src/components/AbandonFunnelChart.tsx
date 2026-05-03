@@ -8,7 +8,8 @@ type Props = {
 export function AbandonFunnelChart({ data }: Props) {
   const {
     totalInbound,
-    ivrFugues,
+    ivrMenuAbandons,
+    ivrErrors,
     shortAbandons,
     validCalls,
     attendedCalls,
@@ -18,7 +19,8 @@ export function AbandonFunnelChart({ data }: Props) {
   // Sankey diagram nodes and links
   const nodes = [
     { name: 'Entrantes Brutas' },
-    { name: 'Fuga IVR' },
+    { name: 'Abandono en Menú' },
+    { name: 'Error de Marcación' },
     { name: 'Abandono Corto' },
     { name: 'Llamadas Válidas' },
     { name: 'Atendidas' },
@@ -26,11 +28,12 @@ export function AbandonFunnelChart({ data }: Props) {
   ];
 
   const links = [
-    { source: 0, target: 1, value: ivrFugues, stroke: '#a78bfa' },
-    { source: 0, target: 2, value: shortAbandons, stroke: '#fbbf24' },
-    { source: 0, target: 3, value: validCalls, stroke: '#60a5fa' },
-    { source: 3, target: 4, value: attendedCalls, stroke: '#84bd00' },
-    { source: 3, target: 5, value: realAbandonedCalls, stroke: '#ef4444' },
+    { source: 0, target: 1, value: ivrMenuAbandons, stroke: '#d946ef' },
+    { source: 0, target: 2, value: ivrErrors, stroke: '#a78bfa' },
+    { source: 0, target: 3, value: shortAbandons, stroke: '#fbbf24' },
+    { source: 0, target: 4, value: validCalls, stroke: '#60a5fa' },
+    { source: 4, target: 5, value: attendedCalls, stroke: '#84bd00' },
+    { source: 4, target: 6, value: realAbandonedCalls, stroke: '#ef4444' },
   ];
 
   const sankey = {

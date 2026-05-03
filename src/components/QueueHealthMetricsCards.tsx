@@ -145,21 +145,6 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
       },
     },
     {
-      label: 'Resolución IVR',
-      value: `${operationalKPIs.ivrResolutionRatePercent}%`,
-      sub: 'De llamadas inbound',
-      icon: AlertCircle,
-      color: 'bg-blue-50 text-blue-600',
-      border: 'border-blue-100',
-      benchmark: 'Mayor es mejor',
-      tooltip: {
-        definition: 'Porcentaje de llamadas que fueron resueltas en el IVR sin entrar a cola (flow_exit = false)',
-        formula: 'Llamadas IVR sin entrar a cola / Llamadas inbound × 100',
-        unit: 'Porcentaje (%)',
-        benchmark: 'Mayor es mejor. Alivia carga de colas',
-      },
-    },
-    {
       label: 'Éxito de Alertas',
       value: `${operationalKPIs.alertSuccessRatio}%`,
       sub: 'Probabilidad de respuesta',
@@ -228,7 +213,7 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
       </div>
 
       {/* Row 2: Operational KPIs + Erlang C */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {secondRowCards.map(({ label, value, sub, icon: Icon, color, border, benchmark, tooltip }) => (
           <div key={label} className={`bg-white rounded-2xl p-6 shadow-sm border ${border}`}>
             <div className="flex items-start justify-between mb-4">

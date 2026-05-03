@@ -1345,7 +1345,6 @@ export function getDataQualityReport(records: CallRecord[]): DataQualityReport {
 // Operational KPIs
 export type OperationalKPIs = {
   bounceRatePercent: number;
-  ivrResolutionRatePercent: number;
   alertSuccessRatio: number;
 };
 
@@ -1371,8 +1370,9 @@ export type QueueHealthMetric = {
 export type AbandonFunnelData = {
   // Level 1: Raw Inbound
   totalInbound: number;
-  ivrFugues: number;
-  shortAbandons: number;
+  ivrMenuAbandons: number; // flow_exit !== true + ivr_time > 10s
+  ivrErrors: number; // flow_exit !== true + ivr_time <= 10s
+  shortAbandons: number; // Queue abandons < 5s
 
   // Level 2: Valid Calls (New 100% Reference)
   validCalls: number;
@@ -1607,30 +1607,28 @@ export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData
   const totalInbound = inboundCalls.length;
 
   // Quality Filters (Removing Non-Valid Calls)
-  // 1. IVR Fugues: Refined Logic
-  // Definición: Llamadas donde flow_exit !== true AND queue_time_seconds === 0
-  // = Nunca llegó a generar tiempo de espera para un agente
+  // CRITICAL: IVR en BiceHipotecaria SOLO enruta. Sin autoservicio, cualquier flow_exit !== true es una pérdida.
   //
-  // Subcategorías (informativas):
-  // - Autoservicio Estimado: ivr_time > 45s (cliente interactuó, obtuvo info, colgó satisfecho)
-  // - Abandono Prematuro: ivr_time < 10s (cliente frustrado por menú confuso o error)
+  // 1. Abandono en Menú (Fuga): flow_exit !== true + ivr_time > 10s
+  //    = Cliente intentó navegar menú, se confundió/aburrió, colgó
+  //
+  // 2. Error de Marcación: flow_exit !== true + ivr_time <= 10s
+  //    = Cliente colgó apenas escuchó saludo (toque accidental o cambio de idea)
 
-  const ivrFuguesDetailed = inboundCalls.filter(r => {
-    const escapedIVR = r.flow_exit !== true; // NOT explicitly true (includes false and null)
-    const neverReachedQueue = (r.queue_time_seconds ?? 0) === 0; // Nunca generó tiempo de cola
-    return escapedIVR && neverReachedQueue;
-  });
+  const ivrMenuAbandons = inboundCalls.filter(r => {
+    const escapedIVR = r.flow_exit !== true;
+    const spentTimeInMenu = (r.ivr_time_seconds ?? 0) > ABANDON_MAX_IVR_TIME;
+    return escapedIVR && spentTimeInMenu;
+  }).length;
 
-  const ivrFugues = ivrFuguesDetailed.length;
+  const ivrErrors = inboundCalls.filter(r => {
+    const escapedIVR = r.flow_exit !== true;
+    const quickExit = (r.ivr_time_seconds ?? 0) <= ABANDON_MAX_IVR_TIME;
+    return escapedIVR && quickExit;
+  }).length;
 
-  // Subcategorías para análisis (no afectan el funnel, solo informativas)
-  const ivrAutoservice = ivrFuguesDetailed.filter(r =>
-    (r.ivr_time_seconds ?? 0) >= AUTOSERVICE_MIN_IVR_TIME
-  ).length;
-
-  const ivrAbandonPremature = ivrFuguesDetailed.filter(r =>
-    (r.ivr_time_seconds ?? 0) < ABANDON_MAX_IVR_TIME && (r.ivr_time_seconds ?? 0) > 0
-  ).length;
+  // Total IVR losses
+  const totalIvrLosses = ivrMenuAbandons + ivrErrors;
 
   // 2. Short Abandons: Llamadas que SÍ llegaron a cola pero abandonadas en < 5s
   const shortAbandons = inboundCalls.filter(r =>
@@ -1640,9 +1638,10 @@ export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData
   ).length;
 
   // LEVEL 2: Valid Calls (New 100% reference for rest of funnel)
-  // Valid = Inbound - IVR Fugues - Short Abandons
+  // Valid = Inbound - IVR Losses (Menu Abandons + Errors) - Short Queue Abandons
+  // Only calls that reached the queue AND survived initial 5s threshold count as "valid"
   const validCallRecords = inboundCalls.filter(r =>
-    r.flow_exit !== false && // NOT IVR drop
+    r.flow_exit !== false && // DID reach queue (flow_exit = true or neutral)
     (r.queue_time_seconds === null || r.queue_time_seconds >= SHORT_ABANDON_THRESHOLD) // NOT short abandon
   );
   const validCalls = validCallRecords.length;
@@ -1694,9 +1693,9 @@ export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData
     : 0;
 
   // DATA INTEGRITY CHECK
-  // Total Inbound must equal: IVR Fugues + Short Abandons + Attended + Real Abandoned
+  // Total Inbound must equal: (Menu Abandons + Errors) + Short Abandons + Attended + Real Abandoned
   const integrityExpected = totalInbound;
-  const integrityActual = ivrFugues + shortAbandons + attendedCalls + realAbandonedCalls;
+  const integrityActual = ivrMenuAbandons + ivrErrors + shortAbandons + attendedCalls + realAbandonedCalls;
   const integrityCheck = {
     expected: integrityExpected,
     actual: integrityActual,
@@ -1705,7 +1704,8 @@ export function calculateAbandonFunnel(records: CallRecord[]): AbandonFunnelData
 
   return {
     totalInbound,
-    ivrFugues,
+    ivrMenuAbandons,
+    ivrErrors,
     shortAbandons,
     validCalls,
     attendedCalls,
@@ -1825,17 +1825,7 @@ export function calculateBounceRate(records: CallRecord[]): number {
   return Math.round((bouncedCalls / attendedCalls) * 100);
 }
 
-// 2. Índice de Resolución en IVR: % de llamadas que salieron del IVR (no entraron a cola)
-export function calculateIVRResolutionRate(records: CallRecord[]): number {
-  const inboundCalls = records.filter(r => isInbound(r.call_direction));
-
-  if (inboundCalls.length === 0) return 0;
-
-  const ivrExits = inboundCalls.filter(r => r.flow_exit === false).length;
-  return Math.round((ivrExits / inboundCalls.length) * 100);
-}
-
-// 3. Alert Success Ratio: Probabilidad de que un ejecutivo atienda cuando le suena
+// 2. Alert Success Ratio: Probabilidad de que un ejecutivo atienda cuando le suena
 export function calculateAlertSuccessRatio(records: CallRecord[]): number {
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
 
@@ -1867,7 +1857,6 @@ export function calculateAlertSuccessRatio(records: CallRecord[]): number {
 export function calculateOperationalKPIs(records: CallRecord[]): OperationalKPIs {
   return {
     bounceRatePercent: calculateBounceRate(records),
-    ivrResolutionRatePercent: calculateIVRResolutionRate(records),
     alertSuccessRatio: calculateAlertSuccessRatio(records),
   };
 }
