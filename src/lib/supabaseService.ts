@@ -82,6 +82,14 @@ export async function saveUpload(
       acw_seconds: record.acwSeconds,
       ivr_time_seconds: record.ivrTotalSeconds || null,
       time_to_abandon: record.abandonTimeSeconds || null,
+      campaign: record.campaign || null,
+      exit_reason: null,
+      disconnection_type: record.disconnectionType || null,
+      conversation_initiator: record.conversationInitiator || null,
+      conversation_total_seconds: record.conversationTotalSeconds || null,
+      transfers: record.transfers || null,
+      partial_result_timestamp: record.partialResultTimestamp || null,
+      filters: record.filters || null,
     });
   }
 
