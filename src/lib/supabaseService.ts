@@ -80,6 +80,17 @@ export async function saveUpload(
       is_bounce: record.isBounce,
       hold_time_seconds: record.holdTimeSeconds,
       acw_seconds: record.acwSeconds,
+      ivr_total_seconds: record.ivrTotalSeconds || 0,
+      users_not_respond: record.usersNotRespond || null,
+      transfers: record.transfers || 0,
+      abandon_time_seconds: record.abandonTimeSeconds || 0,
+      conversation_total_seconds: record.conversationTotalSeconds || 0,
+      disconnection_type: record.disconnectionType || null,
+      finalization_date: record.finalizationDate || null,
+      partial_result_timestamp: record.partialResultTimestamp || null,
+      filters: record.filters || null,
+      campaign: record.campaign || null,
+      conversation_initiator: record.conversationInitiator || null,
     });
   }
 

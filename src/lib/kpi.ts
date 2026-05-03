@@ -1763,8 +1763,13 @@ export function calculateAlertSuccessRatio(records: CallRecord[]): number {
   for (const r of inboundCalls) {
     totalAlertSegments += r.alert_segments || 0;
 
-    // Parse alerted_users JSON to count "No responden"
-    if (r.alerted_users) {
+    // Use users_not_respond field (or try to parse alerted_users JSON as fallback)
+    if (r.users_not_respond) {
+      const noRespondCount = parseInt(r.users_not_respond, 10);
+      if (!isNaN(noRespondCount)) {
+        totalNoRespond += noRespondCount;
+      }
+    } else if (r.alerted_users) {
       try {
         const users = JSON.parse(r.alerted_users);
         totalNoRespond += (users['No responden'] || 0);
