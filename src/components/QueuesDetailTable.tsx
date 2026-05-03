@@ -52,6 +52,19 @@ export function QueuesDetailTable({ stats }: Props) {
     { label: 'Atendidas / No Atendidas', key: 'completenessRate', align: 'text-center' },
   ];
 
+  if (!stats || stats.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+        <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-4">
+          Detalle de Colas
+        </h3>
+        <div className="text-slate-500 text-center py-8">
+          No hay datos disponibles para el período seleccionado
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100">
@@ -85,7 +98,7 @@ export function QueuesDetailTable({ stats }: Props) {
                     <span className="font-medium text-slate-700 truncate max-w-[180px]">{q.queue}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                <td className="px-4 py-3 text-right font-mono font-semibold text-slate-800">
                   {q.count.toLocaleString('es-CL')}
                 </td>
                 <td className="px-4 py-3 text-right">
@@ -123,7 +136,7 @@ export function QueuesDetailTable({ stats }: Props) {
                     <span className="text-slate-300">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right font-mono">
                   {q.unattendedCount > 0 ? (
                     <span className="text-red-500 font-semibold">{q.unattendedCount.toLocaleString('es-CL')}</span>
                   ) : (

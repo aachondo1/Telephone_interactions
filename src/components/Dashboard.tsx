@@ -437,19 +437,20 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       )}
 
       {activeSection === 'colas' && (
-        <div className="space-y-6">
+        <div className="space-y-8">
           <SectionHeader
             icon={Layers}
             title="Análisis de Colas"
             description="Rendimiento, ocupación y patrones de atención por cola"
           />
+
+          {/* NIVEL 1: Contexto Inmediato */}
           <QueueKPICards stats={kpis.queueStats} totalCalls={kpis.totalCalls} />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <QueueBarChart stats={kpis.queueStats} />
-            <QueuePieChart stats={kpis.queueStats} />
-          </div>
-          <QueuePerformanceHeatmap data={kpis.queuePerformanceHeatmap} />
+
+          {/* NIVEL 2: Evolución Temporal */}
           <QueueAttendanceEvolution data={kpis.queueAttendanceEvolution} />
+
+          {/* NIVEL 3: Análisis Estructural - Patrones Recurrentes */}
           <WeeklyAttentionHeatmap
             data={kpis.weeklyAttentionHeatmap}
             onCellClick={(weekKey, queue) => {
@@ -466,8 +467,17 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
               }));
             }}
           />
-          <QueueUnattendedHeatmap data={kpis.queueUnattendedHeatmap} />
-          <QueueLoadVariability data={kpis.queueLoadVariability} />
+
+          {/* NIVEL 4: Comparativa Horaria (Éxito vs Fallas lado a lado) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <QueuePerformanceHeatmap data={kpis.queuePerformanceHeatmap} />
+            <QueueUnattendedHeatmap data={kpis.queueUnattendedHeatmap} />
+          </div>
+
+          {/* NIVEL 5: Distribución de Volumen */}
+          <QueueBarChart stats={kpis.queueStats} />
+
+          {/* NIVEL 6: Detalle Operacional */}
           <QueuesDetailTable stats={kpis.queueStats} />
           <TopCallersTable records={filteredRecords} />
         </div>
