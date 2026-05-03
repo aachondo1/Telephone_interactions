@@ -29,7 +29,8 @@ export function QueuesDetailTable({ stats }: Props) {
     }
   }
 
-  const sorted = [...stats].sort((a, b) => {
+  const filtered = stats.filter(q => q.queue !== 'Sin cola');
+  const sorted = [...filtered].sort((a, b) => {
     const av = a[sortKey];
     const bv = b[sortKey];
     if (typeof av === 'string' && typeof bv === 'string') {
