@@ -145,6 +145,21 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
       },
     },
     {
+      label: 'Abandono en Menú',
+      value: `${operationalKPIs.menuAbandonRatePercent}%`,
+      sub: 'De llamadas inbound',
+      icon: TrendingDown,
+      color: operationalKPIs.menuAbandonRatePercent <= 10 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600',
+      border: operationalKPIs.menuAbandonRatePercent <= 10 ? 'border-emerald-100' : 'border-orange-100',
+      benchmark: '≤ 10%',
+      tooltip: {
+        definition: 'Porcentaje de llamadas que abandonaron en el IVR después de 10 segundos (indicativo de confusión/frustración)',
+        formula: '(flow_exit ≠ true AND ivr_time > 10s) / Total inbound × 100',
+        unit: 'Porcentaje (%)',
+        benchmark: '≤ 10%. Alerta de problemas de usabilidad en menú IVR',
+      },
+    },
+    {
       label: 'Éxito de Alertas',
       value: `${operationalKPIs.alertSuccessRatio}%`,
       sub: 'Probabilidad de respuesta',
@@ -213,7 +228,7 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs }: Props) {
       </div>
 
       {/* Row 2: Operational KPIs + Erlang C */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {secondRowCards.map(({ label, value, sub, icon: Icon, color, border, benchmark, tooltip }) => (
           <div key={label} className={`bg-white rounded-2xl p-6 shadow-sm border ${border}`}>
             <div className="flex items-start justify-between mb-4">

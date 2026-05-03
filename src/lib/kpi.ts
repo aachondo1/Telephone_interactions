@@ -1345,6 +1345,7 @@ export function getDataQualityReport(records: CallRecord[]): DataQualityReport {
 // Operational KPIs
 export type OperationalKPIs = {
   bounceRatePercent: number;
+  menuAbandonRatePercent: number;
   alertSuccessRatio: number;
 };
 
@@ -1825,7 +1826,22 @@ export function calculateBounceRate(records: CallRecord[]): number {
   return Math.round((bouncedCalls / attendedCalls) * 100);
 }
 
-// 2. Alert Success Ratio: Probabilidad de que un ejecutivo atienda cuando le suena
+// 2. Menu Abandon Rate: % de llamadas que abandonaron en IVR después de 10s (frustración/confusión)
+export function calculateMenuAbandonRate(records: CallRecord[]): number {
+  const MENU_INTERACTION_THRESHOLD = 10;
+  const inboundCalls = records.filter(r => isInbound(r.call_direction));
+
+  if (inboundCalls.length === 0) return 0;
+
+  const menuAbandons = inboundCalls.filter(r =>
+    r.flow_exit !== true && // Did not reach queue
+    (r.ivr_time_seconds ?? 0) > MENU_INTERACTION_THRESHOLD // Spent time navigating menu
+  ).length;
+
+  return Math.round((menuAbandons / inboundCalls.length) * 100);
+}
+
+// 3. Alert Success Ratio: Probabilidad de que un ejecutivo atienda cuando le suena
 export function calculateAlertSuccessRatio(records: CallRecord[]): number {
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
 
@@ -1857,6 +1873,7 @@ export function calculateAlertSuccessRatio(records: CallRecord[]): number {
 export function calculateOperationalKPIs(records: CallRecord[]): OperationalKPIs {
   return {
     bounceRatePercent: calculateBounceRate(records),
+    menuAbandonRatePercent: calculateMenuAbandonRate(records),
     alertSuccessRatio: calculateAlertSuccessRatio(records),
   };
 }
