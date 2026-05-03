@@ -1833,12 +1833,27 @@ export function calculateMenuAbandonRate(records: CallRecord[]): number {
 
   if (inboundCalls.length === 0) return 0;
 
-  const menuAbandons = inboundCalls.filter(r =>
-    r.flow_exit !== true && // Did not reach queue
-    (r.ivr_time_seconds ?? 0) > MENU_INTERACTION_THRESHOLD // Spent time navigating menu
-  ).length;
+  // Menu abandons: Calls that DID NOT explicitly reach queue (flow_exit !== true)
+  // AND spent time navigating menu (ivr_time > 10s = customer attempted to navigate)
+  // This matches the ivrMenuAbandons filter in calculateAbandonFunnel
+  const menuAbandons = inboundCalls.filter(r => {
+    const escapedIVR = r.flow_exit !== true; // NOT explicitly true (false or null)
+    const spentTimeInMenu = (r.ivr_time_seconds ?? 0) > MENU_INTERACTION_THRESHOLD;
+    return escapedIVR && spentTimeInMenu;
+  });
 
-  return Math.round((menuAbandons / inboundCalls.length) * 100);
+  // DEBUG: Log metrics to understand data
+  const ivrExitsCount = inboundCalls.filter(r => r.flow_exit !== true).length;
+  const withIvrTimeCount = inboundCalls.filter(r => (r.ivr_time_seconds ?? 0) > 0).length;
+
+  console.log(`[MenuAbandonRate DEBUG]
+    Total inbound: ${inboundCalls.length}
+    Calls with flow_exit !== true: ${ivrExitsCount}
+    Calls with ivr_time_seconds > 0: ${withIvrTimeCount}
+    Menu abandons (flow_exit !== true AND ivr_time > 10s): ${menuAbandons.length}
+  `);
+
+  return Math.round((menuAbandons.length / inboundCalls.length) * 100);
 }
 
 // 3. Alert Success Ratio: Probabilidad de que un ejecutivo atienda cuando le suena

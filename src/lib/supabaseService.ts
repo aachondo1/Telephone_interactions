@@ -80,6 +80,8 @@ export async function saveUpload(
       is_bounce: record.isBounce,
       hold_time_seconds: record.holdTimeSeconds,
       acw_seconds: record.acwSeconds,
+      ivr_time_seconds: record.ivrTotalSeconds || null,
+      time_to_abandon: record.abandonTimeSeconds || null,
     });
   }
 
