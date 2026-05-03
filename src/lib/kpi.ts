@@ -790,7 +790,7 @@ export function calculateHourlyDemand(records: CallRecord[]): HourlyDemandData {
 // Chilean mobile numbers have 11 digits after stripping country code (56 + 9 + 8 digits).
 // The masked version preserves the original length (Xs + last 4), so length 11 = mobile.
 function isMobileNumber(aniMasked: string): boolean {
-  return aniMasked.length === 11;
+  return aniMasked.startsWith('+569');
 }
 
 export function calculateTopCallers(records: CallRecord[], limit = 10, mobileOnly = false, inboundOnly = false): TopCallerEntry[] {

@@ -183,7 +183,7 @@ export function TopCallersTable({ records }: Props) {
       <div className="px-6 py-3 border-t border-slate-50 text-xs text-slate-400">
         Los números están parcialmente anonimizados (últimos 4 dígitos visibles).
         {inboundOnly && ' Filtrando solo llamadas entrantes.'}
-        {mobileOnly && ' Filtrando solo números de 11 dígitos (celulares).'}
+        {mobileOnly && ' Filtrando solo números celulares (+569).'}
       </div>
     </div>
   );
