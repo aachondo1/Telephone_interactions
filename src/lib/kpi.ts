@@ -441,7 +441,8 @@ export function calculateQueueUnattendedHeatmap(records: CallRecord[]): QueueUna
   const queueMap = new Map<string, Map<number, Map<number, { total: number; unattended: number }>>>();
 
   for (const r of records) {
-    const queue = r.queue || 'Sin cola';
+    if (!r.queue) continue; // Skip records without a queue (exclude "Sin cola")
+    const queue = r.queue;
     const hour = r.call_hour ?? -1;
     const date = r.call_date;
     if (hour < 0 || hour > 23 || !date) continue;
