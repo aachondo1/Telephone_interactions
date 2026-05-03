@@ -692,7 +692,52 @@ function timeStringToMinutes(timeStr: string | null): number | null {
   return hours * 60 + minutes;
 }
 
-export function calculateInterventionImpact(records: CallRecord[]): InterventionMetrics[] {
+/**
+ * Count working days in a date range
+ * Working schedule: Mon-Thu = 8h each, Fri = 6h (38h/week total)
+ * @param startDate YYYY-MM-DD format
+ * @param endDate YYYY-MM-DD format
+ * @returns { mondayToThursday: number, fridays: number }
+ */
+function countWorkingDaysInRange(
+  startDate: string,
+  endDate: string
+): { mondayToThursday: number; fridays: number } {
+  let mondayToThursday = 0;
+  let fridays = 0;
+
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T23:59:59');
+
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dayOfWeek = d.getDay(); // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
+    if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+      mondayToThursday++;
+    } else if (dayOfWeek === 5) {
+      fridays++;
+    }
+  }
+
+  return { mondayToThursday, fridays };
+}
+
+/**
+ * Calculate the divisor for Erlangs based on working hours in date range
+ * Formula: (mondayToThursday × 8 + fridays × 6) × 3600 seconds
+ * @param startDate YYYY-MM-DD format
+ * @param endDate YYYY-MM-DD format
+ * @returns divisor in seconds for Erlang calculation
+ */
+function calculateErlangsDivisor(startDate: string, endDate: string): number {
+  const { mondayToThursday, fridays } = countWorkingDaysInRange(startDate, endDate);
+  const totalWorkingHours = mondayToThursday * 8 + fridays * 6;
+  return Math.max(1, totalWorkingHours * 3600); // Ensure minimum 1 to avoid division by zero
+}
+
+export function calculateInterventionImpact(
+  records: CallRecord[],
+  erlangsDivisor: number
+): InterventionMetrics[] {
   if (records.length === 0) return [];
 
   const MAX_REASONABLE_ALERT_SECONDS = 120;
@@ -754,9 +799,9 @@ export function calculateInterventionImpact(records: CallRecord[]): Intervention
         avgAlertTimeSeconds,
         avgHandleTimeSeconds,
         alertTimeAsPercentageOfAHT,
-        erlangsByAlerts: Math.round((metrics.totalAlertSeconds / 3600 / dayCount) * 100) / 100,
-        erlangsByHandle: Math.round((metrics.totalHandleSeconds / 3600 / dayCount) * 100) / 100,
-        erlangTotal: Math.round(((metrics.totalHandleSeconds + metrics.totalAlertSeconds) / 3600 / dayCount) * 100) / 100,
+        erlangsByAlerts: Math.round((metrics.totalAlertSeconds / erlangsDivisor) * 100) / 100,
+        erlangsByHandle: Math.round((metrics.totalHandleSeconds / erlangsDivisor) * 100) / 100,
+        erlangTotal: Math.round(((metrics.totalHandleSeconds + metrics.totalAlertSeconds) / erlangsDivisor) * 100) / 100,
       };
     })
     .sort((a, b) => b.erlangTotal - a.erlangTotal);
@@ -1512,7 +1557,14 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const weeklyAttentionHeatmap = calculateWeeklyAttentionHeatmap(validRecords);
   const executiveOccupancy = calculateExecutiveOccupancy(validRecords);
   const hourlyDemand = calculateHourlyDemand(validRecords);
-  const interventionMetrics = calculateInterventionImpact(validRecords);
+
+  // Calculate Erlangs divisor based on working hours in the data's date range
+  const dateDates = validRecords.filter(r => r.call_date).map(r => r.call_date!);
+  const minDate = dateDates.length > 0 ? dateDates.sort()[0] : '2024-01-01';
+  const maxDate = dateDates.length > 0 ? dateDates.sort().reverse()[0] : '2024-01-01';
+  const erlangsDivisor = calculateErlangsDivisor(minDate, maxDate);
+
+  const interventionMetrics = calculateInterventionImpact(validRecords, erlangsDivisor);
   const topCallers = calculateTopCallers(validRecords, 10);
   const serviceLevel = calculateServiceLevel(validRecords);
   const abandonStats = calculateAbandonStats(validRecords);
