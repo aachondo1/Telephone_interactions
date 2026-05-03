@@ -373,7 +373,10 @@ export function calculateQueuePerformanceHeatmap(records: CallRecord[]): QueueHe
   const queueMap = new Map<string, Map<number, Map<number, number>>>();
 
   for (const r of records) {
-    const queue = r.queue || 'Sin cola';
+    // Skip records without an assigned queue (exclude "Sin cola")
+    if (!r.queue || r.queue.trim() === '') continue;
+
+    const queue = r.queue;
     const hour = r.call_hour ?? -1;
     const date = r.call_date;
 
