@@ -1,8 +1,49 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import type { AbandonFunnelData } from '../lib/kpi';
+import { Tooltip as InfoTooltip } from './Tooltip';
 
 type Props = {
   data: AbandonFunnelData;
+};
+
+// Stage definitions for tooltips
+const stageDefinitions = {
+  'Entrantes Brutas': {
+    definition: 'Total de todas las llamadas entrantes (inbound) recibidas, sin ningún filtro aplicado',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Base 100% para analizar el flujo',
+  },
+  'Abandon en Menú': {
+    definition: 'Llamadas que el cliente abandonó dentro del menú IVR después de pasar más de 10 segundos navegando. Indica frustración con la interfaz automática.',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Menor es mejor (objetivo: <5%)',
+  },
+  'Error de Marcación': {
+    definition: 'Llamadas que el cliente abandonó muy rápido en el IVR (<10 segundos). Generalmente accidental o cambio de idea inmediato.',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Menor es mejor (pequeño porcentaje es normal)',
+  },
+  'Abandon Corto': {
+    definition: 'Llamadas que llegaron a la cola pero fueron abandonadas en los primeros 5 segundos. Clientes que no quisieron esperar.',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Menor es mejor (indica baja paciencia inicial)',
+  },
+  'Llamadas Válidas': {
+    definition: 'Llamadas que pasaron todos los filtros de calidad: salieron del IVR, llegaron a la cola y esperaron más de 5 segundos. Base para análisis de operacional.',
+    formula: 'Entrantes - (Abandon Menú + Error + Abandon Corto)',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Nueva base 100% para resto del embudo',
+  },
+  'Atendidas': {
+    definition: 'Llamadas válidas que fueron contestadas y atendidas por un agente. Métrica de productividad.',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Mayor es mejor (objetivo: >90% de válidas)',
+  },
+  'Abandonadas': {
+    definition: 'Llamadas válidas que no fueron atendidas. El cliente abandonó después de esperar en cola/alerta más de 5 segundos.',
+    unit: 'Cantidad absoluta',
+    benchmark: 'Menor es mejor (objetivo: <10%)',
+  },
 };
 
 export function AbandonFunnelChart({ data }: Props) {
@@ -116,21 +157,34 @@ export function AbandonFunnelChart({ data }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {funnelDataWithPercent.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="px-4 py-2 font-medium text-slate-800">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: row.fill }}
-                        />
-                        {row.stage}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2 text-right text-slate-600">{row.calls.toLocaleString('es-ES')}</td>
-                    <td className="px-4 py-2 text-right text-slate-600">{row.percentage}%</td>
-                  </tr>
-                ))}
+                {funnelDataWithPercent.map((row, idx) => {
+                  const stageDef = stageDefinitions[row.stage as keyof typeof stageDefinitions];
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="px-4 py-2 font-medium text-slate-800">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: row.fill }}
+                          />
+                          <div className="flex items-center gap-1">
+                            {row.stage}
+                            {stageDef && (
+                              <InfoTooltip
+                                definition={stageDef.definition}
+                                formula={stageDef.formula}
+                                unit={stageDef.unit}
+                                benchmark={stageDef.benchmark}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-right text-slate-600">{row.calls.toLocaleString('es-ES')}</td>
+                      <td className="px-4 py-2 text-right text-slate-600">{row.percentage}%</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
