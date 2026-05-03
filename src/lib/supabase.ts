@@ -37,6 +37,7 @@ export type CallRecord = {
   alert_time_seconds: number;
   flow_exit: boolean;
   alerted_users: string | null;
+  users_not_respond: string | null;
   abandon_type: string | null;
   is_bounce: boolean;
   hold_time_seconds: number;

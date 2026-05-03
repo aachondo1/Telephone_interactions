@@ -1857,8 +1857,9 @@ export function calculateMenuAbandonRate(records: CallRecord[]): number {
 }
 
 // 3. Alert Success Ratio: Porcentaje de llamadas alertadas que fueron contestadas
-// Medida: ¿Qué porcentaje de ejecuciones de alertas resultaron en que un ejecutivo respondiera?
-// Se calcula como: Llamadas atendidas / Llamadas que fueron alertadas (con alert_segments > 0)
+// Medida: ¿Qué porcentaje de alertas resultaron en que un ejecutivo respondiera?
+// Se calcula como: 1 - (Total "no responden" / Total alertas) × 100
+// Donde "no responden" = llamadas con usuarios_sin_respuesta (alguien fue alertado pero no respondió)
 export function calculateAlertSuccessRatio(records: CallRecord[]): number {
   const inboundCalls = records.filter(r => isInbound(r.call_direction));
 
@@ -1869,10 +1870,11 @@ export function calculateAlertSuccessRatio(records: CallRecord[]): number {
 
   if (alertedCalls.length === 0) return 0;
 
-  // Llamadas alertadas que fueron ATENDIDAS (éxito = ejecutivo respondió)
-  const successfulAlerts = alertedCalls.filter(r => r.attended).length;
+  // Contar alertas donde al menos un usuario no respondió
+  const noResponseCount = alertedCalls.filter(r => r.users_not_respond && r.users_not_respond.trim().length > 0).length;
 
-  const successRatio = (successfulAlerts / alertedCalls.length) * 100;
+  // Fórmula: 1 - (no_responden / total_alertas) × 100
+  const successRatio = (1 - (noResponseCount / alertedCalls.length)) * 100;
   return Math.round(successRatio);
 }
 
