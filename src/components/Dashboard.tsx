@@ -11,6 +11,7 @@ import { QueueBarChart } from './QueueBarChart';
 import { QueuePieChart } from './QueuePieChart';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
 import QueueUnattendedHeatmap from './QueueUnattendedHeatmap';
+import WeeklyAttentionHeatmap from './WeeklyAttentionHeatmap';
 import { QueueLoadVariability } from './QueueLoadVariability';
 import { QueueAttendanceEvolution } from './QueueAttendanceEvolution';
 import { PhoneOccupancyChart } from './PhoneOccupancyChart';
@@ -449,6 +450,22 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
           </div>
           <QueuePerformanceHeatmap data={kpis.queuePerformanceHeatmap} />
           <QueueAttendanceEvolution data={kpis.queueAttendanceEvolution} />
+          <WeeklyAttentionHeatmap
+            data={kpis.weeklyAttentionHeatmap}
+            onCellClick={(weekKey, queue) => {
+              const weekDate = new Date(weekKey + 'T00:00:00');
+              const weekEnd = new Date(weekDate);
+              weekEnd.setDate(weekEnd.getDate() + 6);
+              const formatDate = (d: Date) => d.toISOString().split('T')[0];
+              setFilters(prev => ({
+                ...prev,
+                dateRange: 'custom',
+                dateStart: formatDate(weekDate),
+                dateEnd: formatDate(weekEnd),
+                queues: [queue],
+              }));
+            }}
+          />
           <QueueUnattendedHeatmap data={kpis.queueUnattendedHeatmap} />
           <QueueLoadVariability data={kpis.queueLoadVariability} />
           <QueuesDetailTable stats={kpis.queueStats} />

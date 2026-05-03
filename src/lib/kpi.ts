@@ -216,6 +216,16 @@ export type QueueAttendanceEvolutionData = {
   queues: string[];
 };
 
+export type WeeklyAttentionHeatmapData = {
+  weeks: string[];
+  weekLabels: string[];
+  queues: string[];
+  data: Array<{
+    queue: string;
+    cells: Array<{ weekKey: string; percentage: number | null }>;
+  }>;
+};
+
 export type ExecutiveOccupancyEntry = {
   executive: string;
   avgOccupancyPct: number;
@@ -333,6 +343,7 @@ export type KPISummary = {
   queueUnattendedHeatmap: QueueUnattendedHeatmapData;
   queueLoadVariability: QueueVariabilityData;
   queueAttendanceEvolution: QueueAttendanceEvolutionData;
+  weeklyAttentionHeatmap: WeeklyAttentionHeatmapData;
   executiveOccupancy: ExecutiveOccupancyData;
   hourlyDemand: HourlyDemandData;
   hourlyDistribution: HourBucket[];
@@ -585,6 +596,75 @@ export function calculateQueueAttendanceEvolution(records: CallRecord[]): QueueA
     weeklyPeriods: buildPeriods(weekMap, weekLabel, 5),
     monthlyPeriods: buildPeriods(monthMap, monthLabel, 10),
     queues: topQueues,
+  };
+}
+
+export function calculateWeeklyAttentionHeatmap(records: CallRecord[]): WeeklyAttentionHeatmapData {
+  if (records.length === 0) return { weeks: [], weekLabels: [], queues: [], data: [] };
+
+  const isInbound = (direction: string) => {
+    const d = (direction || '').toLowerCase();
+    return d === 'inbound' || d === 'entrante';
+  };
+
+  // Filter for inbound calls only
+  const inboundRecords = records.filter(r => isInbound(r.call_direction));
+  if (inboundRecords.length === 0) return { weeks: [], weekLabels: [], queues: [], data: [] };
+
+  // Get top 10 queues by call volume
+  const queueTotals = new Map<string, number>();
+  for (const r of inboundRecords) {
+    if (!r.queue) continue;
+    queueTotals.set(r.queue, (queueTotals.get(r.queue) ?? 0) + 1);
+  }
+  const topQueues = Array.from(queueTotals.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([q]) => q);
+  const topQueueSet = new Set(topQueues);
+
+  // Build week-by-queue map with attention metrics
+  const weekQueueMap = new Map<string, Map<string, { total: number; attended: number }>>();
+
+  for (const r of inboundRecords) {
+    if (!r.queue || !r.call_date || !topQueueSet.has(r.queue)) continue;
+
+    const weekKey = getMondayKey(r.call_date);
+    if (!weekQueueMap.has(weekKey)) {
+      weekQueueMap.set(weekKey, new Map());
+    }
+
+    const queueMap = weekQueueMap.get(weekKey)!;
+    const cur = queueMap.get(r.queue) ?? { total: 0, attended: 0 };
+    const hasConversation = (r.conversation_total_seconds ?? 0) > 0;
+    queueMap.set(r.queue, {
+      total: cur.total + 1,
+      attended: cur.attended + (hasConversation ? 1 : 0),
+    });
+  }
+
+  // Sort weeks and create labels
+  const sortedWeeks = Array.from(weekQueueMap.keys()).sort();
+  const weekLabels = sortedWeeks.map(weekLabel);
+
+  // Build data structure for heatmap
+  const heatmapData = topQueues.map(queue => {
+    const cells = sortedWeeks.map(weekKey => {
+      const queueStats = weekQueueMap.get(weekKey)?.get(queue);
+      const percentage = queueStats && queueStats.total > 0
+        ? Math.round((queueStats.attended / queueStats.total) * 100)
+        : null;
+      return { weekKey, percentage };
+    });
+
+    return { queue, cells };
+  });
+
+  return {
+    weeks: sortedWeeks,
+    weekLabels,
+    queues: topQueues,
+    data: heatmapData,
   };
 }
 
@@ -1000,6 +1080,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     queueUnattendedHeatmap: { data: [] },
     queueLoadVariability: { queues: [] },
     queueAttendanceEvolution: { weeklyPeriods: [], monthlyPeriods: [], queues: [] },
+    weeklyAttentionHeatmap: { weeks: [], weekLabels: [], queues: [], data: [] },
     executiveOccupancy: { entries: [] },
     hourlyDemand: { points: [], peakErlangs: 0, weekdayCounts: { lun: 0, mar: 0, mie: 0, jue: 0, vie: 0 } },
     hourlyDistribution: [],
@@ -1306,6 +1387,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const queueUnattendedHeatmap = calculateQueueUnattendedHeatmap(validRecords);
   const queueLoadVariability = calculateQueueLoadVariability(validRecords);
   const queueAttendanceEvolution = calculateQueueAttendanceEvolution(validRecords);
+  const weeklyAttentionHeatmap = calculateWeeklyAttentionHeatmap(validRecords);
   const executiveOccupancy = calculateExecutiveOccupancy(validRecords);
   const hourlyDemand = calculateHourlyDemand(validRecords);
   const topCallers = calculateTopCallers(validRecords, 10);
@@ -1339,6 +1421,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
     queueUnattendedHeatmap,
     queueLoadVariability,
     queueAttendanceEvolution,
+    weeklyAttentionHeatmap,
     executiveOccupancy,
     hourlyDemand,
     hourlyDistribution,
