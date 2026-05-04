@@ -433,8 +433,17 @@ export async function transformRows(
       // Outbound calls don't require a queue - they only need an executive
       queue = '';
     } else if (isInbound) {
-      // Inbound calls MUST have a valid queue - discard if no queue found
-      continue;
+      // Inbound calls without a valid queue - check if it's IVR or mark as unknown
+      // IVR calls (Interactive Voice Response) are important for KPIs
+      if (rawQueue && rawQueue.toLowerCase().includes('ivr')) {
+        queue = 'IVR';
+      } else if (rawQueue) {
+        // Has a queue value but not in valid list - keep the original
+        queue = rawQueue;
+      } else {
+        // No queue value - mark as unknown inbound
+        queue = 'Sin cola';
+      }
     } else {
       continue;
     }
