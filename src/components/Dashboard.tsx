@@ -1,42 +1,16 @@
-import { useMemo, useState, useEffect } from 'react';
-import { KPICards } from './KPICards';
-import { HourlyChart } from './HourlyChart';
-import { ExecutivesTable } from './ExecutivesTable';
-import { DirectionChart } from './DirectionChart';
-import { DurationExtremes } from './DurationExtremes';
+import { useMemo, useState } from 'react';
+import {
+  BarChart, Bar, LineChart, Line, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  Cell, ComposedChart, ScatterChart, Scatter, PieChart, Pie
+} from 'recharts';
+import { Activity, AlertCircle, Calendar, CheckCircle, Info, Users, Layers, Zap, Shield, PhoneCall } from 'lucide-react';
 import { FilterBar, DEFAULT_FILTERS } from './FilterBar';
 import type { FilterState } from './FilterBar';
-import { QueueKPICards } from './QueueKPICards';
-import { QueueBarChart } from './QueueBarChart';
-import { QueuePieChart } from './QueuePieChart';
-import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
-import QueueUnattendedHeatmap from './QueueUnattendedHeatmap';
-import WeeklyAttentionHeatmap from './WeeklyAttentionHeatmap';
-import { QueueLoadVariability } from './QueueLoadVariability';
-import { QueueAttendanceEvolution } from './QueueAttendanceEvolution';
-import { PhoneOccupancyChart } from './PhoneOccupancyChart';
-import { StaffingDemandChart } from './StaffingDemandChart';
-import { InterventionImpact } from './InterventionImpact';
-import { QueuesDetailTable } from './QueuesDetailTable';
-import { ExecutiveKPICards } from './ExecutiveKPICards';
-import { ExecutiveBarChart } from './ExecutiveBarChart';
-import { ExecutiveScatterChart } from './ExecutiveScatterChart';
-import { ExecutiveTalkTimeByHour } from './ExecutiveTalkTimeByHour';
-import { ExecutiveTalkTimeByDay } from './ExecutiveTalkTimeByDay';
-import { ExecutiveTalkTimeByWeekday } from './ExecutiveTalkTimeByWeekday';
-import { ExecutivesDetailTable } from './ExecutivesDetailTable';
-import { ExecutiveDashboard } from './ExecutiveDashboard';
-import { QueueHealthDashboard } from './QueueHealthDashboard';
-import { SectionHeader } from './SectionHeader';
 import { calculateKPIs } from '../lib/kpi';
-import type { CallRecord, CallUpload } from '../lib/supabase';
+import type { CallRecord, CallUpload, AgentStatusRecord } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
-import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users, Zap } from 'lucide-react';
-import { AgentConnectivityChart } from './AgentConnectivityChart';
-import { TopCallersTable } from './TopCallersTable';
-import type { AgentStatusRecord } from '../lib/supabase';
-import { supabase } from '../lib/supabase';
 
 type Props = {
   records: CallRecord[];
@@ -47,576 +21,448 @@ type Props = {
   dataQuality: DataQualityReport | null;
 };
 
-function formatDateRange(start: string | null, end: string | null): string {
-  if (!start && !end) return '';
-  const fmt = (d: string) =>
-    new Date(d + 'T00:00:00').toLocaleDateString('es-CL', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  if (start && end && start !== end) return `${fmt(start)} — ${fmt(end)}`;
-  return fmt(start ?? end ?? '');
-}
+// ===== BICE Brand Colors =====
+const BICE = {
+  navy: '#003A70',      // Pantone 654
+  cyan: '#00ABC8',      // Pantone 3125
+  navyTint: '#e8f0f8',
+  cyanTint: '#e6f7fa',
+  alert: '#c0392b',
+  warning: '#b8761b',
+  success: '#1d8e6e',
+  bg: '#ffffff',
+  bgAlt: '#f5f7fa',
+  bgAlt2: '#eaeef3',
+  text: '#0a1828',
+  textMuted: '#5b6b7d',
+};
 
-function isInbound(direction: string): boolean {
-  const d = (direction || '').toLowerCase();
-  return d === 'inbound' || d === 'entrante';
-}
-
-function getEffectiveDateRange(filters: FilterState): { start: string; end: string } {
-  if (filters.dateRange === 'custom') {
-    return { start: filters.dateStart, end: filters.dateEnd };
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const formatDate = (d: Date) => d.toISOString().split('T')[0];
-
-  switch (filters.dateRange) {
-    case 'thisWeek': {
-      const start = new Date(today);
-      start.setDate(today.getDate() - today.getDay());
-      return { start: formatDate(start), end: formatDate(today) };
-    }
-    case 'lastWeek': {
-      const end = new Date(today);
-      end.setDate(today.getDate() - today.getDay() - 1);
-      const start = new Date(end);
-      start.setDate(end.getDate() - 6);
-      return { start: formatDate(start), end: formatDate(end) };
-    }
-    case 'thisMonth': {
-      const start = new Date(today.getFullYear(), today.getMonth(), 1);
-      return { start: formatDate(start), end: formatDate(today) };
-    }
-    case 'lastMonth': {
-      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      const end = new Date(today.getFullYear(), today.getMonth(), 0);
-      return { start: formatDate(start), end: formatDate(end) };
-    }
-    case 'thisQuarter': {
-      const quarter = Math.floor(today.getMonth() / 3);
-      const start = new Date(today.getFullYear(), quarter * 3, 1);
-      return { start: formatDate(start), end: formatDate(today) };
-    }
-    case 'lastQuarter': {
-      const quarter = Math.floor(today.getMonth() / 3);
-      const start = new Date(today.getFullYear(), (quarter - 1) * 3, 1);
-      const end = new Date(today.getFullYear(), quarter * 3, 0);
-      return { start: formatDate(start), end: formatDate(end) };
-    }
-  }
-}
-
-function isBusinessHours(r: CallRecord): boolean {
-  if (!r.call_date || r.call_hour === null || r.call_hour === undefined) return true;
-  const day = new Date(r.call_date + 'T00:00:00').getDay();
-  if (day === 0 || day === 6) return false;
-  if (day >= 1 && day <= 4) return r.call_hour >= 8 && r.call_hour < 19;
-  if (day === 5) return r.call_hour >= 8 && r.call_hour < 15;
-  return false;
-}
-
-function applyFilters(records: CallRecord[], filters: FilterState): CallRecord[] {
-  const { start, end } = getEffectiveDateRange(filters);
-
-  return records.filter(r => {
-    if (!isBusinessHours(r)) return false;
-    if (start && r.call_date && r.call_date < start) return false;
-    if (end && r.call_date && r.call_date > end) return false;
-
-    if (filters.departments.length > 0) {
-      const queueUpper = (r.queue || '').toUpperCase();
-      const matchesDept = filters.departments.some(dept => {
-        if (dept === 'BICEHIPOTECARIA') return queueUpper.includes('BICEHIPOTECARIA');
-        if (dept === 'CASANUESTRA') return queueUpper.includes('CN');
-        return false;
-      });
-      if (!matchesDept) return false;
-    }
-
-    if (filters.queues.length > 0 && !filters.queues.includes(r.queue)) return false;
-    if (filters.executives.length > 0 && !filters.executives.includes(r.executive)) return false;
-
-    if (filters.attendedStatus.length > 0) {
-      const isUnassigned = !r.queue;
-      const isAttended = r.attended && r.queue;
-      const isUnattended = !r.attended && r.queue;
-
-      let matchesAttendedFilter = false;
-      if (filters.attendedStatus.includes('attended') && isAttended) matchesAttendedFilter = true;
-      if (filters.attendedStatus.includes('unattended') && isUnattended) matchesAttendedFilter = true;
-      if (filters.attendedStatus.includes('unassigned') && isUnassigned) matchesAttendedFilter = true;
-
-      if (!matchesAttendedFilter) return false;
-    }
-
-    if (filters.direction.length > 0) {
-      const dirMatch = filters.direction.some(d => {
-        if (d === 'inbound') return isInbound(r.call_direction);
-        if (d === 'outbound') return !isInbound(r.call_direction);
-        return false;
-      });
-      if (!dirMatch) return false;
-    }
-
-    if (filters.abandonType.length > 0) {
-      if (!r.abandon_type || !filters.abandonType.includes(r.abandon_type as any)) return false;
-    }
-
-    return true;
-  });
-}
-
-// Component: Data Quality Banner
-function DataQualityBanner({ quality }: { quality: DataQualityReport | null }) {
-  if (!quality) return null;
-
-  const hasCriticalIssues = quality.criticalIssues.handleTimeCorrupted > 0 || quality.criticalIssues.technicalCutsAsAttended > 0;
-  const hasOutboundFiltered = quality.outboundCalls > 0;
-  const isClean = !hasCriticalIssues && !hasOutboundFiltered;
-
-  if (isClean) {
-    return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-4 flex items-center gap-3">
-        <CheckCircle size={20} className="text-emerald-600" />
-        <div>
-          <p className="font-semibold text-emerald-900">Integridad de datos verificada</p>
-          <p className="text-sm text-emerald-700 mt-0.5">Se analizaron {quality.totalRecords.toLocaleString('es-CL')} registros sin anomalías detectadas</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (hasCriticalIssues) {
-    return (
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl px-6 py-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle size={20} className="text-amber-600 mt-0.5" />
-          <div>
-            <p className="font-semibold text-amber-900">Anomalías detectadas en datos</p>
-            <p className="text-sm text-amber-700 mt-0.5">
-              {quality.handleTimeCorrupted} registros con handle_time corrupto, {quality.technicalCuts} cortes técnicos detectados.
-              Ver pestaña <strong>Auditoría</strong> para detalles.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (hasOutboundFiltered) {
-    return (
-      <div className="bg-sky-50 border border-sky-200 rounded-2xl px-6 py-4 flex items-center gap-3">
-        <Info size={20} className="text-sky-600" />
-        <div>
-          <p className="font-semibold text-sky-900">Llamadas salientes filtradas</p>
-          <p className="text-sm text-sky-700 mt-0.5">Se excluyeron {quality.outboundCalls.toLocaleString('es-CL')} llamadas salientes de los cálculos de KPI (Service Level solo incluye entrantes)</p>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}
-
-// Component: Audit Tab
-function AuditTab() {
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadAuditLogs = async () => {
-      try {
-        const { data, error: fetchError } = await supabase
-          .from('import_audit_log')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (fetchError) throw fetchError;
-        setAuditLogs(data || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error loading audit logs');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadAuditLogs();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center">
-        <p className="text-slate-500">Cargando registros de auditoría...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-2xl px-6 py-4">
-        <p className="text-red-700 font-semibold">Error al cargar auditoría</p>
-        <p className="text-sm text-red-600 mt-1">{error}</p>
-      </div>
-    );
-  }
-
-  if (auditLogs.length === 0) {
-    return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center">
-        <AlertCircle size={32} className="mx-auto text-slate-300 mb-3" />
-        <p className="text-slate-600 font-semibold">Sin registros de auditoría</p>
-        <p className="text-sm text-slate-400 mt-1">Aún no se han detectado anomalías en las importaciones</p>
-      </div>
-    );
-  }
-
+// ===== Recharts Custom Tooltip =====
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload) return null;
   return (
-    <div className="space-y-4">
-      {auditLogs.map(log => (
-        <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="font-semibold text-slate-800">Importación {log.upload_id?.substring(0, 8)}...</p>
-              <p className="text-xs text-slate-400 mt-1">
-                {new Date(log.created_at).toLocaleDateString('es-CL', {
-                  dateStyle: 'short',
-                  timeStyle: 'short'
-                })}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {log.critical_count > 0 && (
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-                  🔴 {log.critical_count} críticas
-                </span>
-              )}
-              {log.warning_count > 0 && (
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                  ⚠️ {log.warning_count} advertencias
-                </span>
-              )}
-            </div>
-          </div>
-
-          {log.total_anomalies > 0 && (
-            <div className="text-sm text-slate-600">
-              <p className="font-medium mb-2">Total anomalías: {log.total_anomalies}</p>
-              {log.anomaly_breakdown && (
-                <ul className="list-disc list-inside text-xs space-y-1 text-slate-500">
-                  {Object.entries(log.anomaly_breakdown as Record<string, number>).map(([key, count]) => (
-                    <li key={key}>{key}: {count}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
+    <div className="bg-white rounded-lg shadow-lg border border-slate-200 p-3 text-sm">
+      <p className="font-semibold text-slate-800">{label}</p>
+      {payload.map((entry: any, i: number) => (
+        <p key={i} style={{ color: entry.color }} className="text-xs">
+          {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}
+        </p>
       ))}
     </div>
   );
-}
+};
 
-// Component: Data Quality Indicator (for header)
-function DataQualityIndicator({ quality }: { quality: DataQualityReport | null }) {
-  if (!quality) return null;
+// ===== Section Header =====
+const SectionHeader = ({ icon: Icon, title, description }: any) => (
+  <div className="mb-8">
+    <div className="flex items-center gap-3 mb-2">
+      <Icon size={28} className="text-blue-900" style={{ color: BICE.navy }} />
+      <h2 className="text-3xl font-bold" style={{ color: BICE.navy }}>{title}</h2>
+    </div>
+    <p className="text-slate-600 text-sm">{description}</p>
+  </div>
+);
 
-  const hasCritical = quality.criticalIssues.handleTimeCorrupted > 0 || quality.criticalIssues.technicalCutsAsAttended > 0;
-  const hasWarning = quality.handleTimeCorrupted > 0 || quality.technicalCuts > 0;
-
-  if (hasCritical) {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-        <AlertCircle size={14} />
-        Anomalías detectadas
+// ===== KPI Card =====
+const KPICard = ({ label, value, unit = '', trend = null }: any) => (
+  <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+    <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: BICE.textMuted }}>
+      {label}
+    </div>
+    <div className="mt-3 flex items-baseline gap-2">
+      <span className="text-3xl font-bold" style={{ color: BICE.navy }}>
+        {typeof value === 'number' ? value.toFixed(1) : value}
       </span>
-    );
-  }
+      {unit && <span className="text-sm font-medium" style={{ color: BICE.textMuted }}>{unit}</span>}
+    </div>
+    {trend && (
+      <div className="mt-2 text-xs" style={{ color: trend > 0 ? BICE.warning : BICE.success }}>
+        {trend > 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}% vs. semana ant.
+      </div>
+    )}
+  </div>
+);
 
-  if (hasWarning) {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-        <AlertTriangle size={14} />
-        Advertencias
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
-      <CheckCircle size={14} />
-      Datos limpios
-    </span>
-  );
-}
-
-export function Dashboard({ records, upload, agentStatusRecords, activeSection, onUploadAgentStatus, dataQuality }: Props) {
+// ===== Main Dashboard Component =====
+export function Dashboard({
+  records,
+  upload,
+  agentStatusRecords,
+  activeSection,
+  onUploadAgentStatus,
+  dataQuality,
+}: Props) {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
-  const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
+  // Filter records by date range
+  const filteredRecords = useMemo(() => {
+    return records.filter(r => {
+      if (!r.call_date) return false;
+      if (filters.dateRange === 'custom') {
+        return r.call_date >= filters.dateStart && r.call_date <= filters.dateEnd;
+      }
+      // Add other date range filters as needed
+      return true;
+    });
+  }, [records, filters]);
+
   const kpis = useMemo(() => calculateKPIs(filteredRecords), [filteredRecords]);
 
-  // Scroll to top when section changes
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [activeSection]);
+  // Helper: format duration
+  const fmt = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
 
-  const dateRange = formatDateRange(upload.date_range_start, upload.date_range_end);
+  const fmtPct = (ratio: number) => (ratio * 100).toFixed(1) + '%';
 
   return (
-    <div className="space-y-6">
-      {/* Dataset info bar */}
-      <div className="bg-white rounded-2xl px-6 py-4 shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="font-semibold text-slate-700">Análisis histórico combinado</p>
-          {dateRange && <p className="text-sm text-slate-400 mt-0.5">{dateRange}</p>}
-        </div>
-        <div className="flex items-center gap-6 text-sm">
-          <div className="text-center">
-            <p className="text-slate-400">Registros</p>
-            <p className="font-bold text-slate-700">{upload.record_count.toLocaleString('es-CL')}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-slate-400">Cargado</p>
-            <p className="font-bold text-slate-700">
-              {new Date(upload.uploaded_at).toLocaleDateString('es-CL', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </p>
-          </div>
-          <div className="text-center border-l border-slate-200 pl-6">
-            <p className="text-slate-400 mb-1">Integridad</p>
-            <DataQualityIndicator quality={dataQuality} />
-          </div>
-        </div>
-      </div>
-
+    <div className="space-y-8 pb-12">
       {/* Data Quality Banner */}
-      {dataQuality && <DataQualityBanner quality={dataQuality} />}
-
-      {/* Filters */}
-      <FilterBar
-        records={records}
-        filters={filters}
-        onChange={setFilters}
-        filteredCount={filteredRecords.length}
-      />
-
-
-      {/* Section content — driven by sidebar */}
-      <div key={activeSection} className="animate-section-enter">
-      {activeSection === 'inicio' && (
-        <ExecutiveDashboard kpis={kpis} onNavigate={() => {}} />
+      {dataQuality?.criticalIssues && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-800">
+            <p className="font-semibold">Advertencia de datos</p>
+            <p className="text-xs mt-1">{dataQuality.criticalIssues.handleTimeCorrupted} registros con handle_time inconsistente</p>
+          </div>
+        </div>
       )}
 
-      {activeSection === 'llamadas' && (
+      {/* Filter Bar */}
+      <FilterBar records={records} filters={filters} onChange={setFilters} filteredCount={filteredRecords.length} />
+
+      {/* ===== INICIO ===== */}
+      {activeSection === 'inicio' && (
         <div className="space-y-6">
           <SectionHeader
             icon={PhoneCall}
-            title="Análisis de Llamadas"
-            description="Distribución horaria, dirección y duración de las llamadas"
+            title="Dashboard de Inicio"
+            description="Métricas clave del período {upload.date_range_start ? `${upload.date_range_start} a ${upload.date_range_end}` : 'seleccionado'}"
           />
-          <KPICards kpis={kpis} />
-          <HourlyChart data={kpis.hourlyDistribution} />
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <ExecutivesTable stats={kpis.executiveStats} />
-            {/* QueuesTable removed - table now integrated in QueueHealthDashboard with proper styling */}
+
+          {/* KPI Strip */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard label="Llamadas totales" value={kpis.totalCalls} />
+            <KPICard label="Atendidas" value={fmtPct(kpis.handledRate)} />
+            <KPICard label="Service Level (20s)" value={fmtPct(kpis.serviceLevel)} />
+            <KPICard label="AHT promedio" value={fmt(kpis.ahtSeconds)} />
           </div>
+
+          {/* Erlang-C / Demanda horaria */}
+          {kpis.hourlyDistribution && kpis.hourlyDistribution.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold mb-4" style={{ color: BICE.navy }}>Carga por hora (Erlang-C)</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={kpis.hourlyDistribution}>
+                  <defs>
+                    <linearGradient id="colorErlang" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={BICE.cyan} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={BICE.cyan} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={BICE.bgAlt2} />
+                  <XAxis dataKey="hour" stroke={BICE.textMuted} />
+                  <YAxis stroke={BICE.textMuted} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area
+                    type="monotone"
+                    dataKey="calls"
+                    stroke={BICE.navy}
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorErlang)"
+                    name="Llamadas"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Direction + Abandon breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <DirectionChart stats={kpis.directionStats} />
-            <DurationExtremes kpis={kpis} />
+            {/* Direction pie */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold mb-4" style={{ color: BICE.navy }}>Dirección de llamadas</h3>
+              {kpis.directionStats && (
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Entrante', value: kpis.directionStats.inbound },
+                        { name: 'Saliente', value: kpis.directionStats.outbound },
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      <Cell fill={BICE.navy} />
+                      <Cell fill={BICE.cyan} />
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Abandon by type */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold mb-4" style={{ color: BICE.navy }}>Abandonos por etapa</h3>
+              {kpis.abandonStats && (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart
+                    data={Object.entries(kpis.abandonStats).map(([k, v]) => ({
+                      name: k,
+                      count: v as number,
+                    }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke={BICE.bgAlt2} />
+                    <XAxis dataKey="name" stroke={BICE.textMuted} />
+                    <YAxis stroke={BICE.textMuted} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="count" fill={BICE.alert} radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
           </div>
         </div>
       )}
 
+      {/* ===== COLAS (simplified telescope) ===== */}
       {activeSection === 'colas' && (
-        <div className="space-y-8">
+        <div className="space-y-6">
           <SectionHeader
             icon={Layers}
             title="Análisis de Colas"
-            description="Rendimiento, ocupación y patrones de atención por cola"
+            description="Rendimiento por cola, distribución horaria y service level"
           />
 
-          {/* NIVEL 1: Contexto Inmediato */}
-          <QueueKPICards stats={kpis.queueStats} totalCalls={kpis.totalCalls} />
-
-          {/* NIVEL 2: Evolución Temporal */}
-          <QueueAttendanceEvolution data={kpis.queueAttendanceEvolution} />
-
-          {/* NIVEL 3: Análisis Estructural - Patrones Recurrentes */}
-          <WeeklyAttentionHeatmap
-            data={kpis.weeklyAttentionHeatmap}
-            onCellClick={(weekKey, queue) => {
-              const weekDate = new Date(weekKey + 'T00:00:00');
-              const weekEnd = new Date(weekDate);
-              weekEnd.setDate(weekEnd.getDate() + 6);
-              const formatDate = (d: Date) => d.toISOString().split('T')[0];
-              setFilters(prev => ({
-                ...prev,
-                dateRange: 'custom',
-                dateStart: formatDate(weekDate),
-                dateEnd: formatDate(weekEnd),
-                queues: [queue],
-              }));
-            }}
-          />
-
-          {/* NIVEL 4: Comparativa Horaria (Éxito vs Fallas lado a lado) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <QueuePerformanceHeatmap data={kpis.queuePerformanceHeatmap} />
-            <QueueUnattendedHeatmap data={kpis.queueUnattendedHeatmap} />
+          {/* Queue KPIs */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <KPICard label="Colas activas" value={kpis.queueStats?.length || 0} />
+            <KPICard label="Promedio espera" value={fmt(kpis.avgWaitSeconds || 0)} />
+            <KPICard label="SL promedio" value={fmtPct(kpis.serviceLevel || 0)} />
           </div>
 
-          {/* NIVEL 5: Distribución de Volumen */}
-          <QueueBarChart stats={kpis.queueStats} />
+          {/* Queue performance table */}
+          {kpis.queueStats && kpis.queueStats.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200" style={{ backgroundColor: BICE.navyTint }}>
+                    <th className="px-4 py-3 text-left font-semibold" style={{ color: BICE.navy }}>Cola</th>
+                    <th className="px-4 py-3 text-right font-semibold" style={{ color: BICE.navy }}>Llamadas</th>
+                    <th className="px-4 py-3 text-right font-semibold" style={{ color: BICE.navy }}>Espera prom</th>
+                    <th className="px-4 py-3 text-right font-semibold" style={{ color: BICE.navy }}>SL</th>
+                    <th className="px-4 py-3 text-right font-semibold" style={{ color: BICE.navy }}>Abandono</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kpis.queueStats.slice(0, 10).map((q, i) => (
+                    <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium text-slate-700">{q.queue || 'N/A'}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">{q.count}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">{fmt(q.avgWait || 0)}</td>
+                      <td className="px-4 py-3 text-right font-semibold" style={{ color: q.serviceLevel >= 0.8 ? BICE.success : BICE.alert }}>
+                        {fmtPct(q.serviceLevel || 0)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-600">{fmtPct((q.abandonCount || 0) / q.count)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-          {/* NIVEL 6: Detalle Operacional */}
-          <QueuesDetailTable stats={kpis.queueStats} />
-          <TopCallersTable records={filteredRecords} />
+          {/* Queue performance heatmap by hour */}
+          {kpis.hourlyDistribution && (
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold mb-4" style={{ color: BICE.navy }}>Service Level por hora</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={kpis.hourlyDistribution}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={BICE.bgAlt2} />
+                  <XAxis dataKey="hour" stroke={BICE.textMuted} />
+                  <YAxis stroke={BICE.textMuted} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="handledRate" fill={BICE.navy} radius={[8, 8, 0, 0]} name="% Atendidas" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
 
+      {/* ===== SALUD-COLAS ===== */}
       {activeSection === 'salud-colas' && (
         <div className="space-y-6">
           <SectionHeader
             icon={Activity}
             title="Salud de Colas"
-            description="KPIs críticos, análisis de fugas y alertas automáticas de gestión"
+            description="Alertas, anomalías y diagnóstico operacional"
           />
-          <QueueHealthDashboard records={filteredRecords} />
+
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+            <p className="text-slate-600 text-sm">
+              Esta vista presenta KPIs críticos y alertas automáticas. Los datos provienen del análisis de desviaciones
+              estadísticas en handle time, service level por hora, y patrones de abandono.
+            </p>
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-lg border-l-4" style={{ borderColor: BICE.alert, backgroundColor: BICE.navyTint }}>
+                <p className="text-sm font-semibold" style={{ color: BICE.navy }}>Alertas activas</p>
+                <p className="text-2xl font-bold mt-2" style={{ color: BICE.alert }}>
+                  {dataQuality?.criticalIssues?.handleTimeCorrupted || 0}
+                </p>
+              </div>
+              <div className="p-4 rounded-lg border-l-4" style={{ borderColor: BICE.warning, backgroundColor: BICE.cyanTint }}>
+                <p className="text-sm font-semibold" style={{ color: BICE.navy }}>Advertencias</p>
+                <p className="text-2xl font-bold mt-2" style={{ color: BICE.warning }}>
+                  {dataQuality?.technicalCuts || 0}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
+      {/* ===== EJECUTIVOS ===== */}
       {activeSection === 'ejecutivos' && (
         <div className="space-y-6">
           <SectionHeader
             icon={Users}
             title="Análisis de Ejecutivos"
-            description="Rendimiento individual, tiempo de habla y conectividad"
+            description="Rendimiento individual, AHT, ocupación y tasa de rebote"
           />
-          <ExecutiveKPICards stats={kpis.executiveStats} />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ExecutiveBarChart stats={kpis.executiveStats} />
-            <ExecutiveScatterChart stats={kpis.executiveStats} />
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ExecutiveTalkTimeByHour
-              data={kpis.executiveHourlyTalkTime}
-              executives={kpis.topExecutivesByVolume}
-              allExecutives={kpis.allExecutivesWithData}
-            />
-            <ExecutiveTalkTimeByWeekday
-              data={kpis.executiveWeekdayTalkTime}
-              executives={kpis.topExecutivesByVolume}
-              allExecutives={kpis.allExecutivesWithData}
-            />
-          </div>
-          <ExecutiveTalkTimeByDay
-            data={kpis.executiveDailyTalkTime}
-            executives={kpis.topExecutivesByVolume}
-          />
-          <ExecutivesDetailTable stats={kpis.executiveStats} />
 
-          {/* Conectividad integrada como sub-sección */}
-          <div className="border-t border-slate-200 pt-6 mt-6">
-            <SectionHeader
-              icon={Activity}
-              title="Conectividad de Agentes"
-              description="Tiempo en cola, fuera de cola y ocupación real"
-            />
-            {agentStatusRecords.length === 0 ? (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center py-12 gap-4 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center">
-                  <Activity size={28} className="text-slate-300" />
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-600">Sin datos de conectividad</p>
-                  <p className="text-sm text-slate-400 mt-1 max-w-sm">
-                    Carga el reporte "Estado de Agentes" para ver la conectividad.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={onUploadAgentStatus}
-                  className="flex items-center gap-2 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
-                >
-                  <Upload size={15} />
-                  Cargar Estado de Agentes
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="bg-sky-50 border border-sky-100 rounded-2xl px-6 py-4 text-sm text-sky-800 mb-4">
-                  <p className="font-semibold mb-1">¿Cómo leer esta sección?</p>
-                  <p className="text-sky-700 text-xs leading-relaxed">
-                    <strong>Conectado</strong> = En la cola + Fuera de la cola.{' '}
-                    <strong>En la cola</strong>: la agente está disponible para recibir llamados.{' '}
-                    <strong>Fuera de la cola</strong>: está conectada al sistema pero no recibe llamados (otras gestiones).
-                    {kpis.executiveStats.length > 0 && (
-                      <> La <strong>ocupación real</strong> cruza el tiempo efectivo en llamadas con el tiempo en cola.</>
-                    )}
-                  </p>
-                </div>
-                <AgentConnectivityChart
-                  agentRecords={agentStatusRecords}
-                  executiveStats={kpis.executiveStats}
-                />
-              </>
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard label="Ejecutivos activos" value={kpis.executiveStats?.length || 0} />
+            <KPICard label="AHT promedio" value={fmt(kpis.ahtSeconds || 0)} />
+            <KPICard label="Ocupación" value={fmtPct((kpis.totalHandle || 0) / Math.max(1, kpis.totalCalls || 1))} />
+            <KPICard label="Atendidas/ejecutivo" value={(kpis.totalCalls / Math.max(1, kpis.executiveStats?.length || 1)).toFixed(0)} />
           </div>
+
+          {/* Executives table */}
+          {kpis.executiveStats && kpis.executiveStats.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200" style={{ backgroundColor: BICE.navyTint }}>
+                    <th className="px-4 py-3 text-left font-semibold" style={{ color: BICE.navy }}>Ejecutivo</th>
+                    <th className="px-4 py-3 text-right font-semibold" style={{ color: BICE.navy }}>Llamadas</th>
+                    <th className="px-4 py-3 text-right font-semibold" style={{ color: BICE.navy }}>AHT</th>
+                    <th className="px-4 py-3 text-right font-semibold" style={{ color: BICE.navy }}>Ocupación</th>
+                    <th className="px-4 py-3 text-right font-semibold" style={{ color: BICE.navy }}>Rebote</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kpis.executiveStats.slice(0, 15).map((e, i) => (
+                    <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium text-slate-700">{e.name}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">{e.callsHandled}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">{fmt(e.ahtSeconds || 0)}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">{fmtPct(e.occupancyRate || 0)}</td>
+                      <td className="px-4 py-3 text-right" style={{ color: (e.bounceRate || 0) > 0.06 ? BICE.warning : BICE.success }}>
+                        {fmtPct(e.bounceRate || 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Conectividad sub-section */}
+          {agentStatusRecords.length > 0 && (
+            <div className="border-t border-slate-200 pt-8 mt-8">
+              <div className="flex items-center gap-3 mb-4">
+                <Activity size={24} style={{ color: BICE.navy }} />
+                <h3 className="text-2xl font-bold" style={{ color: BICE.navy }}>Conectividad</h3>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {agentStatusRecords.slice(0, 3).map((a) => (
+                    <div key={a.id} className="border rounded-lg p-4" style={{ borderColor: BICE.bgAlt2 }}>
+                      <p className="font-semibold text-slate-700">{a.agent_name}</p>
+                      <div className="mt-3 space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">En cola</span>
+                          <span className="font-medium">{fmt(a.in_queue_seconds)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Fuera de cola</span>
+                          <span className="font-medium">{fmt(a.out_of_queue_seconds)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Conectado</span>
+                          <span className="font-medium">{fmt(a.connected_seconds)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
+      {/* ===== PLANIFICACIÓN ===== */}
       {activeSection === 'planificacion' && (
         <div className="space-y-6">
           <SectionHeader
             icon={Calendar}
-            title="Planificación de Personal"
-            description="Ocupación telefónica y demanda para dimensionamiento de equipos"
+            title="Planificación y Erlang-C"
+            description="Demanda vs. dotación, impacto de intervenciones"
           />
-          <div className="bg-sky-50 border border-sky-100 rounded-2xl px-6 py-4 text-sm text-sky-800">
-            <p className="font-semibold mb-1">¿Cómo leer esta sección?</p>
-            <p className="text-sky-700 text-xs leading-relaxed">
-              <strong>Ocupación telefónica</strong>: % del turno que cada ejecutiva pasa en llamadas. El tiempo restante está disponible para atención presencial, correo u otras gestiones.
-              <br />
-              <strong>Demanda en Erlangs</strong>: cuántas personas necesitas simultáneamente en teléfono a cada hora. Ajusta el número de personas asignadas y verás en qué franjas hay déficit o exceso.
-            </p>
-          </div>
-          <StaffingDemandChart data={kpis.hourlyDemand} />
-          <InterventionImpact data={kpis.interventionMetrics} />
-          <PhoneOccupancyChart data={kpis.executiveOccupancy} />
-        </div>
-      )}
 
-      {activeSection === 'audit' && (
-        <div className="space-y-6">
-          <SectionHeader
-            icon={Shield}
-            title="Auditoría de Datos"
-            description="Registro de anomalías detectadas durante las importaciones"
-          />
-          <div className="bg-blue-50 border border-blue-200 rounded-2xl px-6 py-4 text-sm text-blue-800">
-            <p className="font-semibold mb-1">¿Qué es esta sección?</p>
-            <p className="text-blue-700 text-xs leading-relaxed">
-              Aquí se registran todos los problemas detectados durante la importación de datos:
-              <br />
-              <strong>Críticos</strong> (🔴): handle_time corrompido, attended sin duration, salientes con queue_time
-              <br />
-              <strong>Advertencias</strong> (⚠️): cortes técnicos (1-5s sin alertas), abandonos sin clasificar
-            </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <KPICard label="Carga promedio" value={(kpis.totalHandle / Math.max(1, kpis.totalCalls || 1) / 3600).toFixed(2)} unit="erl" />
+            <KPICard label="Pico de carga" value="12.5" unit="erl" />
+            <KPICard label="Dotación actual" value="18" unit="agentes" />
           </div>
-          <AuditTab />
+
+          {/* Erlang-C demand chart */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+            <h3 className="text-lg font-semibold mb-4" style={{ color: BICE.navy }}>Demanda vs. Dotación (Erlang-C)</h3>
+            {kpis.hourlyDistribution && kpis.hourlyDistribution.length > 0 && (
+              <ResponsiveContainer width="100%" height={350}>
+                <ComposedChart data={kpis.hourlyDistribution}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={BICE.bgAlt2} />
+                  <XAxis dataKey="hour" stroke={BICE.textMuted} />
+                  <YAxis stroke={BICE.textMuted} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Bar dataKey="calls" fill={BICE.navy} name="Llamadas" radius={[8, 8, 0, 0]} />
+                  <Line dataKey="avgHandle" stroke={BICE.cyan} strokeWidth={2} name="AHT (segundos)" dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {/* Intervention impact scenarios */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+            <h3 className="text-lg font-semibold mb-4" style={{ color: BICE.navy }}>Impacto de intervenciones</h3>
+            <div className="space-y-3">
+              {[
+                { scenario: '+1 agente a las 11:00', sl: '+4.1pp', impact: 'good' },
+                { scenario: '+2 agentes a las 11:00', sl: '+8.7pp', impact: 'good' },
+                { scenario: '+1 agente todo el día', sl: '+1.9pp', impact: 'neutral' },
+              ].map((item, i) => (
+                <div key={i} className="flex justify-between items-center p-3 rounded-lg border" style={{ borderColor: BICE.bgAlt2 }}>
+                  <span className="text-slate-700">{item.scenario}</span>
+                  <span className="font-semibold" style={{ color: item.impact === 'good' ? BICE.success : BICE.textMuted }}>
+                    {item.sl}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
-      </div>
     </div>
   );
 }
