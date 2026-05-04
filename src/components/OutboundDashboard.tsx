@@ -101,6 +101,50 @@ export function OutboundDashboard({ records }: Props) {
       {/* KPI Cards */}
       <OutboundKPICards kpi={kpi} />
 
+      {/* Debug Info - Breakdown de filtros */}
+      {kpi.debugStats && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-blue-900 mb-3">
+            Desglose de Llamadas Salientes
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div>
+              <p className="text-blue-600 font-medium">Total Salientes</p>
+              <p className="text-xl font-bold text-blue-900">
+                {kpi.debugStats.totalSalientes}
+              </p>
+            </div>
+            <div>
+              <p className="text-blue-600 font-medium">Con Ejecutivo</p>
+              <p className="text-xl font-bold text-blue-900">
+                {kpi.debugStats.withValidExecutive}
+              </p>
+              <p className="text-xs text-blue-500">
+                {(kpi.debugStats.withValidExecutive / kpi.debugStats.totalSalientes * 100).toFixed(0)}%
+              </p>
+            </div>
+            <div>
+              <p className="text-blue-600 font-medium">Con Conversación</p>
+              <p className="text-xl font-bold text-blue-900">
+                {kpi.debugStats.withConversation}
+              </p>
+              <p className="text-xs text-blue-500">
+                {(kpi.debugStats.withConversation / kpi.debugStats.totalSalientes * 100).toFixed(0)}%
+              </p>
+            </div>
+            <div>
+              <p className="text-blue-600 font-medium">Desconexión 'Sistema'</p>
+              <p className="text-xl font-bold text-blue-900">
+                {kpi.debugStats.withSistemaExit}
+              </p>
+              <p className="text-xs text-blue-500">
+                {(kpi.debugStats.withSistemaExit / kpi.debugStats.totalSalientes * 100).toFixed(0)}%
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Heatmap Section */}
       <div>
         <h2 className="text-lg font-semibold text-slate-900 mb-4">

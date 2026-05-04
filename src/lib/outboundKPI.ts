@@ -10,6 +10,12 @@ export type OutboundKPI = {
   occupancyImpact: number;
   totalOutboundAttempts: number;
   validContacts: number;
+  debugStats?: {
+    totalSalientes: number;
+    withValidExecutive: number;
+    withConversation: number;
+    withSistemaExit: number;
+  };
 };
 
 export type ContactabilityHeatmapCell = {
@@ -78,6 +84,20 @@ export function calculateOutboundKPIs(records: CallRecord[]): OutboundKPI {
   const outboundRecords = records.filter(isOutboundCall);
   const validContacts = outboundRecords.filter(isValidOutboundContact);
 
+  // Debug stats para entender filtros
+  const withValidExecutive = outboundRecords.filter(r =>
+    r.executive &&
+    r.executive !== 'SIN ATENDER' &&
+    r.executive !== 'Sin asignar' &&
+    r.executive !== 'DESCONOCIDO'
+  ).length;
+
+  const withConversation = outboundRecords.filter(r => (r.conversation_total_seconds || 0) > 0).length;
+
+  const withSistemaExit = outboundRecords.filter(r =>
+    (r.exit_reason || '').toLowerCase() === 'sistema'
+  ).length;
+
   if (outboundRecords.length === 0) {
     return {
       effectiveContactRate: 0,
@@ -85,6 +105,12 @@ export function calculateOutboundKPIs(records: CallRecord[]): OutboundKPI {
       occupancyImpact: 0,
       totalOutboundAttempts: 0,
       validContacts: 0,
+      debugStats: {
+        totalSalientes: 0,
+        withValidExecutive: 0,
+        withConversation: 0,
+        withSistemaExit: 0,
+      },
     };
   }
 
@@ -128,6 +154,12 @@ export function calculateOutboundKPIs(records: CallRecord[]): OutboundKPI {
     occupancyImpact,
     totalOutboundAttempts: outboundRecords.length,
     validContacts: validContacts.length,
+    debugStats: {
+      totalSalientes: outboundRecords.length,
+      withValidExecutive,
+      withConversation,
+      withSistemaExit,
+    },
   };
 }
 
