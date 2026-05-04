@@ -4,9 +4,10 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   Cell, ComposedChart
 } from 'recharts';
-import { Activity, AlertCircle, Calendar, Users, Layers, Zap, Shield, PhoneCall } from 'lucide-react';
+import { Activity, AlertCircle, Calendar, Users, Layers, Zap, Shield, PhoneCall, TrendingUp } from 'lucide-react';
 import { FilterBar, DEFAULT_FILTERS, getDateRangeForRelative } from './FilterBar';
 import type { FilterState } from './FilterBar';
+import { OutboundDashboard } from './OutboundDashboard';
 import { calculateKPIs } from '../lib/kpi';
 import type { CallRecord, CallUpload, AgentStatusRecord } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
@@ -466,6 +467,13 @@ export function Dashboard({
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ===== GESTIÓN PROACTIVA ===== */}
+      {activeSection === 'gestion-proactiva' && (
+        <div className="space-y-6">
+          <OutboundDashboard records={filteredRecords} />
         </div>
       )}
 

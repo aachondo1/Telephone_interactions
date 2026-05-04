@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import {
   LayoutDashboard, PhoneCall, Layers, Users, Calendar,
-  Zap, Shield, Menu, X, ChevronDown, UploadCloud, Activity,
+  Zap, Shield, Menu, X, ChevronDown, UploadCloud, Activity, TrendingUp,
 } from 'lucide-react';
 import type { DataQualityReport } from '../lib/kpi';
 
-export type Section = 'inicio' | 'llamadas' | 'colas' | 'salud-colas' | 'ejecutivos' | 'planificacion' | 'intervencion' | 'audit';
+export type Section = 'inicio' | 'llamadas' | 'colas' | 'salud-colas' | 'ejecutivos' | 'planificacion' | 'gestion-proactiva' | 'intervencion' | 'audit';
 
 type Props = {
   activeSection: Section;
@@ -30,6 +30,7 @@ const NAV_ITEMS: NavItemDef[] = [
   { id: 'salud-colas',    label: 'Salud de Colas',  icon: Activity,        group: 'analysis' },
   { id: 'ejecutivos',     label: 'Ejecutivos',      icon: Users,           group: 'analysis' },
   { id: 'planificacion',  label: 'Planificación',   icon: Calendar,        group: 'analysis' },
+  { id: 'gestion-proactiva', label: 'Gestión Proactiva', icon: TrendingUp, group: 'analysis' },
   { id: 'intervencion',   label: 'Intervención',    icon: Zap,             group: 'tools' },
   { id: 'audit',          label: 'Auditoría',       icon: Shield,          group: 'tools' },
 ];
