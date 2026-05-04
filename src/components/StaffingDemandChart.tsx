@@ -67,10 +67,11 @@ export function StaffingDemandChart({ data }: Props) {
       <div className="flex items-start justify-between mb-2 flex-wrap gap-3">
         <div>
           <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
-            Demanda de Personal por Hora (Erlangs)
+            Demanda de Personal por Hora (Erlangs con Búsqueda)
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Líneas simultáneas necesarias en promedio · franjas sobre la línea roja = déficit de personal
+            Líneas simultáneas necesarias (Manejo + Alertas) · AHT_p = Conversación + Hold + ACW + Búsqueda<br />
+            Franjas sobre la línea roja = déficit de personal considerando tiempo de búsqueda
           </p>
         </div>
 
@@ -165,7 +166,7 @@ export function StaffingDemandChart({ data }: Props) {
               const validPayload = payload.filter(p => p.value !== null && p.value !== undefined);
               if (!validPayload.length) return null;
               return (
-                <div className="bg-white border border-slate-100 rounded-xl shadow-lg px-4 py-3 text-xs min-w-48">
+                <div className="bg-white border border-slate-100 rounded-xl shadow-lg px-4 py-3 text-xs min-w-56">
                   <p className="font-semibold text-slate-700 mb-2">{label}</p>
                   {validPayload
                     .sort((a, b) => (b.value as number) - (a.value as number))
@@ -173,19 +174,25 @@ export function StaffingDemandChart({ data }: Props) {
                       const val = p.value as number;
                       const over = val > staffOnPhone;
                       return (
-                        <div key={String(p.dataKey)} className="flex items-center justify-between gap-4 py-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
-                            <span className="text-slate-600">{p.name}</span>
+                        <div key={String(p.dataKey)}>
+                          <div className="flex items-center justify-between gap-4 py-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+                              <span className="text-slate-600">{p.name}</span>
+                            </div>
+                            <span className={`font-semibold ${over ? 'text-red-600' : 'text-slate-700'}`}>
+                              {val} Erlangs {over ? `(+${Math.round((val - staffOnPhone) * 10) / 10} déficit)` : ''}
+                            </span>
                           </div>
-                          <span className={`font-semibold ${over ? 'text-red-600' : 'text-slate-700'}`}>
-                            {val} {over ? `(+${Math.round((val - staffOnPhone) * 10) / 10} déficit)` : ''}
-                          </span>
+                          <p className="text-slate-400 text-[10px] ml-4 -mt-0.5">
+                            Incluye ~{Math.round(val * 15)}% búsqueda de agente
+                          </p>
                         </div>
                       );
                     })}
                   <p className="mt-2 pt-2 border-t border-slate-100 text-slate-400">
-                    Necesitas mínimo {Math.ceil(Math.max(...validPayload.map(p => p.value as number)))} personas en esta hora
+                    Necesitas mínimo {Math.ceil(Math.max(...validPayload.map(p => p.value as number)))} personas en esta hora<br />
+                    (Manejo + Búsqueda)
                   </p>
                 </div>
               );
@@ -213,7 +220,8 @@ export function StaffingDemandChart({ data }: Props) {
       </ResponsiveContainer>
 
       <p className="text-xs text-slate-400 mt-3 text-center">
-        La zona rosada (15–18h) indica que el viernes ya no hay turno (termina a las 14h). Erlangs = líneas telefónicas simultáneas promedio en esa franja.
+        La zona rosada (15–18h) indica que el viernes ya no hay turno (termina a las 14h).<br />
+        <span className="text-slate-500">Erlangs (con AHT_p) = líneas simultáneas promedio considerando Manejo + Búsqueda del agente · Demanda más realista que solo conversación</span>
       </p>
     </div>
   );

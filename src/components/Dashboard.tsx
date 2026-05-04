@@ -16,6 +16,7 @@ import { QueueLoadVariability } from './QueueLoadVariability';
 import { QueueAttendanceEvolution } from './QueueAttendanceEvolution';
 import { PhoneOccupancyChart } from './PhoneOccupancyChart';
 import { StaffingDemandChart } from './StaffingDemandChart';
+import { InterventionImpact } from './InterventionImpact';
 import { QueuesDetailTable } from './QueuesDetailTable';
 import { ExecutiveKPICards } from './ExecutiveKPICards';
 import { ExecutiveBarChart } from './ExecutiveBarChart';
@@ -590,6 +591,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
             </p>
           </div>
           <StaffingDemandChart data={kpis.hourlyDemand} />
+          <InterventionImpact data={kpis.interventionMetrics} />
           <PhoneOccupancyChart data={kpis.executiveOccupancy} />
         </div>
       )}
