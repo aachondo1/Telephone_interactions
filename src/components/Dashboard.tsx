@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  Cell, ComposedChart
+  Cell, ComposedChart, PieChart, Pie
 } from 'recharts';
 import { Activity, AlertCircle, Calendar, Users, Layers, Zap, Shield, PhoneCall } from 'lucide-react';
 import { FilterBar, DEFAULT_FILTERS, getDateRangeForRelative } from './FilterBar';
