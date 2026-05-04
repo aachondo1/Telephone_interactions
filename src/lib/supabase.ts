@@ -46,8 +46,6 @@ export type CallRecord = {
   ivr_time_seconds: number | null;
   time_to_abandon: number | null;
   exit_reason: string | null;
-  // Calculated field: abandoned = true if call was not attended
-  abandoned: boolean;
 };
 
 export type CallRecordInsert = Omit<CallRecord, 'id'>;
