@@ -27,12 +27,13 @@ import { ExecutiveTalkTimeByWeekday } from './ExecutiveTalkTimeByWeekday';
 import { ExecutivesDetailTable } from './ExecutivesDetailTable';
 import { ExecutiveDashboard } from './ExecutiveDashboard';
 import { QueueHealthDashboard } from './QueueHealthDashboard';
+import { OutboundDashboard } from './OutboundDashboard';
 import { SectionHeader } from './SectionHeader';
 import { calculateKPIs } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
-import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users, Zap } from 'lucide-react';
+import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users, Zap, TrendingUp } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
 import type { AgentStatusRecord } from '../lib/supabase';
@@ -594,6 +595,10 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
           <InterventionImpact data={kpis.interventionMetrics} />
           <PhoneOccupancyChart data={kpis.executiveOccupancy} />
         </div>
+      )}
+
+      {activeSection === 'gestion-proactiva' && (
+        <OutboundDashboard records={filteredRecords} />
       )}
 
       {activeSection === 'audit' && (
