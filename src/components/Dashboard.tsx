@@ -463,6 +463,48 @@ export function Dashboard({
           </div>
         </div>
       )}
+
+      {/* ===== LLAMADAS ===== */}
+      {activeSection === 'llamadas' && (
+        <div className="space-y-6">
+          <SectionHeader
+            icon={PhoneCall}
+            title="Detalle de Llamadas"
+            description="Registro detallado de todas las interacciones"
+          />
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+            <p className="text-slate-600">Vista de detalle de llamadas</p>
+          </div>
+        </div>
+      )}
+
+      {/* ===== INTERVENCIÓN ===== */}
+      {activeSection === 'intervencion' && (
+        <div className="space-y-6">
+          <SectionHeader
+            icon={Zap}
+            title="Análisis de Intervención"
+            description="Impacto y resultados de intervenciones en colas"
+          />
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+            <p className="text-slate-600">Análisis de intervención</p>
+          </div>
+        </div>
+      )}
+
+      {/* ===== AUDITORÍA ===== */}
+      {activeSection === 'audit' && (
+        <div className="space-y-6">
+          <SectionHeader
+            icon={Shield}
+            title="Auditoría de Datos"
+            description="Panel de calidad de datos y anomalías detectadas"
+          />
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+            <p className="text-slate-600">Auditoría de datos</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
