@@ -412,7 +412,8 @@ export async function transformRows(
     if (VALID_QUEUES.has(rawQueue)) {
       queue = rawQueue;
     } else if (isOutbound) {
-      queue = 'Saliente';
+      // Outbound calls don't require a queue - they only need an executive
+      queue = '';
     } else if (rawQueue === '') {
       // Inbound with no queue = check if it's an IVR abandon
       const ivrTotalSeconds = columnMap.ivrTotal
