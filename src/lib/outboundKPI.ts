@@ -213,29 +213,26 @@ export function calculateExecutiveOutboundStats(
 
   const executiveMap = new Map<
     string,
-    Map<
-      string,
-      {
-        attempts: number;
-        valid: number;
-        totalConversation: number;
-        totalACW: number;
-      }
-    >
+    {
+      attempts: number;
+      valid: number;
+      totalConversation: number;
+      totalACW: number;
+    }
   >();
 
   for (const record of outboundRecords) {
     const executive = record.executive || 'Sin asignar';
-    const queue = record.queue || 'Sin cola';
+
+    // Skip unattended/placeholder executives for outbound
+    if (executive === 'SIN ATENDER' || executive === 'Sin asignar' || executive === 'DESCONOCIDO') {
+      continue;
+    }
+
     const isValid = isValidOutboundContact(record);
 
     if (!executiveMap.has(executive)) {
-      executiveMap.set(executive, new Map());
-    }
-
-    const queueMap = executiveMap.get(executive)!;
-    if (!queueMap.has(queue)) {
-      queueMap.set(queue, {
+      executiveMap.set(executive, {
         attempts: 0,
         valid: 0,
         totalConversation: 0,
@@ -243,7 +240,7 @@ export function calculateExecutiveOutboundStats(
       });
     }
 
-    const stats = queueMap.get(queue)!;
+    const stats = executiveMap.get(executive)!;
     stats.attempts += 1;
     if (isValid) {
       stats.valid += 1;
@@ -254,23 +251,21 @@ export function calculateExecutiveOutboundStats(
 
   const result: ExecutiveOutboundStat[] = [];
 
-  for (const [executive, queueMap] of executiveMap.entries()) {
-    for (const [queue, stats] of queueMap.entries()) {
-      const contactRate = stats.attempts > 0 ? stats.valid / stats.attempts : 0;
-      const avgConversation = stats.valid > 0 ? stats.totalConversation / stats.valid : 0;
-      const avgACW = stats.valid > 0 ? stats.totalACW / stats.valid : 0;
+  for (const [executive, stats] of executiveMap.entries()) {
+    const contactRate = stats.attempts > 0 ? stats.valid / stats.attempts : 0;
+    const avgConversation = stats.valid > 0 ? stats.totalConversation / stats.valid : 0;
+    const avgACW = stats.valid > 0 ? stats.totalACW / stats.valid : 0;
 
-      result.push({
-        executive,
-        queue,
-        attempts: stats.attempts,
-        validContacts: stats.valid,
-        contactRate,
-        avgConversation,
-        avgACW,
-        avgAHT: avgConversation + avgACW,
-      });
-    }
+    result.push({
+      executive,
+      queue: '', // No longer grouping by queue
+      attempts: stats.attempts,
+      validContacts: stats.valid,
+      contactRate,
+      avgConversation,
+      avgACW,
+      avgAHT: avgConversation + avgACW,
+    });
   }
 
   return result.sort((a, b) => b.attempts - a.attempts);

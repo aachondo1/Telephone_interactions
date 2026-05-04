@@ -54,9 +54,6 @@ export function OutboundExecutiveRankings({ stats }: Props) {
               <th className="px-3 py-2 text-left text-xs font-semibold text-slate-700">
                 Ejecutivo
               </th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-700">
-                Cola
-              </th>
               <th className="px-3 py-2 text-center text-xs font-semibold text-slate-700">
                 Intentos
               </th>
@@ -80,16 +77,13 @@ export function OutboundExecutiveRankings({ stats }: Props) {
           <tbody className="divide-y divide-slate-200">
             {stats.map((stat, idx) => (
               <tr
-                key={`${stat.executive}-${stat.queue}-${idx}`}
+                key={`${stat.executive}-${idx}`}
                 className={`hover:bg-slate-50 transition-colors ${getContactRateBg(
                   stat.contactRate
                 )}`}
               >
                 <td className="px-3 py-2 text-sm font-medium text-slate-900">
                   {stat.executive}
-                </td>
-                <td className="px-3 py-2 text-sm text-slate-600">
-                  {stat.queue}
                 </td>
                 <td className="px-3 py-2 text-center text-sm font-semibold text-slate-900">
                   {stat.attempts.toLocaleString('es-CL')}
