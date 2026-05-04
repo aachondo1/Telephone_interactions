@@ -911,6 +911,7 @@ export function calculateHourlyDemand(records: CallRecord[]): HourlyDemandData {
   const MAX_REASONABLE_ALERT_SECONDS = 120;
   const durationMap = new Map<number, Map<number, number>>();
   for (const r of records) {
+    if (!r.attended) continue;
     if (!r.call_date || r.call_hour === null || r.call_hour === undefined) continue;
     const day = new Date(r.call_date + 'T00:00:00').getDay();
     if (day < 1 || day > 5) continue;
