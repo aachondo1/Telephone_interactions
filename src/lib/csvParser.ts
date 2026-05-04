@@ -414,20 +414,9 @@ export async function transformRows(
     } else if (isOutbound) {
       // Outbound calls don't require a queue - they only need an executive
       queue = '';
-    } else if (rawQueue === '') {
-      // Inbound with no queue = check if it's an IVR abandon
-      const ivrTotalSeconds = columnMap.ivrTotal
-        ? parseNumericField(row[columnMap.ivrTotal] ?? '0')
-        : 0;
-
-      // Allow inbound calls that have IVR data (they're IVR abandons)
-      // Only discard truly invalid calls: inbound < 90s with NO IVR interaction AND NOT abandoned in IVR
-      if (isInbound && durationSeconds < 90 && ivrTotalSeconds === 0) {
-        // Inbound, < 1:30, no queue, no IVR = invalid
-        continue;
-      }
-      // Has no queue = unassigned (but valid if it's an IVR abandon)
-      queue = '';
+    } else if (isInbound) {
+      // Inbound calls MUST have a valid queue - discard if no queue found
+      continue;
     } else {
       continue;
     }
