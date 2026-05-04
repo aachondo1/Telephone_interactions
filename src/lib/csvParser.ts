@@ -363,27 +363,30 @@ export async function transformRows(
     // Only the last user in the list actually handled the call
     let executives = allUsers.length > 0 ? [allUsers[allUsers.length - 1]] : [];
 
-    // CRITICAL: attended should be based on CONVERSATION TIME, not total duration
-    // conversationTotalSeconds only has data when a human agent actually talked to customer
-    // durationSeconds includes IVR time, so it's poisoned for determining real attendance
-    // This is the "Regla de Oro": conversation happened = attended; no conversation = abandoned
     const originalCallId = columnMap.callId
       ? (row[columnMap.callId] ?? String(i))
       : String(i);
 
+    const direction = (columnMap.direction ? row[columnMap.direction] : '') ?? '';
+    const isOutbound = direction.toLowerCase() === 'outbound' || direction.toLowerCase() === 'saliente';
+
+    // CRITICAL: attended should be based on CONVERSATION TIME, not total duration
+    // conversationTotalSeconds only has data when a human agent actually talked to customer
+    // durationSeconds includes IVR time, so it's poisoned for determining real attendance
+    // This is the "Regla de Oro": conversation happened = attended; no conversation = abandoned
     const conversationTotalSeconds = columnMap.conversationTotal
       ? parseNumericField(row[columnMap.conversationTotal] ?? '0')
       : durationSeconds;
 
     let attended = conversationTotalSeconds > 0;
 
-    // If attended but no executive listed, mark as SIN ATENDER
-    if (attended && executives.length === 0) {
-      executives = ['DESCONOCIDO'];
-    }
-    // If not attended, clear executives list
-    if (!attended) {
+    // For inbound calls: if not attended, mark as SIN ATENDER
+    // For outbound calls: preserve executive from CSV regardless of conversation
+    if (!isOutbound && !attended) {
       executives = ['SIN ATENDER'];
+    } else if (attended && executives.length === 0) {
+      // If attended but no executive listed (inbound or outbound), mark as DESCONOCIDO
+      executives = ['DESCONOCIDO'];
     }
 
     const rawPhone = columnMap.phone ? (row[columnMap.phone] ?? '') : '';
@@ -403,9 +406,7 @@ export async function transformRows(
       ? isExportComplete(row[columnMap.exportComplete] ?? '')
       : false;
 
-    const direction = (columnMap.direction ? row[columnMap.direction] : '') ?? '';
     const rawQueue = ((columnMap.queue ? row[columnMap.queue] : '') ?? '').trim();
-    const isOutbound = direction.toLowerCase() === 'outbound' || direction.toLowerCase() === 'saliente';
     const isInbound = direction.toLowerCase() === 'inbound' || direction.toLowerCase() === 'entrante';
 
     let queue: string;
@@ -548,7 +549,7 @@ export async function transformRows(
       callDate,
       callTime,
       callHour,
-      executives: attended ? executives : ['SIN ATENDER'],
+      executives,
       rawPhone,
       cleanPhone,
       callDirection: direction,

@@ -256,11 +256,6 @@ export function calculateExecutiveOutboundStats(
   for (const record of outboundRecords) {
     const executive = record.executive || 'Sin asignar';
 
-    // Skip unattended/placeholder executives for outbound
-    if (executive === 'SIN ATENDER' || executive === 'Sin asignar' || executive === 'DESCONOCIDO') {
-      continue;
-    }
-
     const isValid = isValidOutboundContact(record);
 
     if (!executiveMap.has(executive)) {
