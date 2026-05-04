@@ -1,8 +1,15 @@
 import { useMemo, useState } from 'react';
 import type { CallRecord } from '../lib/supabase';
-import { calculateOutboundKPIs, generateContactabilityHeatmap } from '../lib/outboundKPI';
+import {
+  calculateOutboundKPIs,
+  generateContactabilityHeatmap,
+  calculateExecutiveOutboundStats,
+  generateExecutiveScatterData,
+} from '../lib/outboundKPI';
 import { OutboundKPICards } from './OutboundKPICards';
 import { ContactabilityHeatmap } from './ContactabilityHeatmap';
+import { OutboundExecutiveScatter } from './OutboundExecutiveScatter';
+import { OutboundExecutiveRankings } from './OutboundExecutiveRankings';
 
 type Props = {
   records: CallRecord[];
@@ -22,6 +29,16 @@ export function OutboundDashboard({ records }: Props) {
 
   const heatmapData = useMemo(
     () => generateContactabilityHeatmap(filteredRecords),
+    [filteredRecords]
+  );
+
+  const executiveStats = useMemo(
+    () => calculateExecutiveOutboundStats(filteredRecords),
+    [filteredRecords]
+  );
+
+  const scatterData = useMemo(
+    () => generateExecutiveScatterData(filteredRecords),
     [filteredRecords]
   );
 
@@ -90,6 +107,24 @@ export function OutboundDashboard({ records }: Props) {
           Heatmap de Contactabilidad por Hora
         </h2>
         <ContactabilityHeatmap data={heatmapData} />
+      </div>
+
+      {/* Executive Analysis Section */}
+      <div className="border-t border-slate-200 pt-8">
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">
+          Análisis de Ejecutivos
+        </h2>
+        <p className="text-sm text-slate-600 mb-6">
+          Identificar patrones de productividad: cerradores efectivos vs. marcadores compulsivos
+        </p>
+
+        {/* Scatter Plot */}
+        <div className="mb-8">
+          <OutboundExecutiveScatter data={scatterData} />
+        </div>
+
+        {/* Rankings Table */}
+        <OutboundExecutiveRankings stats={executiveStats} />
       </div>
     </div>
   );

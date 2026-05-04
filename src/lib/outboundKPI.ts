@@ -30,6 +30,31 @@ export type ContactabilityHeatmapData = {
   maxContactability: number;
 };
 
+export type ExecutiveOutboundStat = {
+  executive: string;
+  queue: string;
+  attempts: number;
+  validContacts: number;
+  contactRate: number;
+  avgConversation: number;
+  avgACW: number;
+  avgAHT: number;
+};
+
+export type ExecutiveScatterPoint = {
+  executive: string;
+  queue: string;
+  attempts: number;
+  validConversationSeconds: number;
+  radius: number;
+};
+
+export type ExecutiveScatterData = {
+  points: ExecutiveScatterPoint[];
+  maxAttempts: number;
+  maxConversation: number;
+};
+
 const OUTBOUND_CONTACT_THRESHOLD_SECONDS = 10;
 
 function isOutboundCall(record: CallRecord): boolean {
@@ -172,4 +197,109 @@ export function generateContactabilityHeatmap(
   });
 
   return { data, maxContactability };
+}
+
+export function calculateExecutiveOutboundStats(
+  records: CallRecord[]
+): ExecutiveOutboundStat[] {
+  const outboundRecords = records.filter(isOutboundCall);
+
+  if (outboundRecords.length === 0) {
+    return [];
+  }
+
+  const executiveMap = new Map<
+    string,
+    Map<
+      string,
+      {
+        attempts: number;
+        valid: number;
+        totalConversation: number;
+        totalACW: number;
+      }
+    >
+  >();
+
+  for (const record of outboundRecords) {
+    const executive = record.executive || 'Sin asignar';
+    const queue = record.queue || 'Sin cola';
+    const isValid = isValidOutboundContact(record);
+
+    if (!executiveMap.has(executive)) {
+      executiveMap.set(executive, new Map());
+    }
+
+    const queueMap = executiveMap.get(executive)!;
+    if (!queueMap.has(queue)) {
+      queueMap.set(queue, {
+        attempts: 0,
+        valid: 0,
+        totalConversation: 0,
+        totalACW: 0,
+      });
+    }
+
+    const stats = queueMap.get(queue)!;
+    stats.attempts += 1;
+    if (isValid) {
+      stats.valid += 1;
+      stats.totalConversation += record.handle_time_seconds || 0;
+      stats.totalACW += record.acw_seconds || 0;
+    }
+  }
+
+  const result: ExecutiveOutboundStat[] = [];
+
+  for (const [executive, queueMap] of executiveMap.entries()) {
+    for (const [queue, stats] of queueMap.entries()) {
+      const contactRate = stats.attempts > 0 ? stats.valid / stats.attempts : 0;
+      const avgConversation = stats.valid > 0 ? stats.totalConversation / stats.valid : 0;
+      const avgACW = stats.valid > 0 ? stats.totalACW / stats.valid : 0;
+
+      result.push({
+        executive,
+        queue,
+        attempts: stats.attempts,
+        validContacts: stats.valid,
+        contactRate,
+        avgConversation,
+        avgACW,
+        avgAHT: avgConversation + avgACW,
+      });
+    }
+  }
+
+  return result.sort((a, b) => b.attempts - a.attempts);
+}
+
+export function generateExecutiveScatterData(
+  records: CallRecord[]
+): ExecutiveScatterData {
+  const stats = calculateExecutiveOutboundStats(records);
+
+  if (stats.length === 0) {
+    return { points: [], maxAttempts: 0, maxConversation: 0 };
+  }
+
+  let maxAttempts = 0;
+  let maxConversation = 0;
+
+  const points: ExecutiveScatterPoint[] = stats.map(stat => {
+    maxAttempts = Math.max(maxAttempts, stat.attempts);
+    maxConversation = Math.max(
+      maxConversation,
+      stat.validContacts * stat.avgConversation
+    );
+
+    return {
+      executive: stat.executive,
+      queue: stat.queue,
+      attempts: stat.attempts,
+      validConversationSeconds: stat.validContacts * stat.avgConversation,
+      radius: Math.sqrt(stat.validContacts) * 2,
+    };
+  });
+
+  return { points, maxAttempts, maxConversation };
 }
