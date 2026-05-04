@@ -39,7 +39,7 @@ export async function saveUpload(
   const dateRangeEnd = dates[dates.length - 1] ?? null;
 
   // Expand records by executive (one row per executive)
-  const expanded: (Omit<CallRecordInsert, 'upload_id'> & { ani_hash: string; call_date: string | null; call_time: string | null })[] = [];
+  const expanded: Omit<CallRecordInsert, 'upload_id'>[] = [];
   const processedSignatures = new Set<string>();
 
   for (const record of markedRecords) {
@@ -90,7 +90,9 @@ export async function saveUpload(
       transfers: record.transfers || null,
       partial_result_timestamp: record.partialResultTimestamp || null,
       filters: record.filters || null,
-    });
+      upload_id: '', // placeholder, will be set below
+      abandoned: !record.attended,
+    } as Omit<CallRecordInsert, 'upload_id'>);
   }
 
   // Insert upload metadata

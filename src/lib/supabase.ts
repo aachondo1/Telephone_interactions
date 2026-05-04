@@ -47,6 +47,12 @@ export type CallRecord = {
   time_to_abandon: number | null;
   exit_reason: string | null;
   conversation_total_seconds: number | null;
+  // Additional metadata fields
+  campaign: string | null;
+  conversation_initiator: string | null;
+  transfers: number | null;
+  partial_result_timestamp: string | null;
+  filters: string | null;
   // Calculated field: abandoned = true if call was not attended
   abandoned: boolean;
 };
