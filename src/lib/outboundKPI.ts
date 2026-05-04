@@ -295,7 +295,16 @@ export function calculateExecutiveOutboundStats(
     });
   }
 
-  return result.sort((a, b) => b.attempts - a.attempts);
+  // Filter out placeholder executives from rankings - only show real executives
+  // These placeholders (DESCONOCIDO, SIN ATENDER, Sin asignar) represent data quality issues
+  // and should not be displayed as if they were actual executives
+  return result
+    .filter(stat =>
+      stat.executive !== 'Sin asignar' &&
+      stat.executive !== 'SIN ATENDER' &&
+      stat.executive !== 'DESCONOCIDO'
+    )
+    .sort((a, b) => b.attempts - a.attempts);
 }
 
 export function generateExecutiveScatterData(

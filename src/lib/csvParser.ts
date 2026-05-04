@@ -99,7 +99,12 @@ const COLUMN_ALIASES: Record<string, string[]> = {
 function findColumn(headers: string[], aliases: string[]): string | null {
   const normalized = headers.map(h => h.toLowerCase().trim());
   for (const alias of aliases) {
-    const idx = normalized.findIndex(h => h === alias || h.includes(alias));
+    // First try exact match
+    const exactIdx = normalized.findIndex(h => h === alias);
+    if (exactIdx !== -1) return headers[exactIdx];
+
+    // Then try substring match (but not if it's part of a longer compound column)
+    const idx = normalized.findIndex(h => h.includes(alias) && !h.includes('-'));
     if (idx !== -1) return headers[idx];
   }
   return null;
@@ -111,8 +116,8 @@ export function detectColumns(headers: string[]): Record<string, string> {
     const found = findColumn(headers, aliases);
     if (found) map[key] = found;
 
-    // DEBUG: Log IVR column detection
-    if (key === 'ivrTotal') {
+    // DEBUG: Log critical column detection
+    if (['ivrTotal', 'users'].includes(key)) {
       console.log(`[CSV Parse DEBUG] Detectando ${key}:`, {
         aliases,
         headers_available: headers,
@@ -121,6 +126,14 @@ export function detectColumns(headers: string[]): Record<string, string> {
       });
     }
   }
+
+  // Log columns that were NOT found
+  console.log('[CSV Parse DEBUG] Resumen de columnas detectadas:', {
+    total_headers: headers.length,
+    detected_columns: map,
+    missing_users_column: !map['users'],
+  });
+
   return map;
 }
 
@@ -380,15 +393,6 @@ export async function transformRows(
 
     let attended = conversationTotalSeconds > 0;
 
-    // For inbound calls: if not attended, mark as SIN ATENDER
-    // For outbound calls: preserve executive from CSV regardless of conversation
-    if (!isOutbound && !attended) {
-      executives = ['SIN ATENDER'];
-    } else if (attended && executives.length === 0) {
-      // If attended but no executive listed (inbound or outbound), mark as DESCONOCIDO
-      executives = ['DESCONOCIDO'];
-    }
-
     const rawPhone = columnMap.phone ? (row[columnMap.phone] ?? '') : '';
     const cleanPhone = cleanPhoneNumber(rawPhone);
 
@@ -409,6 +413,33 @@ export async function transformRows(
     const rawQueue = ((columnMap.queue ? row[columnMap.queue] : '') ?? '').trim();
     const isInbound = direction.toLowerCase() === 'inbound' || direction.toLowerCase() === 'entrante';
 
+    // Parse IVR time early to detect IVR calls
+    const ivrTotalSeconds = columnMap.ivrTotal
+      ? parseNumericField(row[columnMap.ivrTotal] ?? '0')
+      : 0;
+
+    // Detect IVR-only calls BEFORE assigning placeholder executives
+    // We need to check original executives length from CSV, not the modified one
+    const hasExecutive = executives.length > 0;
+    let isIvrOnlyCall = false;
+    if (isInbound && !hasExecutive && !rawQueue && ivrTotalSeconds >= 10) {
+      isIvrOnlyCall = true;
+    }
+
+    // Now assign placeholder executives for non-IVR cases
+    // For inbound calls: if not attended, mark as SIN ATENDER
+    // For outbound calls: preserve executive from CSV regardless of conversation
+    if (!isOutbound && !attended && !isIvrOnlyCall) {
+      executives = ['SIN ATENDER'];
+    } else if (isOutbound && executives.length === 0) {
+      // Outbound calls should always have an executive
+      // If missing, mark as DESCONOCIDO so we can track missing data
+      executives = ['DESCONOCIDO'];
+    } else if (attended && executives.length === 0 && !isIvrOnlyCall) {
+      // If attended but no executive listed (inbound), mark as DESCONOCIDO
+      executives = ['DESCONOCIDO'];
+    }
+
     let queue: string;
     if (VALID_QUEUES.has(rawQueue)) {
       queue = rawQueue;
@@ -416,8 +447,22 @@ export async function transformRows(
       // Outbound calls don't require a queue - they only need an executive
       queue = '';
     } else if (isInbound) {
-      // Inbound calls MUST have a valid queue - discard if no queue found
-      continue;
+      // Inbound calls without a valid queue - check if it's IVR or mark as unknown
+      // IVR calls (Interactive Voice Response) are calls with NO EXECUTIVE and NO QUEUE
+      // (All calls pass through IVR, but IVR-only calls are those never routed to an agent)
+      if (rawQueue && rawQueue.toLowerCase().includes('ivr')) {
+        // Explicitly marked as IVR
+        queue = 'IVR';
+      } else if (isIvrOnlyCall) {
+        // No executive, no queue, AND significant IVR time (>= 10s) = call stayed in IVR
+        queue = 'IVR';
+      } else if (rawQueue) {
+        // Has a queue value but not in valid list - keep the original
+        queue = rawQueue;
+      } else {
+        // No queue value and no valid IVR-only markers - mark as unknown inbound
+        queue = 'Sin cola';
+      }
     } else {
       continue;
     }
@@ -486,11 +531,6 @@ export async function transformRows(
     const holdTimeSeconds = Math.max(0, handleTimeSeconds - acwSeconds - durationSeconds);
     const abandonType = calculateAbandonType(attended, flowExit, queueTimeSeconds, alertedUsers, originalCallId, anomalies);
     const isBounce = calculateIsBounce(alertSegments, alertedUsers, allUsers);
-
-    // Parse new enhanced fields
-    const ivrTotalSeconds = columnMap.ivrTotal
-      ? parseNumericField(row[columnMap.ivrTotal] ?? '0')
-      : 0;
 
     // DEBUG: Log IVR parsing for first few records
     if (i < 5) {
