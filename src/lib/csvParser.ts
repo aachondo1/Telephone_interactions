@@ -393,19 +393,6 @@ export async function transformRows(
 
     let attended = conversationTotalSeconds > 0;
 
-    // For inbound calls: if not attended, mark as SIN ATENDER
-    // For outbound calls: preserve executive from CSV regardless of conversation
-    if (!isOutbound && !attended) {
-      executives = ['SIN ATENDER'];
-    } else if (isOutbound && executives.length === 0) {
-      // Outbound calls should always have an executive
-      // If missing, mark as DESCONOCIDO so we can track missing data
-      executives = ['DESCONOCIDO'];
-    } else if (attended && executives.length === 0) {
-      // If attended but no executive listed (inbound), mark as DESCONOCIDO
-      executives = ['DESCONOCIDO'];
-    }
-
     const rawPhone = columnMap.phone ? (row[columnMap.phone] ?? '') : '';
     const cleanPhone = cleanPhoneNumber(rawPhone);
 
@@ -431,6 +418,28 @@ export async function transformRows(
       ? parseNumericField(row[columnMap.ivrTotal] ?? '0')
       : 0;
 
+    // Detect IVR-only calls BEFORE assigning placeholder executives
+    // We need to check original executives length from CSV, not the modified one
+    const hasExecutive = executives.length > 0;
+    let isIvrOnlyCall = false;
+    if (isInbound && !hasExecutive && !rawQueue && ivrTotalSeconds >= 10) {
+      isIvrOnlyCall = true;
+    }
+
+    // Now assign placeholder executives for non-IVR cases
+    // For inbound calls: if not attended, mark as SIN ATENDER
+    // For outbound calls: preserve executive from CSV regardless of conversation
+    if (!isOutbound && !attended && !isIvrOnlyCall) {
+      executives = ['SIN ATENDER'];
+    } else if (isOutbound && executives.length === 0) {
+      // Outbound calls should always have an executive
+      // If missing, mark as DESCONOCIDO so we can track missing data
+      executives = ['DESCONOCIDO'];
+    } else if (attended && executives.length === 0 && !isIvrOnlyCall) {
+      // If attended but no executive listed (inbound), mark as DESCONOCIDO
+      executives = ['DESCONOCIDO'];
+    }
+
     let queue: string;
     if (VALID_QUEUES.has(rawQueue)) {
       queue = rawQueue;
@@ -441,12 +450,10 @@ export async function transformRows(
       // Inbound calls without a valid queue - check if it's IVR or mark as unknown
       // IVR calls (Interactive Voice Response) are calls with NO EXECUTIVE and NO QUEUE
       // (All calls pass through IVR, but IVR-only calls are those never routed to an agent)
-      const MIN_IVR_THRESHOLD = 10; // Calls < 10s in IVR are noise, not valid IVR calls
-
       if (rawQueue && rawQueue.toLowerCase().includes('ivr')) {
         // Explicitly marked as IVR
         queue = 'IVR';
-      } else if (!executives.length && !rawQueue && ivrTotalSeconds >= MIN_IVR_THRESHOLD) {
+      } else if (isIvrOnlyCall) {
         // No executive, no queue, AND significant IVR time (>= 10s) = call stayed in IVR
         queue = 'IVR';
       } else if (rawQueue) {
