@@ -99,7 +99,12 @@ const COLUMN_ALIASES: Record<string, string[]> = {
 function findColumn(headers: string[], aliases: string[]): string | null {
   const normalized = headers.map(h => h.toLowerCase().trim());
   for (const alias of aliases) {
-    const idx = normalized.findIndex(h => h === alias || h.includes(alias));
+    // First try exact match
+    const exactIdx = normalized.findIndex(h => h === alias);
+    if (exactIdx !== -1) return headers[exactIdx];
+
+    // Then try substring match (but not if it's part of a longer compound column)
+    const idx = normalized.findIndex(h => h.includes(alias) && !h.includes('-'));
     if (idx !== -1) return headers[idx];
   }
   return null;
