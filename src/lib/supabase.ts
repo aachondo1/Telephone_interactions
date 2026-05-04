@@ -53,8 +53,6 @@ export type CallRecord = {
   transfers: number | null;
   partial_result_timestamp: string | null;
   filters: string | null;
-  // Calculated field: abandoned = true if call was not attended
-  abandoned: boolean;
 };
 
 export type CallRecordInsert = Omit<CallRecord, 'id'>;

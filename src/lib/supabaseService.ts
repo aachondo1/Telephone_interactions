@@ -91,7 +91,6 @@ export async function saveUpload(
       partial_result_timestamp: record.partialResultTimestamp || null,
       filters: record.filters || null,
       upload_id: '', // placeholder, will be set below
-      abandoned: !record.attended,
     } as Omit<CallRecordInsert, 'upload_id'>);
   }
 
