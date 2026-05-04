@@ -64,7 +64,7 @@ function isOutboundCall(record: CallRecord): boolean {
 function isValidOutboundContact(record: CallRecord): boolean {
   if (!isOutboundCall(record)) return false;
 
-  const conversationSeconds = record.handle_time_seconds || 0;
+  const conversationSeconds = record.conversation_total_seconds || 0;
   const disconnectionType = record.exit_reason || record.abandon_type || '';
 
   return (
@@ -91,7 +91,7 @@ export function calculateOutboundKPIs(records: CallRecord[]): OutboundKPI {
   const effectiveContactRate = validContacts.length / outboundRecords.length;
 
   const totalConversationSeconds = outboundRecords.reduce(
-    (sum, r) => sum + (r.handle_time_seconds || 0),
+    (sum, r) => sum + (r.conversation_total_seconds || 0),
     0
   );
   const totalACWSeconds = outboundRecords.reduce(
@@ -106,9 +106,12 @@ export function calculateOutboundKPIs(records: CallRecord[]): OutboundKPI {
     ? totalACWSeconds / outboundRecords.length
     : 0;
 
-  const totalOutboundSeconds = totalConversationSeconds + totalACWSeconds;
+  const totalOutboundSeconds = outboundRecords.reduce(
+    (sum, r) => sum + (r.handle_time_seconds || 0),
+    0
+  );
   const allRecordsTotalSeconds = records.reduce(
-    (sum, r) => sum + (r.handle_time_seconds || 0) + (r.acw_seconds || 0),
+    (sum, r) => sum + (r.handle_time_seconds || 0),
     0
   );
 
@@ -244,7 +247,7 @@ export function calculateExecutiveOutboundStats(
     stats.attempts += 1;
     if (isValid) {
       stats.valid += 1;
-      stats.totalConversation += record.handle_time_seconds || 0;
+      stats.totalConversation += record.conversation_total_seconds || 0;
       stats.totalACW += record.acw_seconds || 0;
     }
   }

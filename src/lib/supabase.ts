@@ -46,6 +46,7 @@ export type CallRecord = {
   ivr_time_seconds: number | null;
   time_to_abandon: number | null;
   exit_reason: string | null;
+  conversation_total_seconds: number | null;
   // Calculated field: abandoned = true if call was not attended
   abandoned: boolean;
 };
