@@ -295,14 +295,7 @@ export function calculateExecutiveOutboundStats(
     });
   }
 
-  // Filter out placeholder executives since all outbound calls should have real executives
-  return result
-    .filter(stat =>
-      stat.executive !== 'Sin asignar' &&
-      stat.executive !== 'SIN ATENDER' &&
-      stat.executive !== 'DESCONOCIDO'
-    )
-    .sort((a, b) => b.attempts - a.attempts);
+  return result.sort((a, b) => b.attempts - a.attempts);
 }
 
 export function generateExecutiveScatterData(

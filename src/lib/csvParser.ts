@@ -384,8 +384,12 @@ export async function transformRows(
     // For outbound calls: preserve executive from CSV regardless of conversation
     if (!isOutbound && !attended) {
       executives = ['SIN ATENDER'];
+    } else if (isOutbound && executives.length === 0) {
+      // Outbound calls should always have an executive
+      // If missing, mark as DESCONOCIDO so we can track missing data
+      executives = ['DESCONOCIDO'];
     } else if (attended && executives.length === 0) {
-      // If attended but no executive listed (inbound or outbound), mark as DESCONOCIDO
+      // If attended but no executive listed (inbound), mark as DESCONOCIDO
       executives = ['DESCONOCIDO'];
     }
 
