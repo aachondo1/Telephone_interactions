@@ -111,8 +111,8 @@ export function detectColumns(headers: string[]): Record<string, string> {
     const found = findColumn(headers, aliases);
     if (found) map[key] = found;
 
-    // DEBUG: Log IVR column detection
-    if (key === 'ivrTotal') {
+    // DEBUG: Log critical column detection
+    if (['ivrTotal', 'users'].includes(key)) {
       console.log(`[CSV Parse DEBUG] Detectando ${key}:`, {
         aliases,
         headers_available: headers,
@@ -121,6 +121,14 @@ export function detectColumns(headers: string[]): Record<string, string> {
       });
     }
   }
+
+  // Log columns that were NOT found
+  console.log('[CSV Parse DEBUG] Resumen de columnas detectadas:', {
+    total_headers: headers.length,
+    detected_columns: map,
+    missing_users_column: !map['users'],
+  });
+
   return map;
 }
 
