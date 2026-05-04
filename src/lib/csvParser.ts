@@ -426,6 +426,11 @@ export async function transformRows(
     const rawQueue = ((columnMap.queue ? row[columnMap.queue] : '') ?? '').trim();
     const isInbound = direction.toLowerCase() === 'inbound' || direction.toLowerCase() === 'entrante';
 
+    // Parse IVR time early to detect IVR calls
+    const ivrTotalSeconds = columnMap.ivrTotal
+      ? parseNumericField(row[columnMap.ivrTotal] ?? '0')
+      : 0;
+
     let queue: string;
     if (VALID_QUEUES.has(rawQueue)) {
       queue = rawQueue;
@@ -435,7 +440,8 @@ export async function transformRows(
     } else if (isInbound) {
       // Inbound calls without a valid queue - check if it's IVR or mark as unknown
       // IVR calls (Interactive Voice Response) are important for KPIs
-      if (rawQueue && rawQueue.toLowerCase().includes('ivr')) {
+      if ((rawQueue && rawQueue.toLowerCase().includes('ivr')) || ivrTotalSeconds > 0) {
+        // Mark as IVR if queue says IVR or if IVR total time is recorded
         queue = 'IVR';
       } else if (rawQueue) {
         // Has a queue value but not in valid list - keep the original
@@ -512,11 +518,6 @@ export async function transformRows(
     const holdTimeSeconds = Math.max(0, handleTimeSeconds - acwSeconds - durationSeconds);
     const abandonType = calculateAbandonType(attended, flowExit, queueTimeSeconds, alertedUsers, originalCallId, anomalies);
     const isBounce = calculateIsBounce(alertSegments, alertedUsers, allUsers);
-
-    // Parse new enhanced fields
-    const ivrTotalSeconds = columnMap.ivrTotal
-      ? parseNumericField(row[columnMap.ivrTotal] ?? '0')
-      : 0;
 
     // DEBUG: Log IVR parsing for first few records
     if (i < 5) {
