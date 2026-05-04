@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import {
-  BarChart, Bar, LineChart, Line, AreaChart, Area,
+  BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  Cell, ComposedChart, ScatterChart, Scatter, PieChart, Pie
+  Cell, ComposedChart
 } from 'recharts';
-import { Activity, AlertCircle, Calendar, CheckCircle, Info, Users, Layers, Zap, Shield, PhoneCall } from 'lucide-react';
-import { FilterBar, DEFAULT_FILTERS } from './FilterBar';
+import { Activity, AlertCircle, Calendar, Users, Layers, Zap, Shield, PhoneCall } from 'lucide-react';
+import { FilterBar, DEFAULT_FILTERS, getDateRangeForRelative } from './FilterBar';
 import type { FilterState } from './FilterBar';
 import { calculateKPIs } from '../lib/kpi';
 import type { CallRecord, CallUpload, AgentStatusRecord } from '../lib/supabase';
@@ -96,13 +96,18 @@ export function Dashboard({
 
   // Filter records by date range
   const filteredRecords = useMemo(() => {
+    let dateStart = filters.dateStart;
+    let dateEnd = filters.dateEnd;
+
+    if (filters.dateRange !== 'custom') {
+      const range = getDateRangeForRelative(filters.dateRange);
+      dateStart = range.start;
+      dateEnd = range.end;
+    }
+
     return records.filter(r => {
       if (!r.call_date) return false;
-      if (filters.dateRange === 'custom') {
-        return r.call_date >= filters.dateStart && r.call_date <= filters.dateEnd;
-      }
-      // Add other date range filters as needed
-      return true;
+      return r.call_date >= dateStart && r.call_date <= dateEnd;
     });
   }, [records, filters]);
 
@@ -139,7 +144,7 @@ export function Dashboard({
           <SectionHeader
             icon={PhoneCall}
             title="Dashboard de Inicio"
-            description="Métricas clave del período {upload.date_range_start ? `${upload.date_range_start} a ${upload.date_range_end}` : 'seleccionado'}"
+            description={`Métricas clave del período ${upload.date_range_start ? `${upload.date_range_start} a ${upload.date_range_end}` : 'seleccionado'}`}
           />
 
           {/* KPI Strip */}
@@ -271,7 +276,7 @@ export function Dashboard({
                       <td className="px-4 py-3 text-right font-semibold" style={{ color: q.serviceLevel >= 0.8 ? BICE.success : BICE.alert }}>
                         {fmtPct(q.serviceLevel || 0)}
                       </td>
-                      <td className="px-4 py-3 text-right text-slate-600">{fmtPct((q.abandonCount || 0) / q.count)}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">{fmtPct(q.count > 0 ? (q.abandonCount || 0) / q.count : 0)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -421,8 +426,8 @@ export function Dashboard({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <KPICard label="Carga promedio" value={(kpis.totalHandle / Math.max(1, kpis.totalCalls || 1) / 3600).toFixed(2)} unit="erl" />
-            <KPICard label="Pico de carga" value="12.5" unit="erl" />
-            <KPICard label="Dotación actual" value="18" unit="agentes" />
+            <KPICard label="Pico de carga" value={((Math.max(...(kpis.hourlyDistribution?.map((h: any) => h.calls) || [0])) * (kpis.ahtSeconds || 0)) / 3600).toFixed(1)} unit="erl" />
+            <KPICard label="Agentes conectados" value={agentStatusRecords.length || 0} unit="agentes" />
           </div>
 
           {/* Erlang-C demand chart */}
