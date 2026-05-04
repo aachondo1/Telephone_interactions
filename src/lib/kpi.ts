@@ -940,7 +940,8 @@ export function calculateHourlyDemand(records: CallRecord[]): HourlyDemandData {
       if (count === 0) return;
       const totalSec = durationMap.get(day)?.get(hour) ?? 0;
       if (totalSec === 0) return;
-      const erlangs = Math.round((totalSec / 3600 / count) * 10) / 10;
+      const hourCapacitySeconds = 3600 * count;
+      const erlangs = Math.round((totalSec / hourCapacitySeconds) * 10) / 10;
       point[dayNames[idx]] = erlangs;
       if (erlangs > peakErlangs) peakErlangs = erlangs;
     });
