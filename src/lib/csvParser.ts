@@ -439,15 +439,19 @@ export async function transformRows(
       queue = '';
     } else if (isInbound) {
       // Inbound calls without a valid queue - check if it's IVR or mark as unknown
-      // IVR calls (Interactive Voice Response) are important for KPIs
-      if ((rawQueue && rawQueue.toLowerCase().includes('ivr')) || ivrTotalSeconds > 0) {
-        // Mark as IVR if queue says IVR or if IVR total time is recorded
+      // IVR calls (Interactive Voice Response) are calls with NO EXECUTIVE and NO QUEUE
+      // (All calls pass through IVR, but IVR-only calls are those never routed to an agent)
+      if (rawQueue && rawQueue.toLowerCase().includes('ivr')) {
+        // Explicitly marked as IVR
+        queue = 'IVR';
+      } else if (!executives.length && !rawQueue && ivrTotalSeconds > 0) {
+        // No executive, no queue, but has IVR time = call stayed in IVR, never reached agent
         queue = 'IVR';
       } else if (rawQueue) {
         // Has a queue value but not in valid list - keep the original
         queue = rawQueue;
       } else {
-        // No queue value - mark as unknown inbound
+        // No queue value and no IVR-only markers - mark as unknown inbound
         queue = 'Sin cola';
       }
     } else {
