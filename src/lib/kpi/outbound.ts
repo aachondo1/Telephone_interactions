@@ -1,65 +1,13 @@
-import type { CallRecord } from './supabase';
-
-export type OutboundKPI = {
-  effectiveContactRate: number;
-  ahtOutbound: {
-    conversation: number;
-    acw: number;
-    total: number;
-  };
-  occupancyImpact: number;
-  totalOutboundAttempts: number;
-  validContacts: number;
-  debugStats?: {
-    totalSalientes: number;
-    withValidExecutive: number;
-    withConversation: number;
-    withSistemaExit: number;
-  };
-};
-
-export type ContactabilityHeatmapCell = {
-  hour: number;
-  queue: string;
-  contactabilityPercent: number;
-  attempts: number;
-  validContacts: number;
-};
-
-export type ContactabilityHeatmapRow = {
-  queue: string;
-  cells: ContactabilityHeatmapCell[];
-};
-
-export type ContactabilityHeatmapData = {
-  data: ContactabilityHeatmapRow[];
-  maxContactability: number;
-};
-
-export type ExecutiveOutboundStat = {
-  executive: string;
-  queue: string;
-  attempts: number;
-  validContacts: number;
-  contactRate: number;
-  avgConversation: number;
-  avgACW: number;
-  avgAHT: number;
-};
-
-export type ExecutiveScatterPoint = {
-  executive: string;
-  queue: string;
-  attempts: number;
-  validConversationSeconds: number;
-  radius: number;
-};
-
-export type ExecutiveScatterData = {
-  points: ExecutiveScatterPoint[];
-  maxAttempts: number;
-  maxConversation: number;
-};
+import type { CallRecord } from '../supabase';
+import {
+  type OutboundKPI,
+  type ContactabilityHeatmapData,
+  type ContactabilityHeatmapRow,
+  type ContactabilityHeatmapCell,
+  type ExecutiveOutboundStat,
+  type ExecutiveScatterData,
+  type ExecutiveScatterPoint,
+} from './types';
 
 const OUTBOUND_CONTACT_THRESHOLD_SECONDS = 10;
 
@@ -84,7 +32,6 @@ export function calculateOutboundKPIs(records: CallRecord[]): OutboundKPI {
   const outboundRecords = records.filter(isOutboundCall);
   const validContacts = outboundRecords.filter(isValidOutboundContact);
 
-  // Debug stats para entender filtros
   const withValidExecutive = outboundRecords.filter(r =>
     r.executive &&
     r.executive !== 'SIN ATENDER' &&
@@ -285,7 +232,7 @@ export function calculateExecutiveOutboundStats(
 
     result.push({
       executive,
-      queue: '', // No longer grouping by queue
+      queue: '',
       attempts: stats.attempts,
       validContacts: stats.valid,
       contactRate,
@@ -295,9 +242,6 @@ export function calculateExecutiveOutboundStats(
     });
   }
 
-  // Filter out placeholder executives from rankings - only show real executives
-  // These placeholders (DESCONOCIDO, SIN ATENDER, Sin asignar) represent data quality issues
-  // and should not be displayed as if they were actual executives
   return result
     .filter(stat =>
       stat.executive !== 'Sin asignar' &&

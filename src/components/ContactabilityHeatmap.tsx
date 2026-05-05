@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ContactabilityHeatmapData } from '../lib/outboundKPI';
+import type { ContactabilityHeatmapData } from '../lib/kpi';
 
 type Props = {
   data: ContactabilityHeatmapData;

@@ -5,7 +5,7 @@ import {
   generateContactabilityHeatmap,
   calculateExecutiveOutboundStats,
   generateExecutiveScatterData,
-} from '../lib/outboundKPI';
+} from '../lib/kpi';
 import { OutboundKPICards } from './OutboundKPICards';
 import { ContactabilityHeatmap } from './ContactabilityHeatmap';
 import { OutboundExecutiveScatter } from './OutboundExecutiveScatter';

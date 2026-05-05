@@ -1,4 +1,4 @@
-import type { ExecutiveOutboundStat } from '../lib/outboundKPI';
+import type { ExecutiveOutboundStat } from '../lib/kpi';
 
 type Props = {
   stats: ExecutiveOutboundStat[];

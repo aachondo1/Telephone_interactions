@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Clock, Zap, PhoneOff, AlertCircle, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, Clock, Zap, PhoneOff, Activity } from 'lucide-react';
 import type { QueueHealthMetric, OperationalKPIs, AbandonFunnelData } from '../lib/kpi';
 import { Tooltip } from './Tooltip';
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ExecutiveScatterData } from '../lib/outboundKPI';
+import type { ExecutiveScatterData } from '../lib/kpi';
 
 type Props = {
   data: ExecutiveScatterData;

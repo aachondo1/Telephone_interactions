@@ -1,4 +1,4 @@
-import type { OutboundKPI } from '../lib/outboundKPI';
+import type { OutboundKPI } from '../lib/kpi';
 
 type Props = {
   kpi: OutboundKPI;

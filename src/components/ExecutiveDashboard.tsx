@@ -36,17 +36,6 @@ function attendanceLight(pct: number): TrafficLight {
   if (pct >= 80) return 'yellow';
   return 'red';
 }
-function unattendedLight(pct: number): TrafficLight {
-  if (pct <= 5)  return 'green';
-  if (pct <= 15) return 'yellow';
-  return 'red';
-}
-function completenessLight(pct: number): TrafficLight {
-  if (pct >= 95) return 'green';
-  if (pct >= 85) return 'yellow';
-  return 'red';
-}
-
 const fmtAxisDate = (dateStr: string) =>
   new Date(dateStr + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
 
