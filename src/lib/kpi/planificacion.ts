@@ -1,6 +1,5 @@
 import type { CallRecord } from '../supabase';
 import { type HourlyDemandData, type HourlyDemandPoint, type InterventionMetrics } from './types';
-// planificacion.ts
 
 const MAX_REASONABLE_ALERT_SECONDS = 120;
 

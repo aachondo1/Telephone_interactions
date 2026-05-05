@@ -268,10 +268,10 @@ export function generateQueueHealthInsights(
     }
   }
 
-  // Note: funnelData.bounceAbandons and funnelData.totalAbandons are not in AbandonFunnelData type
-  // Keeping the logic structure but it won't trigger since those fields don't exist
-  const bounceAbandons = (funnelData as any).bounceAbandons ?? 0;
-  const totalAbandons = (funnelData as any).totalAbandons ?? 0;
+  const totalAbandons = funnelData.totalAbandonments;
+  // bounceAbandons is not tracked in AbandonFunnelData; skip this insight
+  // (previously referenced a non-existent property that was always undefined)
+  const bounceAbandons = 0;
   if (totalAbandons > 0 && bounceAbandons / totalAbandons > 0.05) {
     insights.push({
       type: 'availability',

@@ -13,10 +13,18 @@ export function ASAATADiagnosis({ metric }: Props) {
   const isASAHigh = asa > ata;
   const isASALow = asa <= ata;
 
-  let diagnosis = {
+  let diagnosis: {
+    title: string;
+    message: string;
+    severity: 'critical' | 'warning' | 'info';
+    icon: typeof AlertCircle;
+    color: string;
+    bgColor: string;
+    borderColor: string;
+  } = {
     title: 'Diagnóstico',
     message: '',
-    severity: 'info' as const,
+    severity: 'info',
     icon: AlertCircle,
     color: 'text-blue-600',
     bgColor: 'bg-blue-50',

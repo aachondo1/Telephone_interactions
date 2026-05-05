@@ -145,7 +145,6 @@ export function AbandonFunnelChart({ data }: Props) {
                             {stageDef && (
                               <InfoTooltip
                                 definition={stageDef.definition}
-                                formula={stageDef.formula}
                                 unit={stageDef.unit}
                                 benchmark={stageDef.benchmark}
                               />

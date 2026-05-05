@@ -1,5 +1,5 @@
 import type { CallRecord } from '../supabase';
-import { DataQualityReport } from './types';
+import type { DataQualityReport } from './types';
 
 export function isCorruptedTechnicalCall(record: CallRecord): boolean {
   return (
