@@ -292,7 +292,6 @@ function calculateOccupancyMetrics(
 export function OccupationDashboard({ records, connectivityData }: Props) {
   const [filters, setFilters] = useState<OccupationFilters>({
     dateRange: 'thisWeek',
-    anomaliesOnly: false,
     group: '',
   });
 
@@ -325,19 +324,6 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
     () => calculateOccupancyMetrics(records, connectivity, filters),
     [records, connectivity, filters]
   );
-
-  const filteredAuditData = filters.anomaliesOnly
-    ? auditData.filter((row) => row.ghostMinutes > 30 || row.evasionMinutes > 15)
-    : auditData;
-
-  const filteredPerformanceData = filters.anomaliesOnly
-    ? performanceData.filter(
-        (p) =>
-          p.quadrant === 'heroes' ||
-          p.quadrant === 'inflators' ||
-          p.quadrant === 'underperformers'
-      )
-    : performanceData;
 
   const hasData = records.length > 0 || connectivity.length > 0;
 
@@ -373,8 +359,8 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
         <>
           <OccupationKPICards data={kpiData} />
           <AgentGanttChart agents={ganttData} demandData={demandData} />
-          <AgentPerformanceMatrix data={filteredPerformanceData} />
-          <AgentAuditTable rows={filteredAuditData} />
+          <AgentPerformanceMatrix data={performanceData} />
+          <AgentAuditTable rows={auditData} />
         </>
       )}
     </div>
