@@ -1,3 +1,4 @@
+character">
 import type { OutboundKPI } from '../lib/kpi';
 import { calcChangePercent } from '../lib/periodComparison';
 
@@ -72,7 +73,7 @@ export function OutboundKPICards({ kpi, previousKpi }: Props) {
           />
         </div>
         <p className="text-xs text-slate-500">
-          ✓ Conversación >10s, no sistema
+          {'\u2713 Conversación >10s, no sistema'}
         </p>
       </div>
 
@@ -143,7 +144,7 @@ export function OutboundKPICards({ kpi, previousKpi }: Props) {
             color: kpi.occupancyImpact <= 0.25 ? '#1d8e6e' : '#b8761b',
           }}
         >
-          {kpi.occupancyImpact <= 0.25 ? '✓ Óptimo' : '⚠ Alto impacto inbound'}
+          {kpi.occupancyImpact <= 0.25 ? '\u2713 Óptimo' : '\u26A0 Alto impacto inbound'}
         </div>
       </div>
     </div>
