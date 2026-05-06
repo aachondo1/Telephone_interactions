@@ -205,6 +205,7 @@ export default function App() {
         agentStatusCount={agentStatusRecords.length}
         dataQuality={dataQuality}
         onUploadClick={openModal}
+        onUploadAgentStatus={openAgentStatusModal}
       />
 
       {/* Main content area */}

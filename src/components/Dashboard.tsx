@@ -31,7 +31,7 @@ import { calculateKPIs, getEmptyKPISummary, calculateAgentAuditFlags } from '../
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
-import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users } from 'lucide-react';
+import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Users } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
 import { AgentAuditFlags } from './AgentAuditFlags';
@@ -556,16 +556,6 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
               icon={Activity}
               title="Conectividad de Agentes"
               description="Tiempo en cola, fuera de cola y ocupación real"
-              actions={
-                <button
-                  type="button"
-                  onClick={onUploadAgentStatus}
-                  className="flex items-center gap-2 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
-                >
-                  <Upload size={15} />
-                  Cargar CSV
-                </button>
-              }
             />
             {agentStatusRecords.length === 0 ? (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center py-12 gap-4 text-center">
