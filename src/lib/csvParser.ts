@@ -1,11 +1,10 @@
-// ... existing imports ...
-import { crypto } from 'crypto'; // Asegurar que esté disponible (Vite/Node)
+// ... existing imports (keep them all) ...
+// ❌ REMOVE THIS LINE: import { crypto } from 'crypto'; 
 
-// ... existing code ...
+// ... rest of the file ...
 
-// New function: Generate unique signature for deduplication
-// Uses: callDate + callTime + aniHash + durationSeconds + callDirection
-// If ANI is weak, also includes queueTimeSeconds and ivrTotalSeconds
+// Find the generateCallSignature function and replace it with this version:
+
 export async function generateCallSignature(
   callDate: string | null,
   callTime: string | null,
@@ -26,48 +25,20 @@ export async function generateCallSignature(
     fullString += `|${queueTimeSeconds}|${ivrTotalSeconds}`;
   }
 
-  // Generate SHA-256 hash for fixed-length, database-friendly signature
+  // ✅ Use Web Crypto API (Standard, works in Browser + Node v15+)
+  // This avoids the "Module not found" error in Vite browser builds
   const encoder = new TextEncoder();
   const data = encoder.encode(fullString);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// ... inside transformRows(), update the deduplication check:
-
-export async function transformRows(
-  rows: RawCallRecord[],
-  columnMap: Record<string, string>,
-  processedSignatures?: Set<string>
-): Promise<{ records: ParsedCallRecord[]; duplicateCount: number; anomalies: typeof anomalies }> {
-  // ... existing code ...
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-
-    // ... existing parsing code ...
-
-    // Check for duplicates if signatures provided
-    if (processedSignatures && callDate && callTime) {
-      const signature = await generateCallSignature(
-        callDate,
-        callTime,
-        hash,
-        durationSeconds,
-        direction,
-        rawQueueTime,
-        ivrTotalSeconds
-      );
-
-      if (processedSignatures.has(signature)) {
-        duplicateCount++;
-        continue;
-      }
-    }
-
-    // ... rest of the loop ...
+  
+  // Use globalThis.crypto which is available in modern browsers and Node
+  const cryptoApi = globalThis.crypto;
+  if (!cryptoApi || !cryptoApi.subtle) {
+    console.warn('Web Crypto API not available, falling back to simple hash');
+    // Simple fallback for environments without subtle (shouldn't happen in modern setups)
+    return btoa(fullString); 
   }
 
-  // ... rest of the function ...
+  const hashBuffer = await cryptoApi.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
