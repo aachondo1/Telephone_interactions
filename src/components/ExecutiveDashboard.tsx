@@ -208,13 +208,6 @@ function countQueueCalls(records: CallRecord[]): Map<string, number> {
 
 type QueueWithVariation = { queue: string; count: number; variation: number | null };
 
-function addQueueVariation(currentQueues: QueueWithVariation[], prevQueueCounts: Map<string, number>): QueueWithVariation[] {
-  return currentQueues.map(q => ({
-    queue: q.queue,
-    count: q.count,
-    variation: changePct(q.count, prevQueueCounts.get(q.queue) ?? 0),
-  }));
-}
 
 function ChangeBadge({ pct, inverted = false }: { pct: number | null; inverted?: boolean }) {
   if (pct === null) return null;
@@ -286,16 +279,24 @@ type Props = {
 export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavigate }: Props) {
   // Valores de display: derivados de kpis (fuente única = calculateKPIs(filteredRecords))
   // Garantiza consistencia con todas las demás pestañas del dashboard
-  const fullPeriod = useMemo(() => ({
-    totalInbound:   kpis.totalCalls,
-    queueCalls:     kpis.totalCalls - kpis.abandonStats.abandonedInIVR,
-    executiveCalls: kpis.totalCalls - kpis.abandonStats.abandonedInIVR - kpis.abandonStats.abandonedInQueue,
-    attendedCalls:  kpis.totalCalls - kpis.unattendedCount,
-    abandonedCalls: kpis.abandonStats.abandonedInQueue + kpis.abandonStats.abandonedInAlert,
-    avgQueueTimeSec:    Math.round(kpis.avgQueueTimeSeconds),
-    avgAHTSec:          Math.round(kpis.avgHandleTimeSeconds),
-    avgConversationSec: Math.round(kpis.avgDurationSeconds),
-  }), [kpis]);
+  const fullPeriod = useMemo(() => {
+    const inbound = records.filter(r => isInbound(r.call_direction));
+    const valid = inbound.filter(r => !isCorruptedTechnicalCall(r));
+    const attended = valid.filter(r => r.attended);
+    const avgConversationSec = attended.length > 0
+      ? Math.round(attended.reduce((s, r) => s + (r.conversation_total_seconds ?? 0), 0) / attended.length)
+      : 0;
+    return {
+      totalInbound:   kpis.totalCalls,
+      queueCalls:     kpis.totalCalls - kpis.abandonStats.abandonedInIVR,
+      executiveCalls: kpis.totalCalls - kpis.abandonStats.abandonedInIVR - kpis.abandonStats.abandonedInQueue,
+      attendedCalls:  kpis.totalCalls - kpis.unattendedCount,
+      abandonedCalls: kpis.abandonStats.abandonedInQueue + kpis.abandonStats.abandonedInAlert,
+      avgQueueTimeSec:    Math.round(kpis.avgQueueTimeSeconds),
+      avgAHTSec:          Math.round(kpis.avgHandleTimeSeconds),
+      avgConversationSec,
+    };
+  }, [kpis, records]);
 
   // Valores de variación: splitHalves para el badge de cambio (mismos criterios que calculateKPIs)
   const [currentRecords, prevRecords] = useMemo(() => splitHalves(records), [records]);
