@@ -165,7 +165,6 @@ export async function saveUpload(
     ivr_time_seconds: r.ivrTimeSeconds,
     time_to_abandon: r.timeToAbandon,
     exit_reason: r.exitReason,
-    abandoned: !r.attended,
   }));
 
   for (let i = 0; i < callRecordInserts.length; i += BATCH_SIZE) {
