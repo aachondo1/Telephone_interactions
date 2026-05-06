@@ -44,7 +44,8 @@ export {
 } from './salud-colas';
 
 // Ejecutivos
-export { calculateExecutiveOccupancy } from './ejecutivos';
+export { calculateExecutiveOccupancy, calculateAgentAuditFlags } from './ejecutivos';
+export type { AgentAuditFlag } from './ejecutivos';
 
 // Planificación
 export {

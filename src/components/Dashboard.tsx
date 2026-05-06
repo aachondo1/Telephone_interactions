@@ -27,13 +27,14 @@ import { ExecutiveDashboard } from './ExecutiveDashboard';
 import { QueueHealthDashboard } from './QueueHealthDashboard';
 import { OutboundDashboard } from './OutboundDashboard';
 import { SectionHeader } from './SectionHeader';
-import { calculateKPIs, getEmptyKPISummary } from '../lib/kpi';
+import { calculateKPIs, getEmptyKPISummary, calculateAgentAuditFlags } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
-import type { DataQualityReport } from '../lib/kpi';
+import type { DataQualityReport, AgentAuditFlag } from '../lib/kpi';
 import type { Section } from './Sidebar';
 import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
+import { AgentAuditFlags } from './AgentAuditFlags';
 import type { AgentStatusRecord } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
 
@@ -357,8 +358,15 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [kpis, setKpis] = useState(() => getEmptyKPISummary());
   const [isLoadingKpis, setIsLoadingKpis] = useState(false);
+  const [agentAuditFlags, setAgentAuditFlags] = useState<AgentAuditFlag[]>([]);
 
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
+
+  // Calculate audit flags from agent status records
+  useMemo(() => {
+    const flags = calculateAgentAuditFlags(agentStatusRecords);
+    setAgentAuditFlags(flags);
+  }, [agentStatusRecords]);
 
   useEffect(() => {
     setIsLoadingKpis(true);
@@ -537,6 +545,17 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
             executives={kpis.topExecutivesByVolume}
           />
           <ExecutivesDetailTable stats={kpis.executiveStats} />
+
+          {/* Agent audit flags */}
+          {agentAuditFlags.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <AlertTriangle size={20} className="text-yellow-600" />
+                Alertas de Conectividad
+              </h3>
+              <AgentAuditFlags flags={agentAuditFlags} />
+            </div>
+          )}
 
           {/* Conectividad integrada como sub-sección */}
           <div className="border-t border-slate-200 pt-6 mt-6">
