@@ -292,10 +292,18 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
         .from('agent_connectivity_hourly')
         .select('*')
         .limit(5000)
-        .then(({ data }) => {
-          setConnectivity(data || []);
+        .then(({ data, error }) => {
+          if (error) {
+            console.error('Error loading connectivity data:', error);
+            setConnectivity([]);
+          } else {
+            setConnectivity(data || []);
+          }
         })
-        .catch(() => setConnectivity([]))
+        .catch((err) => {
+          console.error('Failed to fetch connectivity data:', err);
+          setConnectivity([]);
+        })
         .finally(() => setLoading(false));
     }
   }, [connectivityData]);
