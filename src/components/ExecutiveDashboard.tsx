@@ -235,19 +235,25 @@ function countQueueCalls(records: CallRecord[]): Map<string, number> {
 type QueueWithVariation = { queue: string; count: number; variation: number | null };
 
 
-function ChangeBadge({ pct, inverted = false }: { pct: number | null; inverted?: boolean }) {
+function ChangeBadge({ pct, inverted = false, compareLabel }: { pct: number | null; inverted?: boolean; compareLabel?: string }) {
   if (pct === null) return null;
   const isPositive = inverted ? pct < 0 : pct > 0;
   const isNeutral = pct === 0;
-  if (isNeutral) return (
-    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-slate-400">
-      <Minus size={10} /> 0%
-    </span>
-  );
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
-      {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-      {Math.abs(pct)}%
+    <span className="inline-flex items-center gap-1 flex-wrap">
+      {isNeutral ? (
+        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-slate-400">
+          <Minus size={10} /> 0%
+        </span>
+      ) : (
+        <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
+          {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+          {Math.abs(pct)}%
+        </span>
+      )}
+      {compareLabel && (
+        <span className="text-[10px] text-slate-400">{compareLabel}</span>
+      )}
     </span>
   );
 }
@@ -260,9 +266,10 @@ type KPICardProps = {
   iconColor: string;
   iconBg: string;
   icon: React.ElementType;
+  compareLabel?: string;
 };
 
-function KPICard({ label, value, change, invertedChange = false, iconColor, iconBg, icon: Icon }: KPICardProps) {
+function KPICard({ label, value, change, invertedChange = false, iconColor, iconBg, icon: Icon, compareLabel }: KPICardProps) {
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
       <div className="flex items-start justify-between mb-3">
@@ -272,8 +279,8 @@ function KPICard({ label, value, change, invertedChange = false, iconColor, icon
         </div>
       </div>
       <p className="text-2xl font-bold text-slate-800 leading-none">{value}</p>
-      <div className="mt-1.5 h-4">
-        <ChangeBadge pct={change} inverted={invertedChange} />
+      <div className="mt-1.5 min-h-4">
+        <ChangeBadge pct={change} inverted={invertedChange} compareLabel={compareLabel} />
       </div>
     </div>
   );
@@ -358,6 +365,18 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
     return getGranularity(Math.max(1, days));
   }, [dateRanges.current]);
 
+  const compareLabel = useMemo(() => {
+    const { start, end } = dateRanges.previous;
+    const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+    if (start === end) return `vs ${fmt(start)}`;
+    const sDate = new Date(start + 'T00:00:00');
+    const eDate = new Date(end + 'T00:00:00');
+    if (sDate.getMonth() === eDate.getMonth()) {
+      return `vs ${sDate.getDate()}-${fmt(end)}`;
+    }
+    return `vs ${fmt(start)} – ${fmt(end)}`;
+  }, [dateRanges.previous]);
+
   const funnelData = useMemo(() => calcFunnelByGranularity(currentRecords, granularity), [currentRecords, granularity]);
   const outboundData = useMemo(() => calcOutboundByGranularity(currentRecords, granularity), [currentRecords, granularity]);
 
@@ -409,6 +428,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Llamadas Totales"
           value={fullPeriod.totalInbound.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.totalInbound, prev.totalInbound) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           icon={Phone}
           iconColor={BICE_BLUE}
           iconBg="bg-blue-50"
@@ -417,6 +437,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Llamadas a Cola"
           value={fullPeriod.queueCalls.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.queueCalls, prev.queueCalls) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           icon={PhoneIncoming}
           iconColor={BICE_BLUE}
           iconBg="bg-blue-50"
@@ -425,6 +446,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Llamadas a Ejecutivo"
           value={fullPeriod.executiveCalls.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.executiveCalls, prev.executiveCalls) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           icon={Users}
           iconColor={BICE_BLUE}
           iconBg="bg-blue-50"
@@ -433,6 +455,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Llamadas Atendidas"
           value={fullPeriod.attendedCalls.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.attendedCalls, prev.attendedCalls) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           icon={Phone}
           iconColor={BICE_GREEN}
           iconBg="bg-green-50"
@@ -441,6 +464,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Llamadas Abandonadas"
           value={fullPeriod.abandonedCalls.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.abandonedCalls, prev.abandonedCalls) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           invertedChange
           icon={PhoneOff}
           iconColor="#ef4444"
@@ -450,6 +474,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Tiempo Cola Prom."
           value={fmtSecs(fullPeriod.avgQueueTimeSec)}
           change={hasPrev ? changePct(curr.avgQueueTimeSec, prev.avgQueueTimeSec) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           invertedChange
           icon={Clock}
           iconColor={BICE_BLUE}
@@ -459,6 +484,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="AHT Promedio"
           value={fmtSecs(fullPeriod.avgAHTSec)}
           change={hasPrev ? changePct(curr.avgAHTSec, prev.avgAHTSec) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           invertedChange
           icon={Clock}
           iconColor="#7c3aed"
@@ -468,6 +494,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Tiempo Conversación Prom."
           value={fmtSecs(fullPeriod.avgConversationSec)}
           change={hasPrev ? changePct(curr.avgConversationSec, prev.avgConversationSec) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           icon={Clock}
           iconColor={BICE_GREEN}
           iconBg="bg-green-50"
