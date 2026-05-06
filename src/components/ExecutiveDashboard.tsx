@@ -21,6 +21,39 @@ const BICE_GRAY = '#94a3b8';
 
 type Granularity = 'hour' | 'day' | 'week' | 'month';
 
+function isBusinessHours(r: CallRecord): boolean {
+  if (!r.call_date || r.call_hour === null || r.call_hour === undefined) return true;
+  const day = new Date(r.call_date + 'T00:00:00').getDay();
+  if (day === 0 || day === 6) return false;
+  if (day >= 1 && day <= 4) return r.call_hour >= 8 && r.call_hour < 19;
+  if (day === 5) return r.call_hour >= 8 && r.call_hour < 15;
+  return false;
+}
+
+function filterRecordsByDateRange(records: CallRecord[], start: string, end: string): CallRecord[] {
+  return records.filter(r => {
+    if (!isBusinessHours(r)) return false;
+    if (r.call_date && r.call_date < start) return false;
+    if (r.call_date && r.call_date > end) return false;
+    return true;
+  });
+}
+
+function getPreviousDateRange(current: { start: string; end: string }): { start: string; end: string } {
+  const currentStart = new Date(current.start + 'T00:00:00');
+  const currentEnd = new Date(current.end + 'T23:59:59');
+  const days = Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+  const prevEnd = new Date(currentStart);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+
+  const prevStart = new Date(prevEnd);
+  prevStart.setDate(prevStart.getDate() - days + 1);
+
+  const formatDate = (d: Date) => d.toISOString().split('T')[0];
+  return { start: formatDate(prevStart), end: formatDate(prevEnd) };
+}
+
 function getGranularity(days: number): Granularity {
   if (days <= 7) return 'hour';
   if (days <= 60) return 'day';
@@ -95,6 +128,7 @@ function calcFunnelByGranularity(records: CallRecord[], granularity: Granularity
 
   for (const r of records) {
     if (!isInbound(r.call_direction) || !r.call_date) continue;
+    if (isCorruptedTechnicalCall(r)) continue;
 
     let key = '';
     let label = '';
@@ -102,7 +136,8 @@ function calcFunnelByGranularity(records: CallRecord[], granularity: Granularity
     if (granularity === 'hour') {
       const hour = r.call_hour ?? 0;
       key = `${r.call_date}:${hour}`;
-      label = `${String(hour).padStart(2, '0')}:00`;
+      const dateStr = new Date(r.call_date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+      label = `${dateStr} ${String(hour).padStart(2, '0')}:00`;
     } else if (granularity === 'day') {
       key = r.call_date;
       label = new Date(r.call_date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
@@ -121,7 +156,7 @@ function calcFunnelByGranularity(records: CallRecord[], granularity: Granularity
     const d = map.get(key)!;
     d.entrantes++;
     if (r.flow_exit !== false && (r.queue_time_seconds ?? 0) >= 1) d.aCola++;
-    if ((r.conversation_total_seconds ?? 0) > 0) d.contestadas++;
+    if (r.attended) d.contestadas++;
   }
 
   return Array.from(map.values())
@@ -149,7 +184,8 @@ function calcOutboundByGranularity(records: CallRecord[], granularity: Granulari
     if (granularity === 'hour') {
       const hour = r.call_hour ?? 0;
       key = `${r.call_date}:${hour}`;
-      label = `${String(hour).padStart(2, '0')}:00`;
+      const dateStr = new Date(r.call_date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+      label = `${dateStr} ${String(hour).padStart(2, '0')}:00`;
     } else if (granularity === 'day') {
       key = r.call_date;
       label = new Date(r.call_date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
@@ -180,16 +216,6 @@ function calcOutboundByGranularity(records: CallRecord[], granularity: Granulari
     }));
 }
 
-function splitHalves(records: CallRecord[]): [CallRecord[], CallRecord[]] {
-  const dates = [...new Set(records.map(r => r.call_date).filter(Boolean) as string[])].sort();
-  if (dates.length < 2) return [records, []];
-  const midIdx = Math.floor(dates.length / 2);
-  const midDate = dates[midIdx];
-  return [
-    records.filter(r => r.call_date && r.call_date >= midDate),
-    records.filter(r => r.call_date && r.call_date < midDate),
-  ];
-}
 
 function changePct(current: number, prev: number): number | null {
   if (prev === 0) return null;
@@ -209,19 +235,25 @@ function countQueueCalls(records: CallRecord[]): Map<string, number> {
 type QueueWithVariation = { queue: string; count: number; variation: number | null };
 
 
-function ChangeBadge({ pct, inverted = false }: { pct: number | null; inverted?: boolean }) {
+function ChangeBadge({ pct, inverted = false, compareLabel }: { pct: number | null; inverted?: boolean; compareLabel?: string }) {
   if (pct === null) return null;
   const isPositive = inverted ? pct < 0 : pct > 0;
   const isNeutral = pct === 0;
-  if (isNeutral) return (
-    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-slate-400">
-      <Minus size={10} /> 0%
-    </span>
-  );
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
-      {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-      {Math.abs(pct)}%
+    <span className="inline-flex items-center gap-1 flex-wrap">
+      {isNeutral ? (
+        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-slate-400">
+          <Minus size={10} /> 0%
+        </span>
+      ) : (
+        <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
+          {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+          {Math.abs(pct)}%
+        </span>
+      )}
+      {compareLabel && (
+        <span className="text-[10px] text-slate-400">{compareLabel}</span>
+      )}
     </span>
   );
 }
@@ -234,9 +266,10 @@ type KPICardProps = {
   iconColor: string;
   iconBg: string;
   icon: React.ElementType;
+  compareLabel?: string;
 };
 
-function KPICard({ label, value, change, invertedChange = false, iconColor, iconBg, icon: Icon }: KPICardProps) {
+function KPICard({ label, value, change, invertedChange = false, iconColor, iconBg, icon: Icon, compareLabel }: KPICardProps) {
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
       <div className="flex items-start justify-between mb-3">
@@ -246,8 +279,8 @@ function KPICard({ label, value, change, invertedChange = false, iconColor, icon
         </div>
       </div>
       <p className="text-2xl font-bold text-slate-800 leading-none">{value}</p>
-      <div className="mt-1.5 h-4">
-        <ChangeBadge pct={change} inverted={invertedChange} />
+      <div className="mt-1.5 min-h-4">
+        <ChangeBadge pct={change} inverted={invertedChange} compareLabel={compareLabel} />
       </div>
     </div>
   );
@@ -277,10 +310,37 @@ type Props = {
 };
 
 export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavigate }: Props) {
-  // Valores de display: derivados de kpis (fuente única = calculateKPIs(filteredRecords))
+  // Valores de display: derivados de kpis (fuente única = calculateKPIs(currentRecords))
   // Garantiza consistencia con todas las demás pestañas del dashboard
+  // Calcular período actual y anterior basado en filtros
+  const dateRanges = useMemo(() => {
+    let start = filters.dateStart;
+    let end = filters.dateEnd;
+    if (!start || !end) {
+      const resolved = getDateRangeForRelative(filters.dateRange);
+      start = resolved.start;
+      end = resolved.end;
+    }
+    const currentRange = { start: start || '2024-01-01', end: end || '2024-01-31' };
+    const prevRange = getPreviousDateRange(currentRange);
+    return { current: currentRange, previous: prevRange };
+  }, [filters.dateStart, filters.dateEnd, filters.dateRange]);
+
+  // Filtrar records para período actual y anterior (aplicando horario laboral)
+  const currentRecords = useMemo(() =>
+    filterRecordsByDateRange(records, dateRanges.current.start, dateRanges.current.end),
+    [records, dateRanges.current]
+  );
+  const prevRecords = useMemo(() =>
+    filterRecordsByDateRange(records, dateRanges.previous.start, dateRanges.previous.end),
+    [records, dateRanges.previous]
+  );
+
+  const curr = useMemo(() => countHalfPeriodMetrics(currentRecords), [currentRecords]);
+  const prev = useMemo(() => countHalfPeriodMetrics(prevRecords), [prevRecords]);
+
   const fullPeriod = useMemo(() => {
-    const inbound = records.filter(r => isInbound(r.call_direction));
+    const inbound = currentRecords.filter(r => isInbound(r.call_direction));
     const valid = inbound.filter(r => !isCorruptedTechnicalCall(r));
     const attended = valid.filter(r => r.attended);
     const avgConversationSec = attended.length > 0
@@ -296,30 +356,29 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
       avgAHTSec:          Math.round(kpis.avgHandleTimeSeconds),
       avgConversationSec,
     };
-  }, [kpis, records]);
-
-  // Valores de variación: splitHalves para el badge de cambio (mismos criterios que calculateKPIs)
-  const [currentRecords, prevRecords] = useMemo(() => splitHalves(records), [records]);
-  const curr = useMemo(() => countHalfPeriodMetrics(currentRecords), [currentRecords]);
-  const prev = useMemo(() => countHalfPeriodMetrics(prevRecords), [prevRecords]);
+  }, [kpis, currentRecords]);
 
   const granularity = useMemo(() => {
-    let start = filters.dateStart;
-    let end = filters.dateEnd;
-    if (!start || !end) {
-      const resolved = getDateRangeForRelative(filters.dateRange);
-      start = resolved.start;
-      end = resolved.end;
-    }
-    if (!start || !end) return 'day';
-    const startDate = new Date(start + 'T00:00:00');
-    const endDate = new Date(end + 'T23:59:59');
+    const startDate = new Date(dateRanges.current.start + 'T00:00:00');
+    const endDate = new Date(dateRanges.current.end + 'T23:59:59');
     const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
     return getGranularity(Math.max(1, days));
-  }, [filters.dateStart, filters.dateEnd, filters.dateRange]);
+  }, [dateRanges.current]);
 
-  const funnelData = useMemo(() => calcFunnelByGranularity(records, granularity), [records, granularity]);
-  const outboundData = useMemo(() => calcOutboundByGranularity(records, granularity), [records, granularity]);
+  const compareLabel = useMemo(() => {
+    const { start, end } = dateRanges.previous;
+    const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+    if (start === end) return `vs ${fmt(start)}`;
+    const sDate = new Date(start + 'T00:00:00');
+    const eDate = new Date(end + 'T00:00:00');
+    if (sDate.getMonth() === eDate.getMonth()) {
+      return `vs ${sDate.getDate()}-${fmt(end)}`;
+    }
+    return `vs ${fmt(start)} – ${fmt(end)}`;
+  }, [dateRanges.previous]);
+
+  const funnelData = useMemo(() => calcFunnelByGranularity(currentRecords, granularity), [currentRecords, granularity]);
+  const outboundData = useMemo(() => calcOutboundByGranularity(currentRecords, granularity), [currentRecords, granularity]);
 
   const topQueues = useMemo(() => {
     const currQueueCounts = countQueueCalls(currentRecords);
@@ -369,6 +428,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Llamadas Totales"
           value={fullPeriod.totalInbound.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.totalInbound, prev.totalInbound) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           icon={Phone}
           iconColor={BICE_BLUE}
           iconBg="bg-blue-50"
@@ -377,6 +437,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Llamadas a Cola"
           value={fullPeriod.queueCalls.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.queueCalls, prev.queueCalls) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           icon={PhoneIncoming}
           iconColor={BICE_BLUE}
           iconBg="bg-blue-50"
@@ -385,6 +446,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Llamadas a Ejecutivo"
           value={fullPeriod.executiveCalls.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.executiveCalls, prev.executiveCalls) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           icon={Users}
           iconColor={BICE_BLUE}
           iconBg="bg-blue-50"
@@ -393,6 +455,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Llamadas Atendidas"
           value={fullPeriod.attendedCalls.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.attendedCalls, prev.attendedCalls) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           icon={Phone}
           iconColor={BICE_GREEN}
           iconBg="bg-green-50"
@@ -401,6 +464,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Llamadas Abandonadas"
           value={fullPeriod.abandonedCalls.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.abandonedCalls, prev.abandonedCalls) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           invertedChange
           icon={PhoneOff}
           iconColor="#ef4444"
@@ -410,6 +474,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Tiempo Cola Prom."
           value={fmtSecs(fullPeriod.avgQueueTimeSec)}
           change={hasPrev ? changePct(curr.avgQueueTimeSec, prev.avgQueueTimeSec) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           invertedChange
           icon={Clock}
           iconColor={BICE_BLUE}
@@ -419,6 +484,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="AHT Promedio"
           value={fmtSecs(fullPeriod.avgAHTSec)}
           change={hasPrev ? changePct(curr.avgAHTSec, prev.avgAHTSec) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           invertedChange
           icon={Clock}
           iconColor="#7c3aed"
@@ -428,6 +494,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           label="Tiempo Conversación Prom."
           value={fmtSecs(fullPeriod.avgConversationSec)}
           change={hasPrev ? changePct(curr.avgConversationSec, prev.avgConversationSec) : null}
+          compareLabel={hasPrev ? compareLabel : undefined}
           icon={Clock}
           iconColor={BICE_GREEN}
           iconBg="bg-green-50"
