@@ -21,6 +21,39 @@ const BICE_GRAY = '#94a3b8';
 
 type Granularity = 'hour' | 'day' | 'week' | 'month';
 
+function isBusinessHours(r: CallRecord): boolean {
+  if (!r.call_date || r.call_hour === null || r.call_hour === undefined) return true;
+  const day = new Date(r.call_date + 'T00:00:00').getDay();
+  if (day === 0 || day === 6) return false;
+  if (day >= 1 && day <= 4) return r.call_hour >= 8 && r.call_hour < 19;
+  if (day === 5) return r.call_hour >= 8 && r.call_hour < 15;
+  return false;
+}
+
+function filterRecordsByDateRange(records: CallRecord[], start: string, end: string): CallRecord[] {
+  return records.filter(r => {
+    if (!isBusinessHours(r)) return false;
+    if (r.call_date && r.call_date < start) return false;
+    if (r.call_date && r.call_date > end) return false;
+    return true;
+  });
+}
+
+function getPreviousDateRange(current: { start: string; end: string }): { start: string; end: string } {
+  const currentStart = new Date(current.start + 'T00:00:00');
+  const currentEnd = new Date(current.end + 'T23:59:59');
+  const days = Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+  const prevEnd = new Date(currentStart);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+
+  const prevStart = new Date(prevEnd);
+  prevStart.setDate(prevStart.getDate() - days + 1);
+
+  const formatDate = (d: Date) => d.toISOString().split('T')[0];
+  return { start: formatDate(prevStart), end: formatDate(prevEnd) };
+}
+
 function getGranularity(days: number): Granularity {
   if (days <= 7) return 'hour';
   if (days <= 60) return 'day';
@@ -183,16 +216,6 @@ function calcOutboundByGranularity(records: CallRecord[], granularity: Granulari
     }));
 }
 
-function splitHalves(records: CallRecord[]): [CallRecord[], CallRecord[]] {
-  const dates = [...new Set(records.map(r => r.call_date).filter(Boolean) as string[])].sort();
-  if (dates.length < 2) return [records, []];
-  const midIdx = Math.floor(dates.length / 2);
-  const midDate = dates[midIdx];
-  return [
-    records.filter(r => r.call_date && r.call_date >= midDate),
-    records.filter(r => r.call_date && r.call_date < midDate),
-  ];
-}
 
 function changePct(current: number, prev: number): number | null {
   if (prev === 0) return null;
@@ -280,10 +303,10 @@ type Props = {
 };
 
 export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavigate }: Props) {
-  // Valores de display: derivados de kpis (fuente única = calculateKPIs(filteredRecords))
+  // Valores de display: derivados de kpis (fuente única = calculateKPIs(currentRecords))
   // Garantiza consistencia con todas las demás pestañas del dashboard
   const fullPeriod = useMemo(() => {
-    const inbound = records.filter(r => isInbound(r.call_direction));
+    const inbound = currentRecords.filter(r => isInbound(r.call_direction));
     const valid = inbound.filter(r => !isCorruptedTechnicalCall(r));
     const attended = valid.filter(r => r.attended);
     const avgConversationSec = attended.length > 0
@@ -299,14 +322,10 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
       avgAHTSec:          Math.round(kpis.avgHandleTimeSeconds),
       avgConversationSec,
     };
-  }, [kpis, records]);
+  }, [kpis, currentRecords]);
 
-  // Valores de variación: splitHalves para el badge de cambio (mismos criterios que calculateKPIs)
-  const [currentRecords, prevRecords] = useMemo(() => splitHalves(records), [records]);
-  const curr = useMemo(() => countHalfPeriodMetrics(currentRecords), [currentRecords]);
-  const prev = useMemo(() => countHalfPeriodMetrics(prevRecords), [prevRecords]);
-
-  const granularity = useMemo(() => {
+  // Calcular período actual y anterior basado en filtros
+  const dateRanges = useMemo(() => {
     let start = filters.dateStart;
     let end = filters.dateEnd;
     if (!start || !end) {
@@ -314,15 +333,33 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
       start = resolved.start;
       end = resolved.end;
     }
-    if (!start || !end) return 'day';
-    const startDate = new Date(start + 'T00:00:00');
-    const endDate = new Date(end + 'T23:59:59');
-    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    return getGranularity(Math.max(1, days));
+    const currentRange = { start: start || '2024-01-01', end: end || '2024-01-31' };
+    const prevRange = getPreviousDateRange(currentRange);
+    return { current: currentRange, previous: prevRange };
   }, [filters.dateStart, filters.dateEnd, filters.dateRange]);
 
-  const funnelData = useMemo(() => calcFunnelByGranularity(records, granularity), [records, granularity]);
-  const outboundData = useMemo(() => calcOutboundByGranularity(records, granularity), [records, granularity]);
+  // Filtrar records para período actual y anterior (aplicando horario laboral)
+  const currentRecords = useMemo(() =>
+    filterRecordsByDateRange(records, dateRanges.current.start, dateRanges.current.end),
+    [records, dateRanges.current]
+  );
+  const prevRecords = useMemo(() =>
+    filterRecordsByDateRange(records, dateRanges.previous.start, dateRanges.previous.end),
+    [records, dateRanges.previous]
+  );
+
+  const curr = useMemo(() => countHalfPeriodMetrics(currentRecords), [currentRecords]);
+  const prev = useMemo(() => countHalfPeriodMetrics(prevRecords), [prevRecords]);
+
+  const granularity = useMemo(() => {
+    const startDate = new Date(dateRanges.current.start + 'T00:00:00');
+    const endDate = new Date(dateRanges.current.end + 'T23:59:59');
+    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    return getGranularity(Math.max(1, days));
+  }, [dateRanges.current]);
+
+  const funnelData = useMemo(() => calcFunnelByGranularity(currentRecords, granularity), [currentRecords, granularity]);
+  const outboundData = useMemo(() => calcOutboundByGranularity(currentRecords, granularity), [currentRecords, granularity]);
 
   const topQueues = useMemo(() => {
     const currQueueCounts = countQueueCalls(currentRecords);
