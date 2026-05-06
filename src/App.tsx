@@ -6,7 +6,7 @@ import type { Section } from './components/Sidebar';
 import { UploadModal } from './components/UploadModal';
 import { parseCSVText, detectColumns, validateColumns, transformRows, calculateDateRangeFromRecords } from './lib/csvParser';
 import { parseAgentStatusCSV } from './lib/agentStatusParser';
-import { saveUpload, getAllUploads, getAllCallRecords, saveAgentStatusUpload, getLatestAgentStatusUpload } from './lib/supabaseService';
+import { saveUpload, getAllUploads, getAllCallRecords, saveAgentStatusUpload, getAllAgentStatusUploads, combineAgentStatusRecords } from './lib/supabaseService';
 import { getDataQualityReport } from './lib/kpi';
 import type { CallRecord, CallUpload, AgentStatusRecord } from './lib/supabase';
 import type { DataQualityReport } from './lib/kpi';
@@ -45,12 +45,14 @@ export default function App() {
   useEffect(() => {
     Promise.all([
       getAllUploads(),
-      getLatestAgentStatusUpload(),
+      getAllAgentStatusUploads(),
       getAllCallRecords(),
     ])
-      .then(([allUploads, agentStatus, records]) => {
-        if (agentStatus) {
-          setAgentStatusRecords(agentStatus.records);
+      .then(([allUploads, allAgentStatusUploads, records]) => {
+        // Combine records from ALL agent status uploads (April + May + June, etc.)
+        const combinedAgentRecords = combineAgentStatusRecords(allAgentStatusUploads);
+        if (combinedAgentRecords.length > 0) {
+          setAgentStatusRecords(combinedAgentRecords);
         }
         setUploads(allUploads);
 
@@ -154,11 +156,14 @@ export default function App() {
         return;
       }
       setAgentStatusProgress(`Guardando ${rows.length} agentes...`);
-      const { records } = await saveAgentStatusUpload(file.name, rows).then(async ({ upload }) => {
-        const saved = await import('./lib/supabaseService').then(m => m.getAgentStatusRecords(upload.id));
-        return { records: saved };
-      });
-      setAgentStatusRecords(records);
+      await saveAgentStatusUpload(file.name, rows);
+
+      // Reload ALL agent status uploads (cumulative across multiple files)
+      setAgentStatusProgress('Reloading all agent data...');
+      const { getAllAgentStatusUploads: getAllUploads } = await import('./lib/supabaseService');
+      const allUploads = await getAllUploads();
+      const combinedRecords = combineAgentStatusRecords(allUploads);
+      setAgentStatusRecords(combinedRecords);
       setAgentStatusProcessing(false);
       setAgentStatusModalOpen(false);
     } catch (err) {
