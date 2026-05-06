@@ -594,7 +594,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       )}
 
       {activeSection === 'ocupacion-agentes' && (
-        <OccupationDashboard records={records} connectivityData={[]} />
+        <OccupationDashboard records={records} agentStatusRecords={agentStatusRecords} />
       )}
 
       {activeSection === 'planificacion' && (
