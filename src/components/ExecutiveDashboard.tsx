@@ -11,7 +11,8 @@ import type { KPISummary } from '../lib/kpi';
 import type { CallRecord } from '../lib/supabase';
 import type { FilterState } from './FilterBar';
 import { getDateRangeForRelative } from './FilterBar';
-import { getMondayKey, weekLabel, monthLabel, MONTH_LABELS } from '../lib/kpi/shared';
+import { getMondayKey, weekLabel, monthLabel, isInbound } from '../lib/kpi/shared';
+import { isCorruptedTechnicalCall } from '../lib/kpi/calidad';
 import { SectionHeader } from './SectionHeader';
 
 const BICE_BLUE = '#326295';
@@ -40,10 +41,6 @@ function getTickInterval(granularity: Granularity, length: number): number {
   }
 }
 
-function isInboundDir(dir: string): boolean {
-  const d = (dir || '').toLowerCase();
-  return d === 'inbound' || d === 'entrante';
-}
 
 function fmtSecs(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -51,7 +48,7 @@ function fmtSecs(sec: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-type DirectorKPIs = {
+type HalfPeriodMetrics = {
   totalInbound: number;
   queueCalls: number;
   executiveCalls: number;
@@ -62,31 +59,29 @@ type DirectorKPIs = {
   avgConversationSec: number;
 };
 
-function calcDirectorKPIs(records: CallRecord[]): DirectorKPIs {
-  const inbound = records.filter(r => isInboundDir(r.call_direction));
-  const queueBase = inbound.filter(r => r.flow_exit !== false && (r.queue_time_seconds ?? 0) >= 1);
-  const executiveCalls = inbound.filter(r => r.alerted_users !== null && r.alerted_users !== '').length;
-  const attended = inbound.filter(r => (r.conversation_total_seconds ?? 0) > 0);
-  const abandoned = queueBase.filter(r => !((r.conversation_total_seconds ?? 0) > 0));
+// Mismos criterios que calculateKPIs: isInbound de shared.ts, excluye cortes técnicos, usa r.attended
+function countHalfPeriodMetrics(records: CallRecord[]): HalfPeriodMetrics {
+  const inbound = records.filter(r => isInbound(r.call_direction));
+  const valid = inbound.filter(r => !isCorruptedTechnicalCall(r));
+  const ivrAbandons = valid.filter(r => r.abandon_type === 'ivr').length;
+  const queueAbandons = valid.filter(r => r.abandon_type === 'queue').length;
+  const alertAbandons = valid.filter(r => r.abandon_type === 'alert').length;
+  const attended = valid.filter(r => r.attended);
 
+  const queueBase = valid.filter(r => r.flow_exit !== false && (r.queue_time_seconds ?? 0) >= 1);
   const avgQueueTime = queueBase.length > 0
-    ? queueBase.reduce((s, r) => s + (r.queue_time_seconds ?? 0), 0) / queueBase.length
-    : 0;
-
+    ? queueBase.reduce((s, r) => s + (r.queue_time_seconds ?? 0), 0) / queueBase.length : 0;
   const avgAHT = attended.length > 0
-    ? attended.reduce((s, r) => s + (r.handle_time_seconds ?? 0), 0) / attended.length
-    : 0;
-
+    ? attended.reduce((s, r) => s + (r.handle_time_seconds ?? 0), 0) / attended.length : 0;
   const avgConversation = attended.length > 0
-    ? attended.reduce((s, r) => s + (r.conversation_total_seconds ?? 0), 0) / attended.length
-    : 0;
+    ? attended.reduce((s, r) => s + (r.conversation_total_seconds ?? 0), 0) / attended.length : 0;
 
   return {
-    totalInbound: inbound.length,
-    queueCalls: queueBase.length,
-    executiveCalls,
+    totalInbound: valid.length,
+    queueCalls: valid.length - ivrAbandons,
+    executiveCalls: valid.length - ivrAbandons - queueAbandons,
     attendedCalls: attended.length,
-    abandonedCalls: abandoned.length,
+    abandonedCalls: queueAbandons + alertAbandons,
     avgQueueTimeSec: Math.round(avgQueueTime),
     avgAHTSec: Math.round(avgAHT),
     avgConversationSec: Math.round(avgConversation),
@@ -99,7 +94,7 @@ function calcFunnelByGranularity(records: CallRecord[], granularity: Granularity
   const map = new Map<string, { key: string; label: string; entrantes: number; aCola: number; contestadas: number }>();
 
   for (const r of records) {
-    if (!isInboundDir(r.call_direction) || !r.call_date) continue;
+    if (!isInbound(r.call_direction) || !r.call_date) continue;
 
     let key = '';
     let label = '';
@@ -146,7 +141,7 @@ function calcOutboundByGranularity(records: CallRecord[], granularity: Granulari
   const map = new Map<string, { key: string; label: string; efectivos: number; fallidos: number }>();
 
   for (const r of records) {
-    if (isInboundDir(r.call_direction) || !r.call_date) continue;
+    if (isInbound(r.call_direction) || !r.call_date) continue;
 
     let key = '';
     let label = '';
@@ -204,7 +199,7 @@ function changePct(current: number, prev: number): number | null {
 function countQueueCalls(records: CallRecord[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const r of records) {
-    if (!isInboundDir(r.call_direction) || r.flow_exit === false || (r.queue_time_seconds ?? 0) < 1) continue;
+    if (!isInbound(r.call_direction) || r.flow_exit === false || (r.queue_time_seconds ?? 0) < 1) continue;
     const queue = r.queue || 'Sin cola';
     map.set(queue, (map.get(queue) ?? 0) + 1);
   }
@@ -289,10 +284,23 @@ type Props = {
 };
 
 export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavigate }: Props) {
-  const [currentRecords, prevRecords] = useMemo(() => splitHalves(records), [records]);
+  // Valores de display: derivados de kpis (fuente única = calculateKPIs(filteredRecords))
+  // Garantiza consistencia con todas las demás pestañas del dashboard
+  const fullPeriod = useMemo(() => ({
+    totalInbound:   kpis.totalCalls,
+    queueCalls:     kpis.totalCalls - kpis.abandonStats.abandonedInIVR,
+    executiveCalls: kpis.totalCalls - kpis.abandonStats.abandonedInIVR - kpis.abandonStats.abandonedInQueue,
+    attendedCalls:  kpis.totalCalls - kpis.unattendedCount,
+    abandonedCalls: kpis.abandonStats.abandonedInQueue + kpis.abandonStats.abandonedInAlert,
+    avgQueueTimeSec:    Math.round(kpis.avgQueueTimeSeconds),
+    avgAHTSec:          Math.round(kpis.avgHandleTimeSeconds),
+    avgConversationSec: Math.round(kpis.avgDurationSeconds),
+  }), [kpis]);
 
-  const curr = useMemo(() => calcDirectorKPIs(currentRecords), [currentRecords]);
-  const prev = useMemo(() => calcDirectorKPIs(prevRecords), [prevRecords]);
+  // Valores de variación: splitHalves para el badge de cambio (mismos criterios que calculateKPIs)
+  const [currentRecords, prevRecords] = useMemo(() => splitHalves(records), [records]);
+  const curr = useMemo(() => countHalfPeriodMetrics(currentRecords), [currentRecords]);
+  const prev = useMemo(() => countHalfPeriodMetrics(prevRecords), [prevRecords]);
 
   const granularity = useMemo(() => {
     let start = filters.dateStart;
@@ -358,7 +366,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KPICard
           label="Llamadas Totales"
-          value={curr.totalInbound.toLocaleString('es-CL')}
+          value={fullPeriod.totalInbound.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.totalInbound, prev.totalInbound) : null}
           icon={Phone}
           iconColor={BICE_BLUE}
@@ -366,7 +374,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
         />
         <KPICard
           label="Llamadas a Cola"
-          value={curr.queueCalls.toLocaleString('es-CL')}
+          value={fullPeriod.queueCalls.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.queueCalls, prev.queueCalls) : null}
           icon={PhoneIncoming}
           iconColor={BICE_BLUE}
@@ -374,7 +382,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
         />
         <KPICard
           label="Llamadas a Ejecutivo"
-          value={curr.executiveCalls.toLocaleString('es-CL')}
+          value={fullPeriod.executiveCalls.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.executiveCalls, prev.executiveCalls) : null}
           icon={Users}
           iconColor={BICE_BLUE}
@@ -382,7 +390,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
         />
         <KPICard
           label="Llamadas Atendidas"
-          value={curr.attendedCalls.toLocaleString('es-CL')}
+          value={fullPeriod.attendedCalls.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.attendedCalls, prev.attendedCalls) : null}
           icon={Phone}
           iconColor={BICE_GREEN}
@@ -390,7 +398,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
         />
         <KPICard
           label="Llamadas Abandonadas"
-          value={curr.abandonedCalls.toLocaleString('es-CL')}
+          value={fullPeriod.abandonedCalls.toLocaleString('es-CL')}
           change={hasPrev ? changePct(curr.abandonedCalls, prev.abandonedCalls) : null}
           invertedChange
           icon={PhoneOff}
@@ -399,7 +407,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
         />
         <KPICard
           label="Tiempo Cola Prom."
-          value={fmtSecs(curr.avgQueueTimeSec)}
+          value={fmtSecs(fullPeriod.avgQueueTimeSec)}
           change={hasPrev ? changePct(curr.avgQueueTimeSec, prev.avgQueueTimeSec) : null}
           invertedChange
           icon={Clock}
@@ -408,7 +416,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
         />
         <KPICard
           label="AHT Promedio"
-          value={fmtSecs(curr.avgAHTSec)}
+          value={fmtSecs(fullPeriod.avgAHTSec)}
           change={hasPrev ? changePct(curr.avgAHTSec, prev.avgAHTSec) : null}
           invertedChange
           icon={Clock}
@@ -417,7 +425,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
         />
         <KPICard
           label="Tiempo Conversación Prom."
-          value={fmtSecs(curr.avgConversationSec)}
+          value={fmtSecs(fullPeriod.avgConversationSec)}
           change={hasPrev ? changePct(curr.avgConversationSec, prev.avgConversationSec) : null}
           icon={Clock}
           iconColor={BICE_GREEN}
