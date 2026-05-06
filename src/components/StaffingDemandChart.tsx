@@ -26,7 +26,19 @@ const DAY_CONFIG = [
 ];
 
 export function StaffingDemandChart({ data }: Props) {
-  const [staffOnPhone, setStaffOnPhone] = useState(5);
+  // Calculate average real agents count from data
+  const avgRealAgents = data.points.length > 0
+    ? Math.round(
+        DAY_CONFIG.reduce((sum, day) => {
+          const agents = data.points
+            .filter(p => p[`${day.key}Agents` as keyof typeof p] !== null && p[`${day.key}Agents` as keyof typeof p] !== undefined)
+            .map(p => p[`${day.key}Agents` as keyof typeof p] as number);
+          return agents.length > 0 ? sum + Math.round(agents.reduce((a, b) => a + b, 0) / agents.length) : sum;
+        }, 0) / DAY_CONFIG.filter(d => data.weekdayCounts[d.key] > 0).length
+      )
+    : 5;
+
+  const [staffOnPhone, setStaffOnPhone] = useState(Math.max(5, avgRealAgents));
   const [visibleDays, setVisibleDays] = useState<Set<string>>(
     new Set(['lun', 'mar', 'mie', 'jue', 'vie'])
   );
@@ -72,6 +84,9 @@ export function StaffingDemandChart({ data }: Props) {
           <p className="text-xs text-slate-400 mt-0.5">
             Líneas simultáneas necesarias (Manejo + Alertas) · AHT_p = Conversación + Hold + ACW + Búsqueda<br />
             Franjas sobre la línea roja = déficit de personal considerando tiempo de búsqueda
+            {data.agentCountsByHour && Object.keys(data.agentCountsByHour).length > 0 && (
+              <span className="block mt-1">📊 Datos de agentes reales disponibles desde conectividad</span>
+            )}
           </p>
         </div>
 
@@ -173,6 +188,9 @@ export function StaffingDemandChart({ data }: Props) {
                     .map(p => {
                       const val = p.value as number;
                       const over = val > staffOnPhone;
+                      const dayKey = String(p.dataKey);
+                      const agentKey = `${dayKey}|${payload[0]?.payload?.hour}`;
+                      const realAgents = data.agentCountsByHour ? data.agentCountsByHour[agentKey] : null;
                       return (
                         <div key={String(p.dataKey)}>
                           <div className="flex items-center justify-between gap-4 py-0.5">
@@ -187,6 +205,11 @@ export function StaffingDemandChart({ data }: Props) {
                           <p className="text-slate-400 text-[10px] ml-4 -mt-0.5">
                             Incluye ~{Math.round(val * 15)}% búsqueda de agente
                           </p>
+                          {realAgents !== null && realAgents !== undefined && (
+                            <p className="text-slate-500 text-[10px] ml-4 -mt-0.5 font-medium">
+                              👥 Agentes reales: {realAgents}
+                            </p>
+                          )}
                         </div>
                       );
                     })}

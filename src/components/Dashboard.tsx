@@ -27,7 +27,7 @@ import { ExecutiveDashboard } from './ExecutiveDashboard';
 import { QueueHealthDashboard } from './QueueHealthDashboard';
 import { OutboundDashboard } from './OutboundDashboard';
 import { SectionHeader } from './SectionHeader';
-import { calculateKPIs } from '../lib/kpi';
+import { calculateKPIs, getEmptyKPISummary } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
@@ -355,9 +355,23 @@ function DataQualityIndicator({ quality }: { quality: DataQualityReport | null }
 
 export function Dashboard({ records, upload, agentStatusRecords, activeSection, onUploadAgentStatus, dataQuality }: Props) {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [kpis, setKpis] = useState(() => getEmptyKPISummary());
+  const [isLoadingKpis, setIsLoadingKpis] = useState(false);
 
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
-  const kpis = useMemo(() => calculateKPIs(filteredRecords), [filteredRecords]);
+
+  useEffect(() => {
+    setIsLoadingKpis(true);
+    calculateKPIs(filteredRecords)
+      .then(result => {
+        setKpis(result);
+        setIsLoadingKpis(false);
+      })
+      .catch(err => {
+        console.error('Error calculating KPIs:', err);
+        setIsLoadingKpis(false);
+      });
+  }, [filteredRecords]);
 
   // Scroll to top when section changes
   useEffect(() => {

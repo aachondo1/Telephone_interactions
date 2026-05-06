@@ -1,12 +1,14 @@
 import type { CallRecord } from '../supabase';
 import { type HourlyDemandData, type HourlyDemandPoint, type InterventionMetrics } from './types';
+import { getAgentCountsByHourAndDay } from './agent-connectivity';
 
 const MAX_REASONABLE_ALERT_SECONDS = 120;
 
-export function calculateHourlyDemand(records: CallRecord[]): HourlyDemandData {
+export async function calculateHourlyDemand(records: CallRecord[]): Promise<HourlyDemandData> {
   const empty: HourlyDemandData = {
     points: [], peakErlangs: 0,
     weekdayCounts: { lun: 0, mar: 0, mie: 0, jue: 0, vie: 0 },
+    agentCountsByHour: {},
   };
   if (records.length === 0) return empty;
 
@@ -51,9 +53,39 @@ export function calculateHourlyDemand(records: CallRecord[]): HourlyDemandData {
   const dayCounts = [weekdayCounts.lun, weekdayCounts.mar, weekdayCounts.mie, weekdayCounts.jue, weekdayCounts.vie];
   let peakErlangs = 0;
 
+  // Fetch real agent counts
+  const dateRanges = records
+    .filter(r => r.call_date)
+    .map(r => new Date(r.call_date! + 'T00:00:00'))
+    .filter(d => !isNaN(d.getTime()));
+
+  let agentCountMap: Map<string, number> = new Map();
+  if (dateRanges.length > 0) {
+    const minDate = new Date(Math.min(...dateRanges.map(d => d.getTime())));
+    const maxDate = new Date(Math.max(...dateRanges.map(d => d.getTime())));
+    agentCountMap = await getAgentCountsByHourAndDay({
+      start: minDate.toISOString().split('T')[0],
+      end: maxDate.toISOString().split('T')[0],
+    });
+  }
+
   const points: HourlyDemandPoint[] = Array.from({ length: 11 }, (_, i) => {
     const hour = i + 8;
-    const point: HourlyDemandPoint = { hour, label: `${String(hour).padStart(2, '0')}:00`, lun: null, mar: null, mie: null, jue: null, vie: null };
+    const point: HourlyDemandPoint = {
+      hour,
+      label: `${String(hour).padStart(2, '0')}:00`,
+      lun: null,
+      mar: null,
+      mie: null,
+      jue: null,
+      vie: null,
+      lunAgents: null,
+      marAgents: null,
+      mieAgents: null,
+      jueAgents: null,
+      vieAgents: null,
+    };
+
     dayKeys.forEach((day, idx) => {
       const count = dayCounts[idx];
       if (count === 0) return;
@@ -62,12 +94,22 @@ export function calculateHourlyDemand(records: CallRecord[]): HourlyDemandData {
       const hourCapacitySeconds = 3600 * count;
       const erlangs = Math.round((totalSec / hourCapacitySeconds) * 10) / 10;
       point[dayNames[idx]] = erlangs;
+
+      // Add real agent count
+      const agentKey = `${dayNames[idx]}|${hour}`;
+      const agentCount = agentCountMap.get(agentKey);
+      const agentFieldName = `${dayNames[idx]}Agents` as const;
+      if (agentCount !== undefined) {
+        point[agentFieldName] = agentCount;
+      }
+
       if (erlangs > peakErlangs) peakErlangs = erlangs;
     });
+
     return point;
   });
 
-  return { points, peakErlangs, weekdayCounts };
+  return { points, peakErlangs, weekdayCounts, agentCountsByHour: Object.fromEntries(agentCountMap) };
 }
 
 export function calculateInterventionImpact(

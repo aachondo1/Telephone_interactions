@@ -193,12 +193,18 @@ export type HourlyDemandPoint = {
   mie: number | null;
   jue: number | null;
   vie: number | null;
+  lunAgents?: number | null;
+  marAgents?: number | null;
+  mieAgents?: number | null;
+  jueAgents?: number | null;
+  vieAgents?: number | null;
 };
 
 export type HourlyDemandData = {
   points: HourlyDemandPoint[];
   peakErlangs: number;
   weekdayCounts: { lun: number; mar: number; mie: number; jue: number; vie: number };
+  agentCountsByHour?: { [key: string]: number | null };
 };
 
 export type InterventionMetrics = {

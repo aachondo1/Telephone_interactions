@@ -95,3 +95,36 @@ export type AgentStatusRecord = {
   in_queue_seconds: number;
   out_of_queue_seconds: number;
 };
+
+export type AgentConnectivityUpload = {
+  id: string;
+  filename: string;
+  uploaded_at: string;
+  record_count: number;
+  date_range_start: string | null;
+  date_range_end: string | null;
+};
+
+export type AgentConnectivityRaw = {
+  id: string;
+  upload_id: string;
+  agent_id: string;
+  agent_name: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  duration_raw: number;
+  created_at: string;
+};
+
+export type AgentConnectivityHourly = {
+  id: string;
+  upload_id: string;
+  agent_id: string;
+  agent_name: string;
+  date: string;
+  hour: number;
+  status: string;
+  seconds_in_bucket: number;
+  created_at: string;
+};

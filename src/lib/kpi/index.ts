@@ -12,6 +12,7 @@ export { formatDuration, isInbound } from './shared';
 // General / Llamadas
 export {
   calculateKPIs,
+  getEmptyKPISummary,
   calculateServiceLevelPerceptual,
   calculateServiceLevel,
   calculateAbandonStats,
