@@ -29,7 +29,7 @@ import { OutboundDashboard } from './OutboundDashboard';
 import { SectionHeader } from './SectionHeader';
 import { calculateKPIs, getEmptyKPISummary, calculateAgentAuditFlags } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
-import type { DataQualityReport, AgentAuditFlag } from '../lib/kpi';
+import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
 import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
@@ -358,15 +358,8 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [kpis, setKpis] = useState(() => getEmptyKPISummary());
   const [isLoadingKpis, setIsLoadingKpis] = useState(false);
-  const [agentAuditFlags, setAgentAuditFlags] = useState<AgentAuditFlag[]>([]);
-
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
-
-  // Calculate audit flags from agent status records
-  useMemo(() => {
-    const flags = calculateAgentAuditFlags(agentStatusRecords);
-    setAgentAuditFlags(flags);
-  }, [agentStatusRecords]);
+  const agentAuditFlags = useMemo(() => calculateAgentAuditFlags(agentStatusRecords), [agentStatusRecords]);
 
   useEffect(() => {
     setIsLoadingKpis(true);

@@ -72,9 +72,13 @@ export const STANDARD_BUSINESS_HOURS: Record<DayOfWeek, BusinessHoursConfig> = {
  * @param date - JavaScript Date object
  * @returns BusinessHoursConfig for that day
  */
+const DAY_INDEX_TO_KEY: DayOfWeek[] = [
+  'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
+];
+
 export function getBusinessHours(date: Date): BusinessHoursConfig {
-  const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'lowercase' }) as DayOfWeek;
-  return STANDARD_BUSINESS_HOURS[dayOfWeek] || STANDARD_BUSINESS_HOURS.monday;
+  const dayOfWeek = DAY_INDEX_TO_KEY[date.getDay()];
+  return STANDARD_BUSINESS_HOURS[dayOfWeek];
 }
 
 /**
@@ -98,8 +102,9 @@ export function isWithinBusinessHours(date: Date): boolean {
 }
 
 /**
- * Truncate a time range to fit within business hours
- * Returns the overlapping portion, or null if completely outside business hours
+ * Truncate a time range to fit within business hours.
+ * Handles multi-day ranges by accumulating overlap across each calendar day.
+ * Returns the first overlapping segment, or null if completely outside business hours.
  * @param startTime - Start of the time range
  * @param endTime - End of the time range
  * @returns { start: Date, end: Date } or null if no overlap
@@ -108,33 +113,33 @@ export function getBusinessHoursOverlap(
   startTime: Date,
   endTime: Date
 ): { start: Date; end: Date } | null {
-  const hours = getBusinessHours(startTime);
+  // Walk day by day and find the first overlapping window
+  const cursor = new Date(startTime);
+  cursor.setHours(0, 0, 0, 0); // start at beginning of the start day
 
-  // If closed on this day, no overlap
-  if (hours.endHour === 0 && hours.endMinute === 0) {
-    return null;
+  while (cursor <= endTime) {
+    const hours = getBusinessHours(cursor);
+
+    // Skip closed days (e.g., weekends)
+    if (hours.endHour !== 0 || hours.endMinute !== 0) {
+      const dayStart = new Date(cursor);
+      dayStart.setHours(hours.startHour, hours.startMinute, 0, 0);
+
+      const dayEnd = new Date(cursor);
+      dayEnd.setHours(hours.endHour, hours.endMinute, 0, 0);
+
+      // Check for overlap with the provided range
+      if (endTime > dayStart && startTime < dayEnd) {
+        const overlapStart = startTime > dayStart ? startTime : dayStart;
+        const overlapEnd = endTime < dayEnd ? endTime : dayEnd;
+        return { start: overlapStart, end: overlapEnd };
+      }
+    }
+
+    cursor.setDate(cursor.getDate() + 1);
   }
 
-  // Calculate business hours boundaries for this date
-  const dayStart = new Date(startTime);
-  dayStart.setHours(hours.startHour, hours.startMinute, 0, 0);
-
-  const dayEnd = new Date(startTime);
-  dayEnd.setHours(hours.endHour, hours.endMinute, 0, 0);
-
-  // Check for overlap
-  if (endTime <= dayStart || startTime >= dayEnd) {
-    return null; // No overlap
-  }
-
-  // Calculate the overlapping range
-  const overlapStart = startTime > dayStart ? startTime : dayStart;
-  const overlapEnd = endTime < dayEnd ? endTime : dayEnd;
-
-  return {
-    start: overlapStart,
-    end: overlapEnd,
-  };
+  return null;
 }
 
 /**

@@ -330,18 +330,19 @@ function parseTimelineDateTime(dateStr: string): Date | null {
     return new Date(`${year}-${month}-${day}T${paddedHour}:${paddedMinute}:${second || '00'}`);
   }
 
-  // Try M/DD/YY HH:MM:SS or MM/DD/YY HH:MM:SS format (Genesys/telecom systems with slashes)
-  // Handles both 1-2 digit day/month and 2-digit year
-  match = s.match(/^(\d{1,2})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})?/);
+  // Try M/DD/YY HH:MM:SS format (Genesys US format: Month/Day/Year)
+  // Example: "6/04/26 08:02:29" = June 4th, 2026
+  match = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})\s+(\d{1,2}):(\d{1,2}):(\d{2})?/);
   if (match) {
-    const [, day, month, year, hour, minute, second] = match;
+    const [, month, day, year, hour, minute, second] = match;
     // Convert 2-digit year to 4-digit: 26 → 2026, 99 → 1999
     const fullYear = parseInt(year) <= 50 ? 2000 + parseInt(year) : 1900 + parseInt(year);
+    const paddedMonth = String(parseInt(month, 10)).padStart(2, '0');
     const paddedDay = String(parseInt(day, 10)).padStart(2, '0');
     const paddedHour = String(parseInt(hour, 10)).padStart(2, '0');
     const paddedMinute = String(parseInt(minute, 10)).padStart(2, '0');
     const paddedSecond = second ? String(parseInt(second, 10)).padStart(2, '0') : '00';
-    return new Date(`${fullYear}-${month}-${paddedDay}T${paddedHour}:${paddedMinute}:${paddedSecond}`);
+    return new Date(`${fullYear}-${paddedMonth}-${paddedDay}T${paddedHour}:${paddedMinute}:${paddedSecond}`);
   }
 
   // Try HH:MM:SS format (assume today)
