@@ -31,6 +31,7 @@ export type CallRecord = {
   attended: boolean;
   export_complete: boolean;
   is_overlapping: boolean;
+  unique_call_identifier: string;
   queue_time_seconds: number;
   handle_time_seconds: number;
   alert_segments: number;

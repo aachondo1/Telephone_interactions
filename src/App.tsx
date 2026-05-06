@@ -6,7 +6,7 @@ import type { Section } from './components/Sidebar';
 import { UploadModal } from './components/UploadModal';
 import { parseCSVText, detectColumns, validateColumns, transformRows, calculateDateRangeFromRecords } from './lib/csvParser';
 import { parseAgentStatusCSV } from './lib/agentStatusParser';
-import { saveUpload, getAllUploads, getAllCallRecords, getProcessedSignatures, saveAgentStatusUpload, getLatestAgentStatusUpload } from './lib/supabaseService';
+import { saveUpload, getAllUploads, getAllCallRecords, saveAgentStatusUpload, getLatestAgentStatusUpload } from './lib/supabaseService';
 import { getDataQualityReport } from './lib/kpi';
 import type { CallRecord, CallUpload, AgentStatusRecord } from './lib/supabase';
 import type { DataQualityReport } from './lib/kpi';
@@ -103,10 +103,9 @@ export default function App() {
       }
 
       setProgress(`Transformando ${rows.length.toLocaleString('es-CL')} registros...`);
-      const processedSignatures = await getProcessedSignatures();
-      const { records: parsed, duplicateCount } = await transformRows(rows, columnMap, processedSignatures);
+      const { records: parsed } = await transformRows(rows, columnMap);
 
-      setProgress(`Guardando ${parsed.length.toLocaleString('es-CL')} registros nuevos${duplicateCount > 0 ? ` (${duplicateCount} duplicados omitidos)` : ''}...`);
+      setProgress(`Guardando ${parsed.length.toLocaleString('es-CL')} registros...`);
       const { upload, savedCount, stats } = await saveUpload(file.name, parsed);
 
       let successMessage = `✓ Se guardaron ${savedCount.toLocaleString('es-CL')} registros`;
