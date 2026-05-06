@@ -262,12 +262,27 @@ export async function getAllAgentStatusUploads(): Promise<Array<{ upload: AgentS
 
 /**
  * Combine records from multiple uploads into a single dataset
+ * Deduplicates by agent_id + date range to avoid counting same period twice
  * Useful for analyzing across multiple periods (April + May + June, etc.)
  * @param uploads - Multiple uploads to combine
- * @returns Combined AgentStatusRecord array
+ * @returns Combined AgentStatusRecord array (deduplicated)
  */
 export function combineAgentStatusRecords(
   uploads: Array<{ upload: AgentStatusUpload; records: AgentStatusRecord[] }>
 ): AgentStatusRecord[] {
-  return uploads.flatMap((u) => u.records);
+  const seenKey = new Set<string>();
+  const deduped: AgentStatusRecord[] = [];
+
+  // Process uploads in reverse order (newest first) so we keep the latest version
+  for (const { records } of [...uploads].reverse()) {
+    for (const record of records) {
+      const key = `${record.agent_id}|${record.date_range_start}|${record.date_range_end}`;
+      if (!seenKey.has(key)) {
+        seenKey.add(key);
+        deduped.push(record);
+      }
+    }
+  }
+
+  return deduped;
 }
