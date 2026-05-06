@@ -38,7 +38,12 @@ function findCol(headers: string[], candidates: string[]): string | null {
   const norm = headers.map(h => h.toLowerCase().trim());
   for (const c of candidates) {
     const normalized = c.toLowerCase().trim();
-    const idx = norm.findIndex(h => h === normalized || h.includes(normalized));
+    // First try exact match
+    let idx = norm.findIndex(h => h === normalized);
+    if (idx !== -1) return headers[idx];
+
+    // Then try substring match
+    idx = norm.findIndex(h => h.includes(normalized));
     if (idx !== -1) return headers[idx];
   }
   return null;
@@ -134,6 +139,15 @@ function parseTimelineFormat(
 ): AgentStatusParseResult {
   const result: AgentStatusRow[] = [];
 
+  console.log('[TimelineFormat] Detectadas columnas:', {
+    colAgentId,
+    colAgentName,
+    colStart,
+    colEnd,
+    colStatus,
+    totalRows: rows.length,
+  });
+
   // Group by agent and accumulate time by status
   const agentMap = new Map<string, {
     name: string;
@@ -144,25 +158,59 @@ function parseTimelineFormat(
     maxDate: string | null;
   }>();
 
-  for (const row of rows) {
+  let processedCount = 0;
+  let skippedMissingData = 0;
+  let skippedDesconectado = 0;
+  let skippedInvalidDates = 0;
+  let skippedZeroDuration = 0;
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
     const agentName = colAgentName ? (row[colAgentName] ?? '').trim() : '';
     const agentId = colAgentId ? (row[colAgentId] ?? '').trim() : agentName;
     const status = (row[colStatus] ?? '').trim();
     const startStr = (row[colStart] ?? '').trim();
     const endStr = (row[colEnd] ?? '').trim();
 
-    if (!agentName || !startStr || !endStr) continue;
+    if (!agentName || !startStr || !endStr) {
+      skippedMissingData++;
+      if (i < 3) {
+        console.log(`[TimelineFormat] Fila ${i} - Datos faltantes:`, { agentName, startStr, endStr });
+      }
+      continue;
+    }
 
     // Skip "Desconectado" status
-    if (status === 'Desconectado') continue;
+    if (status === 'Desconectado') {
+      skippedDesconectado++;
+      continue;
+    }
 
     const startTime = parseTimelineDateTime(startStr);
     const endTime = parseTimelineDateTime(endStr);
 
-    if (!startTime || !endTime) continue;
+    if (!startTime || !endTime) {
+      skippedInvalidDates++;
+      if (i < 3) {
+        console.log(`[TimelineFormat] Fila ${i} - Fechas inválidas:`, { startStr, endStr, startTime, endTime });
+      }
+      continue;
+    }
 
     const durationSeconds = Math.max(0, (endTime.getTime() - startTime.getTime()) / 1000);
-    if (durationSeconds === 0) continue;
+    if (durationSeconds === 0) {
+      skippedZeroDuration++;
+      if (i < 3) {
+        console.log(`[TimelineFormat] Fila ${i} - Duración cero:`, { startStr, endStr });
+      }
+      continue;
+    }
+
+    if (i < 3) {
+      console.log(`[TimelineFormat] Fila ${i} - Procesada:`, { agentName, status, durationSeconds, startTime, endTime });
+    }
+
+    processedCount++;
 
     if (!agentMap.has(agentId)) {
       agentMap.set(agentId, {
@@ -193,6 +241,16 @@ function parseTimelineFormat(
     }
   }
 
+  console.log('[TimelineFormat] Resumen de procesamiento:', {
+    totalRows: rows.length,
+    processedCount,
+    skippedMissingData,
+    skippedDesconectado,
+    skippedInvalidDates,
+    skippedZeroDuration,
+    uniqueAgents: agentMap.size,
+  });
+
   for (const agent of agentMap.values()) {
     if (agent.connectedSeconds === 0 && agent.inQueueSeconds === 0) continue;
 
@@ -206,6 +264,11 @@ function parseTimelineFormat(
       outOfQueueSeconds: agent.connectedSeconds,
     });
   }
+
+  console.log('[TimelineFormat] Resultado final:', {
+    agentsWithTime: result.length,
+    totalConnectedSeconds: result.reduce((sum, a) => sum + a.connectedSeconds, 0),
+  });
 
   if (result.length === 0) {
     return {
@@ -223,15 +286,18 @@ function parseTimelineDateTime(dateStr: string): Date | null {
 
   const s = dateStr.trim();
 
-  // Try DD-MM-YYYY HH:MM format
-  let match = s.match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+  // Try DD-MM-YYYY HH:MM format (hour and minute can be 1-2 digits)
+  let match = s.match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{1,2}):(\d{1,2})(?::(\d{2}))?/);
   if (match) {
     const [, day, month, year, hour, minute, second] = match;
-    return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second || '00'}`);
+    // Pad hour and minute to 2 digits for proper Date parsing
+    const paddedHour = String(parseInt(hour, 10)).padStart(2, '0');
+    const paddedMinute = String(parseInt(minute, 10)).padStart(2, '0');
+    return new Date(`${year}-${month}-${day}T${paddedHour}:${paddedMinute}:${second || '00'}`);
   }
 
   // Try HH:MM:SS format (assume today)
-  match = s.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  match = s.match(/^(\d{1,2}):(\d{1,2})(?::(\d{2}))?$/);
   if (match) {
     const [, hour, minute, second] = match;
     const now = new Date();
