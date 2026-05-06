@@ -1,27 +1,10 @@
 import { supabase } from './supabase';
-import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert, CallUpload, DeduplicationStats, ProcessedCallSignature } from './supabase';
+import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert, CallUpload, DeduplicationStats } from './supabase';
 import type { ParsedCallRecord } from './csvParser';
 import type { AgentStatusRow } from './agentStatusParser';
 import { hashPhone, maskPhone, filterOverlappingCalls } from './csvParser';
 
 const BATCH_SIZE = 500;
-
-export async function getProcessedSignatures(): Promise<Set<string>> {
-  const { data, error } = await supabase
-    .from('processed_call_signatures')
-    .select('ani_hash, call_date, call_time');
-
-  if (error) {
-    console.warn('Error loading processed signatures:', error);
-    return new Set();
-  }
-
-  const signatures = new Set<string>();
-  for (const row of data ?? []) {
-    signatures.add(`${row.ani_hash}|${row.call_date}|${row.call_time}`);
-  }
-  return signatures;
-}
 
 export async function saveUpload(
   filename: string,
@@ -40,17 +23,10 @@ export async function saveUpload(
 
   // Expand records by executive (one row per executive)
   const expanded: Omit<CallRecordInsert, 'upload_id'>[] = [];
-  const processedSignatures = new Set<string>();
 
   for (const record of markedRecords) {
     const hash = await hashPhone(record.cleanPhone);
     const masked = maskPhone(record.cleanPhone);
-
-    // Only track signature once per record (using last executive)
-    if (record.callDate && record.callTime) {
-      const signature = `${hash}|${record.callDate}|${record.callTime}`;
-      processedSignatures.add(signature);
-    }
 
     // Only use last executive from the list (they attended the call)
     const lastExecutive = record.executives[record.executives.length - 1] || 'SIN ATENDER';
@@ -70,6 +46,7 @@ export async function saveUpload(
       attended: record.attended,
       export_complete: record.exportComplete,
       is_overlapping: record.isOverlapping,
+      unique_call_identifier: record.uniqueCallIdentifier,
       queue_time_seconds: record.queueTimeSeconds,
       handle_time_seconds: record.handleTimeSeconds,
       alert_segments: record.alertSegments,
@@ -112,7 +89,7 @@ export async function saveUpload(
 
   const upload = uploadData as CallUpload;
 
-  // Insert records in batches
+  // Insert records in batches, using upsert to skip duplicates by unique_call_identifier
   let savedCount = 0;
   for (let i = 0; i < expanded.length; i += BATCH_SIZE) {
     const batch = expanded.slice(i, i + BATCH_SIZE).map(r => ({
@@ -120,36 +97,13 @@ export async function saveUpload(
       upload_id: upload.id,
     }));
 
-    const { error } = await supabase.from('call_records').insert(batch);
+    const { error } = await supabase
+      .from('call_records')
+      .upsert(batch, { onConflict: 'unique_call_identifier', ignoreDuplicates: true });
     if (error) {
       throw new Error(`Error al guardar registros (batch ${i / BATCH_SIZE + 1}): ${error.message}`);
     }
     savedCount += batch.length;
-  }
-
-  // Update processed signatures for future deduplication
-  const signaturesForDb: Omit<ProcessedCallSignature, 'id' | 'processed_at' | 'created_at'>[] = [];
-  for (const sig of processedSignatures) {
-    const [hash, date, time] = sig.split('|');
-    signaturesForDb.push({
-      ani_hash: hash,
-      call_date: date,
-      call_time: time,
-      last_upload_id: upload.id,
-    });
-  }
-
-  if (signaturesForDb.length > 0) {
-    for (let i = 0; i < signaturesForDb.length; i += BATCH_SIZE) {
-      const batch = signaturesForDb.slice(i, i + BATCH_SIZE);
-      const { error } = await supabase
-        .from('processed_call_signatures')
-        .upsert(batch, { onConflict: 'ani_hash,call_date,call_time' });
-
-      if (error) {
-        console.warn('Warning updating processed signatures:', error);
-      }
-    }
   }
 
   const stats: DeduplicationStats = {

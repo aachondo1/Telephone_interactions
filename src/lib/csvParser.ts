@@ -20,6 +20,7 @@ export type ParsedCallRecord = {
   attended: boolean;
   exportComplete: boolean;
   isOverlapping: boolean;
+  uniqueCallIdentifier: string;
   queueTimeSeconds: number;
   handleTimeSeconds: number;
   alertSegments: number;
@@ -294,6 +295,21 @@ export async function hashPhone(phone: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
 }
 
+export async function generateUniqueCallId(
+  aniHash: string,
+  callDate: string | null,
+  callTime: string | null,
+  durationSeconds: number
+): Promise<string> {
+  if (!aniHash || !callDate || !callTime) return '';
+  const combined = `${aniHash}|${callDate}|${callTime}|${durationSeconds}`;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(combined);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // Mask phone: show last 4 digits only e.g. +56 9 XXXX 4567
 export function maskPhone(phone: string): string {
   if (!phone || phone.length < 4) return phone ? 'XXXX' : '';
@@ -342,8 +358,7 @@ export function calculateDateRangeFromRecords(
 
 export async function transformRows(
   rows: RawCallRecord[],
-  columnMap: Record<string, string>,
-  processedSignatures?: Set<string>
+  columnMap: Record<string, string>
 ): Promise<{ records: ParsedCallRecord[]; duplicateCount: number; anomalies: typeof anomalies }> {
   // Local anomalies tracking for this batch (evita race conditions entre uploads concurrentes)
   const anomalies: Array<{
@@ -395,16 +410,10 @@ export async function transformRows(
 
     const rawPhone = columnMap.phone ? (row[columnMap.phone] ?? '') : '';
     const cleanPhone = cleanPhoneNumber(rawPhone);
+    const aniHash = await hashPhone(cleanPhone);
 
-    // Check for duplicates if signatures provided
-    if (processedSignatures && callDate && callTime) {
-      const hash = await hashPhone(cleanPhone);
-      const signature = `${hash}|${callDate}|${callTime}`;
-      if (processedSignatures.has(signature)) {
-        duplicateCount++;
-        continue;
-      }
-    }
+    // Generate unique call identifier
+    const uniqueCallIdentifier = await generateUniqueCallId(aniHash, callDate, callTime, durationSeconds);
 
     const exportComplete = columnMap.exportComplete
       ? isExportComplete(row[columnMap.exportComplete] ?? '')
@@ -601,6 +610,7 @@ export async function transformRows(
       attended,
       exportComplete,
       isOverlapping: false,
+      uniqueCallIdentifier,
       queueTimeSeconds,
       handleTimeSeconds,
       alertSegments,
