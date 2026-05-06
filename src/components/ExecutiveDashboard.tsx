@@ -10,6 +10,7 @@ import {
 import type { KPISummary } from '../lib/kpi';
 import type { CallRecord } from '../lib/supabase';
 import type { FilterState } from './FilterBar';
+import { getDateRangeForRelative } from './FilterBar';
 import { getMondayKey, weekLabel, monthLabel, MONTH_LABELS } from '../lib/kpi/shared';
 import { SectionHeader } from './SectionHeader';
 
@@ -204,7 +205,7 @@ function countQueueCalls(records: CallRecord[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const r of records) {
     if (!isInboundDir(r.call_direction) || r.flow_exit === false || (r.queue_time_seconds ?? 0) < 1) continue;
-    const queue = r.queue_name || 'Sin cola';
+    const queue = r.queue || 'Sin cola';
     map.set(queue, (map.get(queue) ?? 0) + 1);
   }
   return map;
@@ -294,23 +295,38 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
   const prev = useMemo(() => calcDirectorKPIs(prevRecords), [prevRecords]);
 
   const granularity = useMemo(() => {
-    const startDate = new Date(filters.dateStart + 'T00:00:00');
-    const endDate = new Date(filters.dateEnd + 'T23:59:59');
+    let start = filters.dateStart;
+    let end = filters.dateEnd;
+    if (!start || !end) {
+      const resolved = getDateRangeForRelative(filters.dateRange);
+      start = resolved.start;
+      end = resolved.end;
+    }
+    if (!start || !end) return 'day';
+    const startDate = new Date(start + 'T00:00:00');
+    const endDate = new Date(end + 'T23:59:59');
     const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    return getGranularity(days);
-  }, [filters.dateStart, filters.dateEnd]);
+    return getGranularity(Math.max(1, days));
+  }, [filters.dateStart, filters.dateEnd, filters.dateRange]);
 
   const funnelData = useMemo(() => calcFunnelByGranularity(records, granularity), [records, granularity]);
   const outboundData = useMemo(() => calcOutboundByGranularity(records, granularity), [records, granularity]);
 
   const topQueues = useMemo(() => {
-    const baseQueues = kpis.queueStats.filter(q => q.queue !== 'Sin cola').slice(0, 8);
+    const currQueueCounts = countQueueCalls(currentRecords);
     const prevQueueCounts = countQueueCalls(prevRecords);
-    return addQueueVariation(
-      baseQueues.map(q => ({ queue: q.queue, count: q.inboundCount, variation: null })),
-      prevQueueCounts
-    );
-  }, [kpis.queueStats, prevRecords]);
+    const hasPrevData = prevRecords.length > 0;
+    return kpis.queueStats
+      .filter(q => q.queue !== 'Sin cola')
+      .slice(0, 8)
+      .map(q => ({
+        queue: q.queue,
+        count: q.count,
+        variation: hasPrevData
+          ? changePct(currQueueCounts.get(q.queue) ?? 0, prevQueueCounts.get(q.queue) ?? 0)
+          : null,
+      }));
+  }, [kpis.queueStats, currentRecords, prevRecords]);
   const maxQueueCount = topQueues[0]?.count ?? 1;
 
   const top10Executives = useMemo(
