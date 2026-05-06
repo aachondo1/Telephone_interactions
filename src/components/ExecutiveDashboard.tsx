@@ -102,8 +102,9 @@ function calcFunnelByGranularity(records: CallRecord[], granularity: Granularity
 
     if (granularity === 'hour') {
       const hour = r.call_hour ?? 0;
-      key = String(hour).padStart(2, '0');
-      label = `${String(hour).padStart(2, '0')}:00`;
+      key = `${r.call_date}:${hour}`;
+      const dateStr = new Date(r.call_date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+      label = `${dateStr} ${String(hour).padStart(2, '0')}:00`;
     } else if (granularity === 'day') {
       key = r.call_date;
       label = new Date(r.call_date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
@@ -149,8 +150,9 @@ function calcOutboundByGranularity(records: CallRecord[], granularity: Granulari
 
     if (granularity === 'hour') {
       const hour = r.call_hour ?? 0;
-      key = String(hour).padStart(2, '0');
-      label = `${String(hour).padStart(2, '0')}:00`;
+      key = `${r.call_date}:${hour}`;
+      const dateStr = new Date(r.call_date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+      label = `${dateStr} ${String(hour).padStart(2, '0')}:00`;
     } else if (granularity === 'day') {
       key = r.call_date;
       label = new Date(r.call_date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
