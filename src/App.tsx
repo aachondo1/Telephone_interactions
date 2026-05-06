@@ -70,7 +70,7 @@ export default function App() {
           date_range_end: dateRange.end,
         };
 
-        setUploads(prev => [upload, ...prev.filter(u => u.id !== upload.id)]);
+        setUploads(prev => [virtualUpload, ...prev.filter(u => u.id !== virtualUpload.id)]);
         setDataState({ phase: 'ready', records, upload: virtualUpload });
       })
       .catch(() => setDataState({ phase: 'empty' }));
