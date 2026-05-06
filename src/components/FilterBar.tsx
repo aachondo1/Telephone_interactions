@@ -61,7 +61,7 @@ export type FilterState = {
 export const DEFAULT_FILTERS: FilterState = {
   dateStart: '',
   dateEnd: '',
-  dateRange: 'custom',
+  dateRange: 'thisMonth',
   departments: [],
   queues: [],
   executives: [],
@@ -103,6 +103,16 @@ function DateRangeDropdown({
     custom: 'Rango personalizado',
   };
 
+  const handleSelect = (range: FilterState['dateRange']) => {
+    if (range === 'custom') {
+      onChange('custom', dateStart, dateEnd);
+    } else {
+      const relative = getDateRangeForRelative(range);
+      onChange(range, relative.start, relative.end);
+    }
+    setOpen(false);
+  };
+
   return (
     <div className="relative">
       <button
@@ -129,24 +139,21 @@ function DateRangeDropdown({
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute top-full mt-1 left-0 z-20 bg-white border border-slate-200 rounded-xl shadow-lg min-w-[250px] p-3 space-y-3">
             <div className="space-y-2">
-              {(['thisWeek', 'lastWeek', 'thisMonth', 'lastMonth', 'thisQuarter', 'lastQuarter'] as const).map(opt => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => {
-                    onChange(opt, '', '');
-                    setOpen(false);
-                  }}
-                  className={`w-full text-left text-sm px-3 py-2 rounded-lg transition-colors ${
-                    dateRange === opt
-                      ? 'bg-orange-100 text-orange-700 font-medium'
-                      : 'hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  {labels[opt]}
-                </button>
-              ))}
-            </div>
+                          {(['thisWeek', 'lastWeek', 'thisMonth', 'lastMonth', 'thisQuarter', 'lastQuarter'] as const).map(opt => (
+                            <button
+                              key={opt}
+                              type="button"
+                              onClick={() => handleSelect(opt)}
+                              className={`w-full text-left text-sm px-3 py-2 rounded-lg transition-colors ${
+                                dateRange === opt
+                                  ? 'bg-orange-100 text-orange-700 font-medium'
+                                  : 'hover:bg-slate-50 text-slate-700'
+                              }`}
+                            >
+                              {labels[opt]}
+                            </button>
+                          ))}
+                        </div>
             <div className="border-t border-slate-200 pt-3">
               <p className="text-xs font-medium text-slate-500 mb-2">O personalizado:</p>
               <div className="flex items-center gap-2">
