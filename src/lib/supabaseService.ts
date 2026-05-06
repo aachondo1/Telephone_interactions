@@ -1,4 +1,3 @@
-Set.add(), ivrTotalSeconds -> ivrTimeSeconds, and migrating to signature_hash">
 import { supabase } from './supabase';
 import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert, CallUpload, DeduplicationStats, ProcessedCallSignature } from './supabase';
 import type { ParsedCallRecord } from './csvParser';
