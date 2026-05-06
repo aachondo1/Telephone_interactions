@@ -28,13 +28,11 @@ export function parseCSVText(text: string): { headers: string[]; rows: string[][
   return { headers, rows };
 }
 
-// ... rest of existing imports and code ...
-
 // Helper: clean phone number
 export function cleanPhone(phone: string): string {
   if (!phone) return '';
   return phone
-    .replace(/^sip:[^@]*/i, '')  // sip:number@domain -> keep number part
+    .replace(/^sip:[^@]*/i, '')
     .replace(/^sip:/i, '')
     .replace(/@.*$/, '')
     .replace(/[^0-9+]/g, '')
@@ -72,16 +70,12 @@ export async function generateCallSignature(
 ): Promise<string> {
   if (!callDate || !callTime) return '';
 
-  // Base components for signature
   const baseString = `${callDate}|${callTime}|${aniHash}|${durationSeconds}|${callDirection}`;
-
-  // If ANI hash is weak (too short or empty), add more fields for uniqueness
   let fullString = baseString;
   if (!aniHash || aniHash.length < 8) {
     fullString += `|${queueTimeSeconds}|${ivrTotalSeconds}`;
   }
 
-  // ✅ Use Web Crypto API (Standard, works in Browser + Node v15+)
   const encoder = new TextEncoder();
   const data = encoder.encode(fullString);
   const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', data);
@@ -92,8 +86,6 @@ export async function generateCallSignature(
 // filterOverlappingCalls function
 export function filterOverlappingCalls(records: any[]): { records: any[]; canceledCount: number } {
   let canceledCount = 0;
-  
-  // Group by executive and date
   const recordsByDateAndExecutive: Record<string, any[]> = {};
   
   for (const record of records) {
@@ -105,12 +97,10 @@ export function filterOverlappingCalls(records: any[]): { records: any[]; cancel
     recordsByDateAndExecutive[key].push(record);
   }
   
-  // Mark overlapping calls
   const markedRecords = records.map(r => ({ ...r }));
   
   for (const key in recordsByDateAndExecutive) {
     const callsForExecutive = recordsByDateAndExecutive[key];
-    // Sort by call time
     callsForExecutive.sort((a, b) => {
       const timeA = a.callTime || '';
       const timeB = b.callTime || '';
@@ -122,14 +112,12 @@ export function filterOverlappingCalls(records: any[]): { records: any[]; cancel
         const callA = callsForExecutive[i];
         const callB = callsForExecutive[j];
         
-        // If call B starts after call A ends, no more overlaps
         if (callB.callTime > callA.callTime) {
           const timeASeconds = timeToSeconds(callA.callTime) + (callA.durationSeconds || 0);
           const timeBSeconds = timeToSeconds(callB.callTime);
           if (timeBSeconds >= timeASeconds) break;
         }
         
-        // Mark as overlapping
         const markedA = markedRecords.find(r => r.originalCallId === callA.originalCallId);
         const markedB = markedRecords.find(r => r.originalCallId === callB.originalCallId);
         
@@ -155,22 +143,103 @@ function timeToSeconds(timeStr: string): number {
   return hours * 3600 + minutes * 60 + seconds;
 }
 
-// ... rest of the file (transformRows, detectColumns, validateColumns, etc.) ...
-// Make sure transformRows uses generateCallSignature correctly:
+// Calculate date range from records
+export function calculateDateRangeFromRecords(records: any[]): { start: string; end: string } {
+  const dates = records
+    .map(r => r.callDate || r.call_date)
+    .filter((d): d is string => !!d)
+    .sort();
+  
+  if (dates.length === 0) {
+    const today = new Date().toISOString().split('T')[0];
+    return { start: today, end: today };
+  }
+  
+  return { start: dates[0], end: dates[dates.length - 1] };
+}
 
+// Detect columns from CSV headers
+export function detectColumns(headers: string[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  const normalized = headers.map(h => h.toLowerCase().trim());
+  
+  const findCol = (candidates: string[]): string | undefined => {
+    for (const c of candidates) {
+      const idx = normalized.findIndex(h => h === c || h.includes(c));
+      if (idx !== -1) return headers[idx];
+    }
+    return undefined;
+  };
+
+  map.date = findCol(['fecha', 'date', 'call_date']) || '';
+  map.time = findCol(['hora', 'time', 'call_time', 'timestamp']) || '';
+  map.executive = findCol(['ejecutivo', 'executive', 'agente', 'agent', 'usuario', 'user']) || '';
+  map.duration = findCol(['duración', 'duration', 'duracion', 'tiempo']) || '';
+  map.direction = findCol(['dirección', 'direction', 'direccion', 'tipo', 'type']) || '';
+  map.queue = findCol(['cola', 'queue', 'grupo']) || '';
+  map.ani = findCol(['ani', 'teléfono', 'telefono', 'phone', 'número', 'numero']) || '';
+  map.attended = findCol(['atendida', 'attended', 'contestada', 'answered']) || '';
+  map.handleTime = findCol(['manejo', 'handle_time', 'handle time', 'tiempo manejo']) || '';
+  map.queueTime = findCol(['tiempo cola', 'queue_time', 'queue time', 'espera']) || '';
+  map.alertTime = findCol(['tiempo alerta', 'alert_time', 'alert time', 'timbrado']) || '';
+  map.alertSegments = findCol(['segmentos alerta', 'alert_segments', 'alert segments', 'intentos']) || '';
+  map.flowExit = findCol(['salida flujo', 'flow_exit', 'flow exit', 'ivr exit']) || '';
+  map.alertedUsers = findCol(['usuarios alertados', 'alerted_users', 'alerted users']) || '';
+  map.holdTime = findCol(['hold', 'hold_time', 'hold time', 'espera activa']) || '';
+  map.acw = findCol(['acw', 'after call work', 'post llamada']) || '';
+  map.ivrTime = findCol(['ivr', 'ivr_time', 'ivr time', 'tiempo ivr']) || '';
+  
+  return map;
+}
+
+// Validate that required columns are present
+export function validateColumns(columnMap: Record<string, string>): string[] {
+  const required = ['date', 'time', 'executive', 'duration', 'direction'];
+  const missing: string[] = [];
+  
+  for (const key of required) {
+    if (!columnMap[key]) {
+      missing.push(key);
+    }
+  }
+  
+  return missing;
+}
+
+// Transform raw rows into parsed records
 export async function transformRows(
-  rows: RawCallRecord[],
+  rows: any[],
   columnMap: Record<string, string>,
   processedSignatures?: Set<string>
-): Promise<{ records: ParsedCallRecord[]; duplicateCount: number; anomalies: any[] }> {
-  const records: ParsedCallRecord[] = [];
+): Promise<{ records: any[]; duplicateCount: number; anomalies: any[] }> {
+  const records: any[] = [];
   const anomalies: any[] = [];
   let duplicateCount = 0;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    // ... existing parsing code ...
-    
+    // Basic parsing - this is a simplified version
+    const callDate = row[columnMap.date] || null;
+    const callTime = row[columnMap.time] || null;
+    const executive = row[columnMap.executive] || 'SIN ATENDER';
+    const durationSeconds = parseInt(row[columnMap.duration]) || 0;
+    const direction = row[columnMap.direction] || '';
+    const queue = row[columnMap.queue] || '';
+    const ani = row[columnMap.ani] || '';
+    const attended = row[columnMap.attended]?.toLowerCase() === 'true' || row[columnMap.attended]?.toLowerCase() === 'sí' || row[columnMap.attended]?.toLowerCase() === 'si';
+    const handleTimeSeconds = parseInt(row[columnMap.handleTime]) || 0;
+    const queueTimeSeconds = parseInt(row[columnMap.queueTime]) || 0;
+    const alertTimeSeconds = parseInt(row[columnMap.alertTime]) || 0;
+    const alertSegments = parseInt(row[columnMap.alertSegments]) || 1;
+    const flowExit = row[columnMap.flowExit]?.toLowerCase() !== 'false';
+    const alertedUsers = row[columnMap.alertedUsers] || '';
+    const holdTimeSeconds = parseInt(row[columnMap.holdTime]) || 0;
+    const acwSeconds = parseInt(row[columnMap.acw]) || 45;
+    const ivrTimeSeconds = parseInt(row[columnMap.ivrTime]) || 0;
+
+    const hash = await hashPhone(ani);
+    const masked = maskPhone(ani);
+
     // Check for duplicates if signatures provided
     if (processedSignatures && callDate && callTime) {
       const signature = await generateCallSignature(
@@ -180,7 +249,7 @@ export async function transformRows(
         durationSeconds,
         direction,
         queueTimeSeconds,
-        ivrTotalSeconds
+        ivrTimeSeconds
       );
 
       if (processedSignatures.has(signature)) {
@@ -189,10 +258,84 @@ export async function transformRows(
       }
     }
 
-    // ... rest of the loop ...
+    records.push({
+      callDate,
+      callTime,
+      callHour: callTime ? parseInt(callTime.split(':')[0]) : null,
+      executive,
+      originalCallId: `${callDate}_${callTime}_${i}`,
+      aniHash: hash,
+      aniMasked: masked,
+      callDirection: direction,
+      queue,
+      durationSeconds,
+      durationFormatted: formatDuration(durationSeconds),
+      attended,
+      exportComplete: true,
+      isOverlapping: false,
+      queueTimeSeconds,
+      handleTimeSeconds,
+      alertSegments,
+      alertTimeSeconds,
+      flowExit,
+      alertedUsers,
+      usersNotRespond: '',
+      abandonType: null,
+      isBounce: false,
+      holdTimeSeconds,
+      acwSeconds,
+      ivrTimeSeconds,
+      timeToAbandon: null,
+      exitReason: null,
+      isDuplicate: false,
+    });
   }
 
   return { records, duplicateCount, anomalies };
 }
 
-// ... existing interfaces (RawCallRecord, ParsedCallRecord, etc.) ...
+// Format duration helper
+function formatDuration(seconds: number): string {
+  if (seconds < 0) seconds = 0;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) {
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+// Type exports
+export type RawCallRecord = Record<string, string>;
+export type ParsedCallRecord = {
+  callDate: string | null;
+  callTime: string | null;
+  callHour: number | null;
+  executive: string;
+  originalCallId: string;
+  aniHash: string;
+  aniMasked: string;
+  callDirection: string;
+  queue: string;
+  durationSeconds: number;
+  durationFormatted: string;
+  attended: boolean;
+  exportComplete: boolean;
+  isOverlapping: boolean;
+  queueTimeSeconds: number;
+  handleTimeSeconds: number;
+  alertSegments: number;
+  alertTimeSeconds: number;
+  flowExit: boolean;
+  alertedUsers: string;
+  usersNotRespond: string;
+  abandonType: string | null;
+  isBounce: boolean;
+  holdTimeSeconds: number;
+  acwSeconds: number;
+  ivrTimeSeconds: number;
+  timeToAbandon: number | null;
+  exitReason: string | null;
+  isDuplicate: boolean;
+};
