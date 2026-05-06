@@ -26,9 +26,10 @@ import { ExecutivesDetailTable } from './ExecutivesDetailTable';
 import { ExecutiveDashboard } from './ExecutiveDashboard';
 import { QueueHealthDashboard } from './QueueHealthDashboard';
 import { OutboundDashboard } from './OutboundDashboard';
+import { OccupationDashboard } from './OccupationDashboard';
 import { SectionHeader } from './SectionHeader';
 import { calculateKPIs, getEmptyKPISummary, calculateAgentAuditFlags } from '../lib/kpi';
-import type { CallRecord, CallUpload } from '../lib/supabase';
+import type { CallRecord, CallUpload, AgentConnectivityHourly } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
 import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Users } from 'lucide-react';
@@ -590,6 +591,10 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
             )}
           </div>
         </div>
+      )}
+
+      {activeSection === 'ocupacion-agentes' && (
+        <OccupationDashboard records={filteredRecords} connectivityData={[]} />
       )}
 
       {activeSection === 'planificacion' && (
