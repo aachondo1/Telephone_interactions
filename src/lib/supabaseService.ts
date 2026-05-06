@@ -206,7 +206,12 @@ export async function saveAgentStatusUpload(
     out_of_queue_seconds: r.outOfQueueSeconds,
   }));
 
-  const { error } = await supabase.from('agent_status_records').insert(records);
+  const { error } = await supabase
+    .from('agent_status_records')
+    .upsert(records, {
+      onConflict: 'agent_id,date_range_start,date_range_end',
+      ignoreDuplicates: true,
+    });
   if (error) throw new Error(`Error al guardar registros de estado: ${error.message}`);
 
   return { upload, savedCount: rows.length };
