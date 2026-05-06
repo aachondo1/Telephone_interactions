@@ -290,19 +290,32 @@ export async function getAllAgentStatusUploads(): Promise<Array<{ upload: AgentS
 export function combineAgentStatusRecords(
   uploads: Array<{ upload: AgentStatusUpload; records: AgentStatusRecord[] }>
 ): AgentStatusRecord[] {
-  const seenKey = new Set<string>();
-  const deduped: AgentStatusRecord[] = [];
+  // Group by agent and SUM their time across different periods (March + April + May → one row).
+  // Track seen periods per agent to avoid double-counting when the same file is loaded twice.
+  type MergedEntry = { record: AgentStatusRecord; seenPeriods: Set<string> };
+  const agentMap = new Map<string, MergedEntry>();
 
-  // Process uploads in reverse order (newest first) so we keep the latest version
   for (const { records } of [...uploads].reverse()) {
     for (const record of records) {
-      const key = `${record.agent_id || record.agent_name}|${record.date_range_start ?? 'null'}|${record.date_range_end ?? 'null'}`;
-      if (!seenKey.has(key)) {
-        seenKey.add(key);
-        deduped.push(record);
+      const agentKey = record.agent_id || record.agent_name;
+      const periodKey = `${record.date_range_start ?? 'null'}|${record.date_range_end ?? 'null'}`;
+
+      if (!agentMap.has(agentKey)) {
+        agentMap.set(agentKey, {
+          record: { ...record },
+          seenPeriods: new Set([periodKey]),
+        });
+      } else {
+        const entry = agentMap.get(agentKey)!;
+        if (!entry.seenPeriods.has(periodKey)) {
+          entry.seenPeriods.add(periodKey);
+          entry.record.connected_seconds    += record.connected_seconds;
+          entry.record.in_queue_seconds     += record.in_queue_seconds;
+          entry.record.out_of_queue_seconds += record.out_of_queue_seconds;
+        }
       }
     }
   }
 
-  return deduped;
+  return Array.from(agentMap.values()).map(e => e.record);
 }
