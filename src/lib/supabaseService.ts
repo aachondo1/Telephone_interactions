@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert, CallUpload, DeduplicationStats, ProcessedCallSignature } from './supabase';
 import type { ParsedCallRecord } from './csvParser';
-import { hashPhone, maskPhone, filterOverlappingCalls, generateCallSignature } from './csvParser';
+import { hashPhone, maskPhone, filterOverlappingCalls, generateCallSignature } from './csvParser'; // Add generateCallSignature
 import type { AgentStatusRow } from './agentStatusParser';
 
 const BATCH_SIZE = 500;
@@ -104,6 +104,7 @@ export async function saveUpload(
       is_bounce: record.isBounce,
       hold_time_seconds: record.holdTimeSeconds,
       acw_seconds: record.acwSeconds,
+      // New Genesys fields
       ivr_time_seconds: record.ivrTotalSeconds || null,
       time_to_abandon: record.abandonTimeSeconds || null,
       campaign: record.campaign || null,
