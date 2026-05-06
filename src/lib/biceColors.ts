@@ -27,6 +27,12 @@ export const BICE_COLORS = {
   alert: '#c0392b',          // For critical issues
   alertBg: '#fbe7e3',
 
+  // Agent occupancy status colors
+  productive: '#84BD00',      // Productivo - actively handling calls
+  available: '#326295',       // Disponible - in queue ready to take calls
+  pause: '#65646A',          // Pausa - on break/meal/meeting
+  noResponse: '#ef4444',     // No Responde - not responding to alerts
+
   // Neutrals (cool grey scale to harmonize with navy)
   text: '#0a1828',           // Near-black with blue tint
   textSecondary: '#2c3e54',
