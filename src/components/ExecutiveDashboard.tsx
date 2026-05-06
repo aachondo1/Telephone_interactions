@@ -200,6 +200,26 @@ function changePct(current: number, prev: number): number | null {
   return Math.round(((current - prev) / prev) * 100);
 }
 
+function countQueueCalls(records: CallRecord[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const r of records) {
+    if (!isInboundDir(r.call_direction) || r.flow_exit === false || (r.queue_time_seconds ?? 0) < 1) continue;
+    const queue = r.queue_name || 'Sin cola';
+    map.set(queue, (map.get(queue) ?? 0) + 1);
+  }
+  return map;
+}
+
+type QueueWithVariation = { queue: string; count: number; variation: number | null };
+
+function addQueueVariation(currentQueues: QueueWithVariation[], prevQueueCounts: Map<string, number>): QueueWithVariation[] {
+  return currentQueues.map(q => ({
+    queue: q.queue,
+    count: q.count,
+    variation: changePct(q.count, prevQueueCounts.get(q.queue) ?? 0),
+  }));
+}
+
 function ChangeBadge({ pct, inverted = false }: { pct: number | null; inverted?: boolean }) {
   if (pct === null) return null;
   const isPositive = inverted ? pct < 0 : pct > 0;
@@ -283,10 +303,14 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
   const funnelData = useMemo(() => calcFunnelByGranularity(records, granularity), [records, granularity]);
   const outboundData = useMemo(() => calcOutboundByGranularity(records, granularity), [records, granularity]);
 
-  const topQueues = useMemo(
-    () => kpis.queueStats.filter(q => q.queue !== 'Sin cola').slice(0, 8),
-    [kpis.queueStats],
-  );
+  const topQueues = useMemo(() => {
+    const baseQueues = kpis.queueStats.filter(q => q.queue !== 'Sin cola').slice(0, 8);
+    const prevQueueCounts = countQueueCalls(prevRecords);
+    return addQueueVariation(
+      baseQueues.map(q => ({ queue: q.queue, count: q.inboundCount, variation: null })),
+      prevQueueCounts
+    );
+  }, [kpis.queueStats, prevRecords]);
   const maxQueueCount = topQueues[0]?.count ?? 1;
 
   const top10Executives = useMemo(
@@ -473,8 +497,8 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
               />
               <Tooltip content={<FunnelTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
-              <Bar dataKey="efectivos" name="Contactos Efectivos" fill={BICE_GREEN} radius={[3, 3, 0, 0]} />
-              <Bar dataKey="fallidos" name="Intentos Fallidos" fill={BICE_GRAY} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="efectivos" name="Contactos Efectivos" fill={BICE_GREEN} stackId="outbound" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="fallidos" name="Intentos Fallidos" fill={BICE_GRAY} stackId="outbound" radius={[3, 3, 0, 0]} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -488,7 +512,7 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
           <h3 className="text-sm font-semibold text-slate-700 mb-1 uppercase tracking-wide">
             Ranking de Colas por Volumen
           </h3>
-          <p className="text-xs text-slate-400 mb-5">Ordenadas por llamadas entrantes recibidas</p>
+          <p className="text-xs text-slate-400 mb-5">Volumen de demanda entrante que llegó a cada cola</p>
           {topQueues.length === 0 ? (
             <p className="text-slate-400 text-sm text-center py-8">Sin datos</p>
           ) : (
@@ -500,9 +524,12 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
                       <span className="text-xs font-bold text-slate-300 w-5 flex-shrink-0">{i + 1}</span>
                       <span className="text-slate-700 font-medium truncate">{q.queue}</span>
                     </div>
-                    <span className="font-bold text-slate-800 ml-3 flex-shrink-0">
-                      {q.count.toLocaleString('es-CL')}
-                    </span>
+                    <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                      <span className="font-bold text-slate-800">
+                        {q.count.toLocaleString('es-CL')}
+                      </span>
+                      <ChangeBadge pct={q.variation} />
+                    </div>
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div
