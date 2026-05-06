@@ -305,25 +305,6 @@ type Props = {
 export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavigate }: Props) {
   // Valores de display: derivados de kpis (fuente única = calculateKPIs(currentRecords))
   // Garantiza consistencia con todas las demás pestañas del dashboard
-  const fullPeriod = useMemo(() => {
-    const inbound = currentRecords.filter(r => isInbound(r.call_direction));
-    const valid = inbound.filter(r => !isCorruptedTechnicalCall(r));
-    const attended = valid.filter(r => r.attended);
-    const avgConversationSec = attended.length > 0
-      ? Math.round(attended.reduce((s, r) => s + (r.conversation_total_seconds ?? 0), 0) / attended.length)
-      : 0;
-    return {
-      totalInbound:   kpis.totalCalls,
-      queueCalls:     kpis.totalCalls - kpis.abandonStats.abandonedInIVR,
-      executiveCalls: kpis.totalCalls - kpis.abandonStats.abandonedInIVR - kpis.abandonStats.abandonedInQueue,
-      attendedCalls:  kpis.totalCalls - kpis.unattendedCount,
-      abandonedCalls: kpis.abandonStats.abandonedInQueue + kpis.abandonStats.abandonedInAlert,
-      avgQueueTimeSec:    Math.round(kpis.avgQueueTimeSeconds),
-      avgAHTSec:          Math.round(kpis.avgHandleTimeSeconds),
-      avgConversationSec,
-    };
-  }, [kpis, currentRecords]);
-
   // Calcular período actual y anterior basado en filtros
   const dateRanges = useMemo(() => {
     let start = filters.dateStart;
@@ -350,6 +331,25 @@ export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavi
 
   const curr = useMemo(() => countHalfPeriodMetrics(currentRecords), [currentRecords]);
   const prev = useMemo(() => countHalfPeriodMetrics(prevRecords), [prevRecords]);
+
+  const fullPeriod = useMemo(() => {
+    const inbound = currentRecords.filter(r => isInbound(r.call_direction));
+    const valid = inbound.filter(r => !isCorruptedTechnicalCall(r));
+    const attended = valid.filter(r => r.attended);
+    const avgConversationSec = attended.length > 0
+      ? Math.round(attended.reduce((s, r) => s + (r.conversation_total_seconds ?? 0), 0) / attended.length)
+      : 0;
+    return {
+      totalInbound:   kpis.totalCalls,
+      queueCalls:     kpis.totalCalls - kpis.abandonStats.abandonedInIVR,
+      executiveCalls: kpis.totalCalls - kpis.abandonStats.abandonedInIVR - kpis.abandonStats.abandonedInQueue,
+      attendedCalls:  kpis.totalCalls - kpis.unattendedCount,
+      abandonedCalls: kpis.abandonStats.abandonedInQueue + kpis.abandonStats.abandonedInAlert,
+      avgQueueTimeSec:    Math.round(kpis.avgQueueTimeSeconds),
+      avgAHTSec:          Math.round(kpis.avgHandleTimeSeconds),
+      avgConversationSec,
+    };
+  }, [kpis, currentRecords]);
 
   const granularity = useMemo(() => {
     const startDate = new Date(dateRanges.current.start + 'T00:00:00');
