@@ -1,6 +1,7 @@
-import type { CallRecord } from '../supabase';
+import type { CallRecord, AgentStatusRecord } from '../supabase';
 import { type ExecutiveOccupancyData, type ExecutiveOccupancyEntry } from './types';
 import { timeStringToMinutes } from './shared';
+import { generateAuditFlags } from './audit-flags';
 
 const MAX_REASONABLE_ALERT_SECONDS = 120;
 
@@ -76,4 +77,58 @@ export function calculateExecutiveOccupancy(records: CallRecord[]): ExecutiveOcc
   entries.sort((a, b) => b.avgOccupancyPct - a.avgOccupancyPct);
 
   return { entries };
+}
+
+export interface AgentAuditFlag {
+  agentId: string;
+  agentName: string;
+  flagType: 'ghost_connection' | 'overtime_no_calls' | 'unusual_hours';
+  severity: 'warning' | 'critical';
+  message: string;
+  excessMinutes?: number;
+}
+
+export function calculateAgentAuditFlags(records: AgentStatusRecord[]): AgentAuditFlag[] {
+  if (records.length === 0) return [];
+
+  const agentMap = new Map<string, AgentStatusRecord[]>();
+  for (const record of records) {
+    const key = record.agent_id;
+    if (!agentMap.has(key)) agentMap.set(key, []);
+    agentMap.get(key)!.push(record);
+  }
+
+  const allFlags: AgentAuditFlag[] = [];
+
+  for (const [agentId, agentRecords] of agentMap.entries()) {
+    const agentName = agentRecords[0]?.agent_name || agentId;
+    const totalConnectedSeconds = agentRecords.reduce((sum, r) => sum + r.connected_seconds, 0);
+
+    if (totalConnectedSeconds === 0) continue;
+
+    const dateRanges = agentRecords
+      .filter(r => r.date_range_start && r.date_range_end)
+      .map(r => ({
+        start: r.date_range_start!,
+        end: r.date_range_end!,
+      }));
+
+    if (dateRanges.length === 0) continue;
+
+    const dateStart = dateRanges.map(d => d.start).sort()[0];
+    const dateEnd = dateRanges.map(d => d.end).sort().reverse()[0];
+
+    const totalCallSeconds = agentRecords.reduce((sum, r) => sum + r.in_queue_seconds, 0);
+
+    const flags = generateAuditFlags(agentId, agentName, {
+      dateStart,
+      dateEnd,
+      totalConnectedSeconds,
+      totalCallSeconds,
+    });
+
+    allFlags.push(...flags);
+  }
+
+  return allFlags;
 }

@@ -12,6 +12,7 @@ export { formatDuration, isInbound } from './shared';
 // General / Llamadas
 export {
   calculateKPIs,
+  getEmptyKPISummary,
   calculateServiceLevelPerceptual,
   calculateServiceLevel,
   calculateAbandonStats,
@@ -43,7 +44,8 @@ export {
 } from './salud-colas';
 
 // Ejecutivos
-export { calculateExecutiveOccupancy } from './ejecutivos';
+export { calculateExecutiveOccupancy, calculateAgentAuditFlags } from './ejecutivos';
+export type { AgentAuditFlag } from './ejecutivos';
 
 // Planificación
 export {
@@ -64,3 +66,21 @@ export {
   isCorruptedTechnicalCall,
   getDataQualityReport,
 } from './calidad';
+
+// Occupancy Validation & Audit
+export {
+  validateOccupancyByBusinessHours,
+  isLikelyGhostConnection,
+} from './ocupancy-validator';
+
+export {
+  getDeadAvailabilityByDateRange,
+  calculateDeadAvailabilityPerAgent,
+  adjustOccupancyForDeadAvailability,
+} from './dead-availability';
+
+export {
+  generateAuditFlags,
+  detectGhostConnection,
+  detectUnusualHours,
+} from './audit-flags';

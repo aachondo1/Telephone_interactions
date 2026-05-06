@@ -235,3 +235,54 @@ export async function getLatestAgentStatusUpload(): Promise<{ upload: AgentStatu
   const records = await getAgentStatusRecords(upload.id);
   return { upload, records };
 }
+
+/**
+ * Get ALL agent status uploads (not just the latest)
+ * Allows loading multiple periods (e.g., April + May + June data)
+ * @returns Array of uploads with their records
+ */
+export async function getAllAgentStatusUploads(): Promise<Array<{ upload: AgentStatusUpload; records: AgentStatusRecord[] }>> {
+  const { data, error } = await supabase
+    .from('agent_status_uploads')
+    .select('*')
+    .order('uploaded_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  const uploads = data as AgentStatusUpload[];
+  const results = await Promise.all(
+    uploads.map(async (upload) => ({
+      upload,
+      records: await getAgentStatusRecords(upload.id),
+    }))
+  );
+
+  return results;
+}
+
+/**
+ * Combine records from multiple uploads into a single dataset
+ * Deduplicates by agent_id + date range to avoid counting same period twice
+ * Useful for analyzing across multiple periods (April + May + June, etc.)
+ * @param uploads - Multiple uploads to combine
+ * @returns Combined AgentStatusRecord array (deduplicated)
+ */
+export function combineAgentStatusRecords(
+  uploads: Array<{ upload: AgentStatusUpload; records: AgentStatusRecord[] }>
+): AgentStatusRecord[] {
+  const seenKey = new Set<string>();
+  const deduped: AgentStatusRecord[] = [];
+
+  // Process uploads in reverse order (newest first) so we keep the latest version
+  for (const { records } of [...uploads].reverse()) {
+    for (const record of records) {
+      const key = `${record.agent_id}|${record.date_range_start}|${record.date_range_end}`;
+      if (!seenKey.has(key)) {
+        seenKey.add(key);
+        deduped.push(record);
+      }
+    }
+  }
+
+  return deduped;
+}

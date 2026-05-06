@@ -15,6 +15,53 @@ import {
   type ExecutiveWeekdayTalkTime,
 } from './types';
 import { formatDuration, isInbound, calculateErlangsDivisor } from './shared';
+
+export function getEmptyKPISummary(): KPISummary {
+  return {
+    totalCalls: 0,
+    avgDurationSeconds: 0,
+    avgDurationFormatted: '00:00',
+    completenessRate: 0,
+    unattendedCount: 0,
+    unattendedPercent: 0,
+    maxDurationSeconds: 0,
+    maxDurationFormatted: '00:00',
+    minDurationSeconds: 0,
+    minDurationFormatted: '00:00',
+    avgQueueTimeSeconds: 0,
+    avgQueueTimeFormatted: '00:00',
+    avgHandleTimeSeconds: 0,
+    avgHandleTimeFormatted: '00:00',
+    avgAlertTimeSeconds: 0,
+    avgHoldTimeSeconds: 0,
+    maxQueueTimeSeconds: 0,
+    maxQueueTimeFormatted: '00:00',
+    maxHoldTimeSeconds: 0,
+    maxHoldTimeFormatted: '00:00',
+    executiveStats: [],
+    queueStats: [],
+    queuePerformanceHeatmap: { data: [], maxCount: 0 },
+    queueUnattendedHeatmap: { data: [] },
+    queueLoadVariability: { queues: [] },
+    queueAttendanceEvolution: { weeklyPeriods: [], monthlyPeriods: [], queues: [] },
+    weeklyAttentionHeatmap: { weeks: [], weekLabels: [], queues: [], data: [] },
+    executiveOccupancy: { entries: [] },
+    hourlyDemand: { points: [], peakErlangs: 0, weekdayCounts: { lun: 0, mar: 0, mie: 0, jue: 0, vie: 0 }, agentCountsByHour: {} },
+    interventionMetrics: [],
+    hourlyDistribution: [],
+    dailyDistribution: [],
+    dailyAttendedVsUnattended: [],
+    directionStats: [],
+    executiveDailyTalkTime: [],
+    executiveHourlyTalkTime: [],
+    executiveWeekdayTalkTime: [],
+    topExecutivesByVolume: [],
+    allExecutivesWithData: [],
+    topCallers: [],
+    serviceLevel: { overallSL: 0, points: [] },
+    abandonStats: { totalUnattended: 0, abandonedInQueue: 0, abandonedInAlert: 0, abandonedInIVR: 0, reentries: 0 },
+  };
+}
 import { isCorruptedTechnicalCall } from './calidad';
 import {
   calculateQueuePerformanceHeatmap,
@@ -170,7 +217,7 @@ export function calculateRentryRate(records: CallRecord[], hours: number = 24): 
   return { reentries, reentryRate };
 }
 
-export function calculateKPIs(records: CallRecord[]): KPISummary {
+export async function calculateKPIs(records: CallRecord[]): Promise<KPISummary> {
   const inboundRecords = records.filter(r =>
     !r.call_direction?.toLowerCase().includes('saliente') &&
     !r.call_direction?.toLowerCase().includes('outbound')
@@ -191,51 +238,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   }
 
   const total = validRecords.length;
-  const empty: KPISummary = {
-    totalCalls: 0,
-    avgDurationSeconds: 0,
-    avgDurationFormatted: '00:00',
-    completenessRate: 0,
-    unattendedCount: 0,
-    unattendedPercent: 0,
-    maxDurationSeconds: 0,
-    maxDurationFormatted: '00:00',
-    minDurationSeconds: 0,
-    minDurationFormatted: '00:00',
-    avgQueueTimeSeconds: 0,
-    avgQueueTimeFormatted: '00:00',
-    avgHandleTimeSeconds: 0,
-    avgHandleTimeFormatted: '00:00',
-    avgAlertTimeSeconds: 0,
-    avgHoldTimeSeconds: 0,
-    maxQueueTimeSeconds: 0,
-    maxQueueTimeFormatted: '00:00',
-    maxHoldTimeSeconds: 0,
-    maxHoldTimeFormatted: '00:00',
-    executiveStats: [],
-    queueStats: [],
-    queuePerformanceHeatmap: { data: [], maxCount: 0 },
-    queueUnattendedHeatmap: { data: [] },
-    queueLoadVariability: { queues: [] },
-    queueAttendanceEvolution: { weeklyPeriods: [], monthlyPeriods: [], queues: [] },
-    weeklyAttentionHeatmap: { weeks: [], weekLabels: [], queues: [], data: [] },
-    executiveOccupancy: { entries: [] },
-    hourlyDemand: { points: [], peakErlangs: 0, weekdayCounts: { lun: 0, mar: 0, mie: 0, jue: 0, vie: 0 } },
-    interventionMetrics: [],
-    hourlyDistribution: [],
-    dailyDistribution: [],
-    dailyAttendedVsUnattended: [],
-    directionStats: [],
-    executiveDailyTalkTime: [],
-    executiveHourlyTalkTime: [],
-    executiveWeekdayTalkTime: [],
-    topExecutivesByVolume: [],
-    allExecutivesWithData: [],
-    topCallers: [],
-    serviceLevel: { overallSL: 0, points: [] },
-    abandonStats: { totalUnattended: 0, abandonedInQueue: 0, abandonedInAlert: 0, abandonedInIVR: 0, reentries: 0 },
-  };
-  if (total === 0) return empty;
+  if (total === 0) return getEmptyKPISummary();
 
   const durations = validRecords.map(r => r.duration_seconds);
   const totalDuration = durations.reduce((a, b) => a + b, 0);
@@ -523,7 +526,7 @@ export function calculateKPIs(records: CallRecord[]): KPISummary {
   const queueAttendanceEvolution = calculateQueueAttendanceEvolution(validRecords);
   const weeklyAttentionHeatmap = calculateWeeklyAttentionHeatmap(validRecords);
   const executiveOccupancy = calculateExecutiveOccupancy(validRecords);
-  const hourlyDemand = calculateHourlyDemand(validRecords);
+  const hourlyDemand = await calculateHourlyDemand(validRecords);
 
   const dateDates = validRecords.filter(r => r.call_date).map(r => r.call_date!);
   const minDate = dateDates.length > 0 ? dateDates.sort()[0] : '2024-01-01';

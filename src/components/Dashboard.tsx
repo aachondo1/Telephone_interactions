@@ -27,13 +27,14 @@ import { ExecutiveDashboard } from './ExecutiveDashboard';
 import { QueueHealthDashboard } from './QueueHealthDashboard';
 import { OutboundDashboard } from './OutboundDashboard';
 import { SectionHeader } from './SectionHeader';
-import { calculateKPIs } from '../lib/kpi';
+import { calculateKPIs, getEmptyKPISummary, calculateAgentAuditFlags } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
 import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
+import { AgentAuditFlags } from './AgentAuditFlags';
 import type { AgentStatusRecord } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
 
@@ -355,9 +356,23 @@ function DataQualityIndicator({ quality }: { quality: DataQualityReport | null }
 
 export function Dashboard({ records, upload, agentStatusRecords, activeSection, onUploadAgentStatus, dataQuality }: Props) {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-
+  const [kpis, setKpis] = useState(() => getEmptyKPISummary());
+  const [isLoadingKpis, setIsLoadingKpis] = useState(false);
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
-  const kpis = useMemo(() => calculateKPIs(filteredRecords), [filteredRecords]);
+  const agentAuditFlags = useMemo(() => calculateAgentAuditFlags(agentStatusRecords), [agentStatusRecords]);
+
+  useEffect(() => {
+    setIsLoadingKpis(true);
+    calculateKPIs(filteredRecords)
+      .then(result => {
+        setKpis(result);
+        setIsLoadingKpis(false);
+      })
+      .catch(err => {
+        console.error('Error calculating KPIs:', err);
+        setIsLoadingKpis(false);
+      });
+  }, [filteredRecords]);
 
   // Scroll to top when section changes
   useEffect(() => {
@@ -523,6 +538,17 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
             executives={kpis.topExecutivesByVolume}
           />
           <ExecutivesDetailTable stats={kpis.executiveStats} />
+
+          {/* Agent audit flags */}
+          {agentAuditFlags.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <AlertTriangle size={20} className="text-yellow-600" />
+                Alertas de Conectividad
+              </h3>
+              <AgentAuditFlags flags={agentAuditFlags} />
+            </div>
+          )}
 
           {/* Conectividad integrada como sub-sección */}
           <div className="border-t border-slate-200 pt-6 mt-6">
