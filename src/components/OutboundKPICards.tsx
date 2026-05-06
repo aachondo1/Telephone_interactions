@@ -1,7 +1,9 @@
 import type { OutboundKPI } from '../lib/kpi';
+import { calcChangePercent } from '../lib/periodComparison';
 
 type Props = {
   kpi: OutboundKPI;
+  previousKpi?: OutboundKPI | null;
 };
 
 function formatDuration(seconds: number): string {
@@ -11,61 +13,72 @@ function formatDuration(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
-function getContactRateColor(rate: number): string {
-  if (rate >= 0.7) return '#84BD00';
-  if (rate >= 0.6) return '#326295';
-  if (rate >= 0.5) return '#b8761b';
-  return '#c0392b';
-}
+export function OutboundKPICards({ kpi, previousKpi }: Props) {
+  const prev = previousKpi;
+  const contactRatePercent = kpi.effectiveContactRate * 100;
+  const prevContactRatePercent = prev ? prev.effectiveContactRate * 100 : undefined;
+  const occupancyPercent = kpi.occupancyImpact * 100;
+  const prevOccupancyPercent = prev ? prev.occupancyImpact * 100 : undefined;
 
-function getOccupancyColor(occupancy: number): string {
-  if (occupancy <= 0.15) return '#84BD00';
-  if (occupancy <= 0.25) return '#326295';
-  if (occupancy <= 0.35) return '#b8761b';
-  return '#c0392b';
-}
+  const getContactRateColor = (rate: number) => {
+    if (rate >= 0.7) return 'text-emerald-600';
+    if (rate >= 0.6) return 'text-sky-600';
+    if (rate >= 0.5) return 'text-amber-600';
+    return 'text-red-600';
+  };
 
-export function OutboundKPICards({ kpi }: Props) {
+  const getOccupancyColor = (occupancy: number) => {
+    if (occupancy <= 0.15) return 'text-emerald-600';
+    if (occupancy <= 0.25) return 'text-sky-600';
+    if (occupancy <= 0.35) return 'text-amber-600';
+    return 'text-red-600';
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       {/* Effective Contact Rate */}
-      <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-3">
-          Tasa Contacto Efectivo
-        </div>
-        <div className="flex items-baseline gap-2 mb-2">
-          <span
-            className="text-3xl font-bold"
-            style={{ color: getContactRateColor(kpi.effectiveContactRate) }}
-          >
-            {(kpi.effectiveContactRate * 100).toFixed(1)}%
-          </span>
-        </div>
-        <div className="text-xs text-slate-600 space-y-1">
-          <p>
-            {kpi.validContacts.toLocaleString('es-CL')} válidos de{' '}
-            {kpi.totalOutboundAttempts.toLocaleString('es-CL')} intentos
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col gap-3">
+        <p className="text-sm font-medium text-slate-500 leading-tight">Tasa Contacto Efectivo</p>
+        <div>
+          <p className={`text-3xl font-bold leading-none ${getContactRateColor(kpi.effectiveContactRate)}`}>
+            {contactRatePercent.toFixed(1)}%
           </p>
-          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${Math.min(100, kpi.effectiveContactRate * 100)}%`,
-                backgroundColor: getContactRateColor(kpi.effectiveContactRate),
-              }}
-            />
-          </div>
-          <p className="text-[10px] text-slate-500">
-            ✓ Conversación &gt;10s, no sistema
-          </p>
+          {prev && (
+            <div className="mt-1.5 space-y-0.5">
+              <p className="text-sm text-slate-400">
+                Período anterior: {prevContactRatePercent?.toFixed(1)}%
+              </p>
+              {calcChangePercent(contactRatePercent, prevContactRatePercent) !== undefined && Math.abs(calcChangePercent(contactRatePercent, prevContactRatePercent)!) >= 0.05 && (
+                <span className={`inline-flex items-center gap-0.5 text-sm font-semibold ${calcChangePercent(contactRatePercent, prevContactRatePercent)! > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {calcChangePercent(contactRatePercent, prevContactRatePercent)! > 0 ? '↑' : '↓'} {calcChangePercent(contactRatePercent, prevContactRatePercent)!.toFixed(1)}%
+                </span>
+              )}
+            </div>
+          )}
+          {!prev && (
+            <p className="text-sm text-slate-400 mt-1.5">
+              {kpi.validContacts.toLocaleString('es-CL')} válidos de{' '}
+              {kpi.totalOutboundAttempts.toLocaleString('es-CL')} intentos
+            </p>
+          )}
         </div>
+        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mt-1">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{
+              width: `${Math.min(100, contactRatePercent)}%`,
+              backgroundColor: kpi.effectiveContactRate >= 0.7 ? '#84BD00' : kpi.effectiveContactRate >= 0.6 ? '#326295' : kpi.effectiveContactRate >= 0.5 ? '#b8761b' : '#c0392b',
+            }}
+          />
+        </div>
+        <p className="text-xs text-slate-500">
+          ✓ Conversación &gt;10s, no sistema
+        </p>
       </div>
 
       {/* AHT Outbound */}
-      <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-3">
-          AHT Saliente (Promedio)
-        </div>
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col gap-3">
+        <p className="text-sm font-medium text-slate-500 leading-tight">AHT Saliente (Promedio)</p>
         <div className="space-y-2">
           <div>
             <p className="text-xs text-slate-600">Conversación</p>
@@ -81,48 +94,56 @@ export function OutboundKPICards({ kpi }: Props) {
           </div>
           <div className="border-t border-slate-200 pt-2">
             <p className="text-xs text-slate-600">Total</p>
-            <p
-              className="text-2xl font-bold"
-              style={{
-                color:
-                  kpi.ahtOutbound.acw > kpi.ahtOutbound.conversation
-                    ? '#c0392b'
-                    : '#1d8e6e',
-              }}
-            >
+            <p className={`text-2xl font-bold ${kpi.ahtOutbound.acw > kpi.ahtOutbound.conversation ? 'text-red-600' : 'text-emerald-600'}`}>
               {formatDuration(kpi.ahtOutbound.total)}
             </p>
           </div>
+          {prev && (
+            <div className="border-t border-slate-200 pt-2 space-y-0.5">
+              <p className="text-xs text-slate-400">Período anterior: {formatDuration(prev.ahtOutbound.total)}</p>
+              {calcChangePercent(kpi.ahtOutbound.total, prev.ahtOutbound.total) !== undefined && Math.abs(calcChangePercent(kpi.ahtOutbound.total, prev.ahtOutbound.total)!) >= 0.05 && (
+                <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${calcChangePercent(kpi.ahtOutbound.total, prev.ahtOutbound.total)! > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                  {calcChangePercent(kpi.ahtOutbound.total, prev.ahtOutbound.total)! > 0 ? '↑' : '↓'} {calcChangePercent(kpi.ahtOutbound.total, prev.ahtOutbound.total)!.toFixed(1)}%
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Occupancy Impact */}
-      <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-3">
-          Impacto Ocupación
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col gap-3">
+        <p className="text-sm font-medium text-slate-500 leading-tight">Impacto Ocupación</p>
+        <div>
+          <p className={`text-3xl font-bold leading-none ${getOccupancyColor(kpi.occupancyImpact)}`}>
+            {occupancyPercent.toFixed(1)}%
+          </p>
+          {prev && (
+            <div className="mt-1.5 space-y-0.5">
+              <p className="text-sm text-slate-400">
+                Período anterior: {prevOccupancyPercent?.toFixed(1)}%
+              </p>
+              {calcChangePercent(occupancyPercent, prevOccupancyPercent) !== undefined && Math.abs(calcChangePercent(occupancyPercent, prevOccupancyPercent)!) >= 0.05 && (
+                <span className={`inline-flex items-center gap-0.5 text-sm font-semibold ${calcChangePercent(occupancyPercent, prevOccupancyPercent)! > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                  {calcChangePercent(occupancyPercent, prevOccupancyPercent)! > 0 ? '↑' : '↓'} {calcChangePercent(occupancyPercent, prevOccupancyPercent)!.toFixed(1)}%
+                </span>
+              )}
+            </div>
+          )}
+          {!prev && (
+            <p className="text-sm text-slate-400 mt-1.5">
+              {kpi.totalOutboundAttempts.toLocaleString('es-CL')} intentos salientes
+            </p>
+          )}
         </div>
-        <div className="flex items-baseline gap-2 mb-2">
-          <span
-            className="text-3xl font-bold"
-            style={{ color: getOccupancyColor(kpi.occupancyImpact) }}
-          >
-            {(kpi.occupancyImpact * 100).toFixed(1)}%
-          </span>
-        </div>
-        <div className="text-xs text-slate-600 space-y-2">
-          <p>{kpi.totalOutboundAttempts.toLocaleString('es-CL')} intentos salientes</p>
-          <div
-            className="text-xs font-semibold p-2 rounded"
-            style={{
-              backgroundColor:
-                kpi.occupancyImpact <= 0.25 ? '#e3f4ee' : '#fbf1de',
-              color: kpi.occupancyImpact <= 0.25 ? '#1d8e6e' : '#b8761b',
-            }}
-          >
-            {kpi.occupancyImpact <= 0.25
-              ? '✓ Óptimo'
-              : '⚠ Alto impacto inbound'}
-          </div>
+        <div
+          className="text-xs font-semibold p-2 rounded"
+          style={{
+            backgroundColor: kpi.occupancyImpact <= 0.25 ? '#e3f4ee' : '#fbf1de',
+            color: kpi.occupancyImpact <= 0.25 ? '#1d8e6e' : '#b8761b',
+          }}
+        >
+          {kpi.occupancyImpact <= 0.25 ? '✓ Óptimo' : '⚠ Alto impacto inbound'}
         </div>
       </div>
     </div>

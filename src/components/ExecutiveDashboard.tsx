@@ -7,11 +7,14 @@ import {
   PhoneIncoming, PhoneOutgoing, TrendingUp,
 } from 'lucide-react';
 import type { KPISummary } from '../lib/kpi';
+import { calcChangePercent } from '../lib/periodComparison';
+import { KPICardWithComparison } from './KPICardWithComparison';
 
 type TrafficLight = 'green' | 'yellow' | 'red';
 
 type Props = {
   kpis: KPISummary;
+  previousKpis?: KPISummary | null;
   onNavigate?: (tab: string) => void;
 };
 
@@ -19,11 +22,6 @@ const LIGHT_BORDER: Record<TrafficLight, string> = {
   green: 'border-l-emerald-400',
   yellow: 'border-l-amber-400',
   red: 'border-l-red-400',
-};
-const LIGHT_VALUE: Record<TrafficLight, string> = {
-  green: 'text-emerald-700',
-  yellow: 'text-amber-700',
-  red: 'text-red-600',
 };
 const LIGHT_BADGE: Record<TrafficLight, { bg: string; text: string; label: string }> = {
   green:  { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Óptimo'  },
@@ -61,12 +59,19 @@ function TrendTooltip({ active, payload, label }: { active?: boolean; payload?: 
   );
 }
 
-export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
+export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
   const attendedPercent = useMemo(
     () => kpis.totalCalls > 0
       ? Math.round(((kpis.totalCalls - kpis.unattendedCount) / kpis.totalCalls) * 100)
       : 0,
     [kpis],
+  );
+
+  const previousAttendedPercent = useMemo(
+    () => previousKpis && previousKpis.totalCalls > 0
+      ? Math.round(((previousKpis.totalCalls - previousKpis.unattendedCount) / previousKpis.totalCalls) * 100)
+      : undefined,
+    [previousKpis],
   );
 
   const globalBounceRate = useMemo(
@@ -77,6 +82,17 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
       return Math.round(total / execs.length);
     },
     [kpis],
+  );
+
+  const previousGlobalBounceRate = useMemo(
+    () => {
+      if (!previousKpis) return undefined;
+      const execs = previousKpis.executiveStats.filter(e => e.executive !== 'SIN ATENDER');
+      if (execs.length === 0) return undefined;
+      const total = execs.reduce((sum, e) => sum + e.bounceRate, 0);
+      return Math.round(total / execs.length);
+    },
+    [previousKpis],
   );
 
   const activeQueues     = kpis.queueStats.filter(q => q.queue !== 'Sin cola').length;
@@ -98,6 +114,9 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
 
   const topExec = kpis.executiveStats.find(e => e.executive !== 'SIN ATENDER');
 
+  // Previous period values for comparison
+  const prev = previousKpis;
+
   return (
     <div className="space-y-6">
 
@@ -105,92 +124,89 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 
         {/* 1. Total llamadas */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total llamadas</p>
-            <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Phone size={20} className="text-sky-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">
-            {kpis.totalCalls.toLocaleString('es-CL')}
-          </p>
-          <p className="text-xs text-slate-400 mt-1.5">Registros en el período</p>
-        </div>
+        <KPICardWithComparison
+          title="Total llamadas"
+          currentValue={kpis.totalCalls.toLocaleString('es-CL')}
+          previousValue={prev ? prev.totalCalls.toLocaleString('es-CL') : undefined}
+          changePercent={calcChangePercent(kpis.totalCalls, prev?.totalCalls)}
+          subtitle="Registros en el período"
+          icon={<Phone size={20} className="text-sky-600" />}
+          accent="bg-sky-50"
+        />
 
         {/* 2. Tasa de atención */}
-        <div className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-100 border-l-4 ${LIGHT_BORDER[attLight]}`}>
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tasa de atención</p>
+        <KPICardWithComparison
+          title="Tasa de atención"
+          currentValue={`${attendedPercent}%`}
+          previousValue={previousAttendedPercent !== undefined ? `${previousAttendedPercent}%` : undefined}
+          changePercent={calcChangePercent(attendedPercent, previousAttendedPercent)}
+          subtitle="Llamadas atendidas"
+          rightContent={
             <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${LIGHT_BADGE[attLight].bg} ${LIGHT_BADGE[attLight].text}`}>
               {LIGHT_BADGE[attLight].label}
             </span>
-          </div>
-          <p className={`text-3xl font-bold leading-none ${LIGHT_VALUE[attLight]}`}>{attendedPercent}%</p>
-          <p className="text-xs text-slate-400 mt-1.5">
-            {(kpis.totalCalls - kpis.unattendedCount).toLocaleString('es-CL')} llamadas atendidas
-          </p>
-        </div>
+          }
+          className={`border-l-4 ${LIGHT_BORDER[attLight]}`}
+        />
 
         {/* 3. Duración promedio */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Duración promedio</p>
-            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Clock size={20} className="text-emerald-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.avgDurationFormatted}</p>
-          <p className="text-xs text-slate-400 mt-1.5">Por llamada</p>
-        </div>
+        <KPICardWithComparison
+          title="Duración promedio"
+          currentValue={kpis.avgDurationFormatted}
+          previousValue={prev ? prev.avgDurationFormatted : undefined}
+          changePercent={prev ? calcChangePercent(kpis.avgDurationSeconds, prev.avgDurationSeconds) : undefined}
+          isNeutral
+          subtitle="Por llamada"
+          icon={<Clock size={20} className="text-emerald-600" />}
+          accent="bg-emerald-50"
+        />
 
         {/* 4. Tasa de rebotes */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tasa de rebotes</p>
-            <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <TrendingUp size={20} className="text-rose-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">{globalBounceRate}%</p>
-          <p className="text-xs text-slate-400 mt-1.5">Promedio de ejecutivos</p>
-        </div>
+        <KPICardWithComparison
+          title="Tasa de rebotes"
+          currentValue={`${globalBounceRate}%`}
+          previousValue={previousGlobalBounceRate !== undefined ? `${previousGlobalBounceRate}%` : undefined}
+          changePercent={calcChangePercent(globalBounceRate, previousGlobalBounceRate)}
+          isLowerBetter
+          subtitle="Promedio de ejecutivos"
+          icon={<TrendingUp size={20} className="text-rose-600" />}
+          accent="bg-rose-50"
+        />
 
         {/* 5. Service Level */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Service Level</p>
-            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Target size={20} className="text-indigo-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.serviceLevel.overallSL}%</p>
-          <p className="text-xs text-slate-400 mt-1.5">Atendidas en ≤20s</p>
-        </div>
+        <KPICardWithComparison
+          title="Service Level"
+          currentValue={`${kpis.serviceLevel.overallSL}%`}
+          previousValue={prev ? `${prev.serviceLevel.overallSL}%` : undefined}
+          changePercent={calcChangePercent(kpis.serviceLevel.overallSL, prev?.serviceLevel.overallSL)}
+          subtitle="Atendidas en ≤20s"
+          icon={<Target size={20} className="text-indigo-600" />}
+          accent="bg-indigo-50"
+        />
 
         {/* 6. Espera promedio */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Espera promedio</p>
-            <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Clock size={20} className="text-orange-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.avgQueueTimeFormatted}</p>
-          <p className="text-xs text-slate-400 mt-1.5">En cola</p>
-        </div>
+        <KPICardWithComparison
+          title="Espera promedio"
+          currentValue={kpis.avgQueueTimeFormatted}
+          previousValue={prev ? prev.avgQueueTimeFormatted : undefined}
+          changePercent={prev ? calcChangePercent(kpis.avgQueueTimeSeconds, prev.avgQueueTimeSeconds) : undefined}
+          isLowerBetter
+          subtitle="En cola"
+          icon={<Clock size={20} className="text-orange-600" />}
+          accent="bg-orange-50"
+        />
 
         {/* 7. Tiempo de manejo */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tiempo de manejo</p>
-            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Clock size={20} className="text-purple-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.avgHandleTimeFormatted}</p>
-          <p className="text-xs text-slate-400 mt-1.5">Duración total promedio</p>
-        </div>
+        <KPICardWithComparison
+          title="Tiempo de manejo"
+          currentValue={kpis.avgHandleTimeFormatted}
+          previousValue={prev ? prev.avgHandleTimeFormatted : undefined}
+          changePercent={prev ? calcChangePercent(kpis.avgHandleTimeSeconds, prev.avgHandleTimeSeconds) : undefined}
+          isNeutral
+          subtitle="Duración total promedio"
+          icon={<Clock size={20} className="text-purple-600" />}
+          accent="bg-purple-50"
+        />
 
       </div>
 

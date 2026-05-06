@@ -1,11 +1,42 @@
 import { TrendingUp, TrendingDown, Clock, Zap, PhoneOff, Activity } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { QueueHealthMetric, OperationalKPIs, AbandonFunnelData } from '../lib/kpi';
+import { calcChangePercent } from '../lib/periodComparison';
 import { Tooltip } from './Tooltip';
 
 type Props = {
   metrics: QueueHealthMetric[];
   operationalKPIs: OperationalKPIs;
   funnelData?: AbandonFunnelData;
+  previousMetrics?: QueueHealthMetric[] | null;
+  previousOperationalKPIs?: OperationalKPIs | null;
+};
+
+type CardData = {
+  label: string;
+  currentValue: string;
+  currentNumeric: number;
+  previousNumeric?: number;
+  previousValue?: string;
+  isLowerBetter?: boolean;
+  isNeutral?: boolean;
+  sub: string;
+  icon: LucideIcon;
+  color: string;
+  border: string;
+  benchmark: string;
+  tooltip?: { definition: string; formula: string; unit: string; benchmark: string };
+};
+
+type BreakdownCardData = {
+  label: string;
+  value: string;
+  sub: string;
+  icon: LucideIcon;
+  color: string;
+  border: string;
+  benchmark: string;
+  tooltip?: { definition: string; formula: string; unit: string; benchmark: string };
 };
 
 function formatDuration(seconds: number): string {
@@ -15,11 +46,49 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }: Props) {
-  // Calculate aggregate metrics across all queues (weighted averages)
+function computeAggregates(metrics: QueueHealthMetric[]) {
   const validQueues = metrics.filter(m => (m.attendedCalls > 0 || m.abandonedCalls > 0) && m.queue !== 'Sin cola');
+  if (validQueues.length === 0) return null;
 
-  if (validQueues.length === 0) {
+  const totalValidCalls = validQueues.reduce((sum, m) => sum + m.totalCalls, 0);
+  const totalAttendedCalls = validQueues.reduce((sum, m) => sum + m.attendedCalls, 0);
+  const totalAbandonedCalls = validQueues.reduce((sum, m) => sum + m.abandonedCalls, 0);
+
+  const serviceLevelPercent = totalValidCalls > 0
+    ? Math.round(validQueues.reduce((sum, m) => sum + (m.serviceLevelPercent * m.totalCalls), 0) / totalValidCalls)
+    : 0;
+
+  const abandonmentRatePercent = totalValidCalls > 0
+    ? Math.round(validQueues.reduce((sum, m) => sum + (m.abandonmentRatePercent * m.totalCalls), 0) / totalValidCalls)
+    : 0;
+
+  const asaSeconds = totalAttendedCalls > 0
+    ? Math.round(validQueues.reduce((sum, m) => sum + (m.asaSeconds * m.attendedCalls), 0) / totalAttendedCalls)
+    : 0;
+
+  const ataSeconds = totalAbandonedCalls > 0
+    ? Math.round(validQueues.reduce((sum, m) => sum + (m.ataSeconds * m.abandonedCalls), 0) / totalAbandonedCalls)
+    : 0;
+
+  const erlangC = Math.round((validQueues.reduce((sum, m) => sum + m.erlangC, 0) / validQueues.length) * 10) / 10;
+
+  return {
+    totalValidCalls,
+    totalAttendedCalls,
+    totalAbandonedCalls,
+    serviceLevelPercent,
+    abandonmentRatePercent,
+    asaSeconds,
+    ataSeconds,
+    erlangC,
+  };
+}
+
+export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData, previousMetrics, previousOperationalKPIs }: Props) {
+  const agg = computeAggregates(metrics);
+  const prevAgg = previousMetrics ? computeAggregates(previousMetrics) : null;
+
+  if (!agg) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center">
         <p className="text-slate-500">Sin datos disponibles</p>
@@ -27,53 +96,27 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }
     );
   }
 
-  // Weighted average calculations
-  const totalValidCalls = validQueues.reduce((sum, m) => sum + m.totalCalls, 0);
-  const totalAttendedCalls = validQueues.reduce((sum, m) => sum + m.attendedCalls, 0);
-  const totalAbandonedCalls = validQueues.reduce((sum, m) => sum + m.abandonedCalls, 0);
-
-  // SL%: Weighted average by total calls
-  const serviceLevelPercent = totalValidCalls > 0
-    ? Math.round(validQueues.reduce((sum, m) => sum + (m.serviceLevelPercent * m.totalCalls), 0) / totalValidCalls)
-    : 0;
-
-  // Abandonment %: Weighted average by total calls
-  const abandonmentRatePercent = totalValidCalls > 0
-    ? Math.round(validQueues.reduce((sum, m) => sum + (m.abandonmentRatePercent * m.totalCalls), 0) / totalValidCalls)
-    : 0;
-
-  // ASA: Weighted average by attended calls
-  const asaSeconds = totalAttendedCalls > 0
-    ? Math.round(validQueues.reduce((sum, m) => sum + (m.asaSeconds * m.attendedCalls), 0) / totalAttendedCalls)
-    : 0;
-
-  // ATA: Weighted average by abandoned calls
-  const ataSeconds = totalAbandonedCalls > 0
-    ? Math.round(validQueues.reduce((sum, m) => sum + (m.ataSeconds * m.abandonedCalls), 0) / totalAbandonedCalls)
-    : 0;
-
-  // Erlang C: Simple average across queues
-  const erlangC = Math.round((validQueues.reduce((sum, m) => sum + m.erlangC, 0) / validQueues.length) * 10) / 10;
-
-  // Diagnóstico: Comparar ASA vs ATA
-  const getDiagnosis = () => {
-    if (asaSeconds > ataSeconds) {
+  const getDiagnosis = (asa: number, ata: number) => {
+    if (asa > ata) {
       return { message: 'Equipo lento', color: 'bg-red-50 text-red-600', border: 'border-red-100' };
-    } else if (asaSeconds < ataSeconds) {
+    } else if (asa < ata) {
       return { message: 'Equipo rápido', color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' };
     }
     return { message: 'En el límite', color: 'bg-amber-50 text-amber-600', border: 'border-amber-100' };
   };
-  const diagnosis = getDiagnosis();
+  const diagnosis = getDiagnosis(agg.asaSeconds, agg.ataSeconds);
 
-  const cards = [
+  const cards: CardData[] = [
     {
       label: 'Nivel de Servicio (SL%)',
-      value: `${serviceLevelPercent}%`,
+      currentValue: `${agg.serviceLevelPercent}%`,
+      currentNumeric: agg.serviceLevelPercent,
+      previousNumeric: prevAgg?.serviceLevelPercent,
+      previousValue: prevAgg ? `${prevAgg.serviceLevelPercent}%` : undefined,
       sub: 'Espera perceptual ≤ 20s',
       icon: TrendingUp,
-      color: serviceLevelPercent >= 80 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600',
-      border: serviceLevelPercent >= 80 ? 'border-emerald-100' : 'border-red-100',
+      color: agg.serviceLevelPercent >= 80 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600',
+      border: agg.serviceLevelPercent >= 80 ? 'border-emerald-100' : 'border-red-100',
       benchmark: '≥ 80%',
       tooltip: {
         definition: 'Porcentaje de llamadas atendidas dentro de 20 segundos (INCLUYENDO tiempo en cola + tiempo en alerta)',
@@ -84,11 +127,15 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }
     },
     {
       label: 'Tasa de Abandono',
-      value: `${abandonmentRatePercent}%`,
+      currentValue: `${agg.abandonmentRatePercent}%`,
+      currentNumeric: agg.abandonmentRatePercent,
+      previousNumeric: prevAgg?.abandonmentRatePercent,
+      previousValue: prevAgg ? `${prevAgg.abandonmentRatePercent}%` : undefined,
+      isLowerBetter: true,
       sub: 'Clientes perdidos',
       icon: TrendingDown,
-      color: abandonmentRatePercent <= 10 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600',
-      border: abandonmentRatePercent <= 10 ? 'border-emerald-100' : 'border-orange-100',
+      color: agg.abandonmentRatePercent <= 10 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600',
+      border: agg.abandonmentRatePercent <= 10 ? 'border-emerald-100' : 'border-orange-100',
       benchmark: '≤ 10%',
       tooltip: {
         definition: 'Porcentaje de clientes que cuelgan antes de ser atendidos (en cola o alerta)',
@@ -99,7 +146,11 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }
     },
     {
       label: 'ASA (Velocidad de Respuesta)',
-      value: formatDuration(asaSeconds),
+      currentValue: formatDuration(agg.asaSeconds),
+      currentNumeric: agg.asaSeconds,
+      previousNumeric: prevAgg?.asaSeconds,
+      previousValue: prevAgg ? formatDuration(prevAgg.asaSeconds) : undefined,
+      isLowerBetter: true,
       sub: 'Solo llamadas atendidas (perceptual)',
       icon: Clock,
       color: 'bg-blue-50 text-blue-600',
@@ -114,7 +165,11 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }
     },
     {
       label: 'ATA (Paciencia del Cliente)',
-      value: formatDuration(ataSeconds),
+      currentValue: formatDuration(agg.ataSeconds),
+      currentNumeric: agg.ataSeconds,
+      previousNumeric: prevAgg?.ataSeconds,
+      previousValue: prevAgg ? formatDuration(prevAgg.ataSeconds) : undefined,
+      isNeutral: true,
       sub: 'Solo llamadas abandonadas (perceptual)',
       icon: Clock,
       color: diagnosis.color,
@@ -124,15 +179,19 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }
         definition: 'Tiempo promedio de espera PERCEPTUAL (en cola + en alerta) antes de que cliente abandone',
         formula: 'SUM(queue_time + alert_time de abandonadas) / Cantidad de abandonadas',
         unit: 'Segundos (mm:ss)',
-        benchmark: 'Si ATA &gt; ASA: cliente es paciente (buen equipo). Si ATA &lt; ASA: cliente impaciente (necesita personal)',
+        benchmark: 'Si ATA > ASA: cliente es paciente (buen equipo). Si ATA < ASA: cliente impaciente (necesita personal)',
       },
     },
   ];
 
-  const operationalCards = [
+  const operationalCards: CardData[] = [
     {
       label: 'Tasa de Rebote',
-      value: `${operationalKPIs.bounceRatePercent}%`,
+      currentValue: `${operationalKPIs.bounceRatePercent}%`,
+      currentNumeric: operationalKPIs.bounceRatePercent,
+      previousNumeric: previousOperationalKPIs?.bounceRatePercent,
+      previousValue: previousOperationalKPIs ? `${previousOperationalKPIs.bounceRatePercent}%` : undefined,
+      isLowerBetter: true,
       sub: 'De llamadas atendidas',
       icon: PhoneOff,
       color: 'bg-purple-50 text-purple-600',
@@ -147,7 +206,11 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }
     },
     {
       label: 'Abandono en Menú',
-      value: `${operationalKPIs.menuAbandonRatePercent}%`,
+      currentValue: `${operationalKPIs.menuAbandonRatePercent}%`,
+      currentNumeric: operationalKPIs.menuAbandonRatePercent,
+      previousNumeric: previousOperationalKPIs?.menuAbandonRatePercent,
+      previousValue: previousOperationalKPIs ? `${previousOperationalKPIs.menuAbandonRatePercent}%` : undefined,
+      isLowerBetter: true,
       sub: 'De llamadas inbound',
       icon: TrendingDown,
       color: operationalKPIs.menuAbandonRatePercent <= 10 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600',
@@ -162,7 +225,10 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }
     },
     {
       label: 'Éxito de Alertas',
-      value: `${operationalKPIs.alertSuccessRatio}%`,
+      currentValue: `${operationalKPIs.alertSuccessRatio}%`,
+      currentNumeric: operationalKPIs.alertSuccessRatio,
+      previousNumeric: previousOperationalKPIs?.alertSuccessRatio,
+      previousValue: previousOperationalKPIs ? `${previousOperationalKPIs.alertSuccessRatio}%` : undefined,
       sub: 'Probabilidad de respuesta',
       icon: Activity,
       color: 'bg-emerald-50 text-emerald-600',
@@ -177,14 +243,18 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }
     },
   ];
 
-  const supplementaryCards = [
+  const supplementaryCards: CardData[] = [
     {
       label: 'Erlang C (Carga)',
-      value: erlangC.toFixed(1),
+      currentValue: agg.erlangC.toFixed(1),
+      currentNumeric: agg.erlangC,
+      previousNumeric: prevAgg?.erlangC,
+      previousValue: prevAgg ? prevAgg.erlangC.toFixed(1) : undefined,
+      isNeutral: true,
       sub: 'Intensidad de tráfico',
       icon: Zap,
-      color: erlangC <= 0.8 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600',
-      border: erlangC <= 0.8 ? 'border-emerald-100' : 'border-amber-100',
+      color: agg.erlangC <= 0.8 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600',
+      border: agg.erlangC <= 0.8 ? 'border-emerald-100' : 'border-amber-100',
       benchmark: '≤ 0.8 ideal',
       tooltip: {
         definition: 'Intensidad de tráfico normalizada: promedio de agentes ocupados durante el período',
@@ -195,8 +265,7 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }
     },
   ];
 
-  // Abandonment breakdown cards (if funnelData available)
-  const abandonmentBreakdownCards = funnelData ? [
+  const abandonmentBreakdownCards: BreakdownCardData[] = funnelData ? [
     {
       label: 'Abandonos en Cola',
       value: funnelData.abandonInQueue.toLocaleString('es-ES'),
@@ -229,99 +298,124 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }
     },
   ] : [];
 
-  // Combine operational cards with Erlang C for second row (4 columns)
-  const secondRowCards = [...operationalCards, supplementaryCards[0]];
-
-  // Third row: Abandonment breakdown (if available)
-  const thirdRowCards = abandonmentBreakdownCards;
+  const secondRowCards: CardData[] = [...operationalCards, supplementaryCards[0]];
 
   return (
     <div className="space-y-4">
       {/* Row 1: Primary Metrics (SL%, Abandono%, ASA, ATA) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {cards.map(({ label, value, sub, icon: Icon, color, border, benchmark, tooltip }) => (
-          <div key={label} className={`bg-white rounded-2xl p-6 shadow-sm border ${border}`}>
-            <div className="flex items-start justify-between mb-4">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
-                <Icon size={20} />
-              </div>
-              <span className="text-xs text-slate-400 font-medium">{benchmark}</span>
-            </div>
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
-              {tooltip && (
-                <Tooltip
-                  label={label}
-                  definition={tooltip.definition}
-                  formula={tooltip.formula}
-                  unit={tooltip.unit}
-                  benchmark={tooltip.benchmark}
-                />
-              )}
-            </div>
-            <p className="text-2xl font-bold text-slate-800 mb-1">{value}</p>
-            <p className="text-xs text-slate-500">{sub}</p>
-          </div>
+        {cards.map(card => (
+          <ComparisonCard key={card.label} card={card} />
         ))}
       </div>
 
       {/* Row 2: Operational KPIs + Erlang C */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {secondRowCards.map(({ label, value, sub, icon: Icon, color, border, benchmark, tooltip }) => (
-          <div key={label} className={`bg-white rounded-2xl p-6 shadow-sm border ${border}`}>
-            <div className="flex items-start justify-between mb-4">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
-                <Icon size={20} />
-              </div>
-              <span className="text-xs text-slate-400 font-medium">{benchmark}</span>
-            </div>
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
-              {tooltip && (
-                <Tooltip
-                  label={label}
-                  definition={tooltip.definition}
-                  formula={tooltip.formula}
-                  unit={tooltip.unit}
-                  benchmark={tooltip.benchmark}
-                />
-              )}
-            </div>
-            <p className="text-2xl font-bold text-slate-800 mb-1">{value}</p>
-            <p className="text-xs text-slate-500">{sub}</p>
-          </div>
+        {secondRowCards.map(card => (
+          <ComparisonCard key={card.label} card={card} />
         ))}
       </div>
 
       {/* Row 3: Abandonment Breakdown (if available) */}
-      {thirdRowCards.length > 0 && (
+      {abandonmentBreakdownCards.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {thirdRowCards.map(({ label, value, sub, icon: Icon, color, border, benchmark, tooltip }) => (
-            <div key={label} className={`bg-white rounded-2xl p-6 shadow-sm border ${border}`}>
+          {abandonmentBreakdownCards.map(card => (
+            <div key={card.label} className={`bg-white rounded-2xl p-6 shadow-sm border ${card.border}`}>
               <div className="flex items-start justify-between mb-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
-                  <Icon size={20} />
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${card.color}`}>
+                  <card.icon size={20} />
                 </div>
-                <span className="text-xs text-slate-400 font-medium">{benchmark}</span>
+                <span className="text-xs text-slate-400 font-medium">{card.benchmark}</span>
               </div>
               <div className="flex items-start justify-between gap-2 mb-2">
-                <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
-                {tooltip && (
+                <p className="text-xs text-slate-400 uppercase tracking-wide">{card.label}</p>
+                {card.tooltip && (
                   <Tooltip
-                    label={label}
-                    definition={tooltip.definition}
-                    formula={tooltip.formula}
-                    unit={tooltip.unit}
-                    benchmark={tooltip.benchmark}
+                    label={card.label}
+                    definition={card.tooltip.definition}
+                    formula={card.tooltip.formula}
+                    unit={card.tooltip.unit}
+                    benchmark={card.tooltip.benchmark}
                   />
                 )}
               </div>
-              <p className="text-2xl font-bold text-slate-800 mb-1">{value}</p>
-              <p className="text-xs text-slate-500">{sub}</p>
+              <p className="text-2xl font-bold text-slate-800 mb-1">{card.value}</p>
+              <p className="text-xs text-slate-500">{card.sub}</p>
             </div>
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+function ComparisonCard({ card }: { card: CardData }) {
+  const { label, currentValue, currentNumeric, previousNumeric, previousValue, isLowerBetter, isNeutral, sub, icon: Icon, color, border, benchmark, tooltip } = card;
+
+  const change = calcChangePercent(currentNumeric, previousNumeric);
+
+  return (
+    <div className={`bg-white rounded-2xl p-6 shadow-sm border ${border}`}>
+      <div className="flex items-start justify-between mb-4">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
+          <Icon size={20} />
+        </div>
+        <span className="text-xs text-slate-400 font-medium">{benchmark}</span>
+      </div>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
+        {tooltip && (
+          <Tooltip
+            label={label}
+            definition={tooltip.definition}
+            formula={tooltip.formula}
+            unit={tooltip.unit}
+            benchmark={tooltip.benchmark}
+          />
+        )}
+      </div>
+      <p className="text-2xl font-bold text-slate-800 mb-1">{currentValue}</p>
+      {previousValue !== undefined ? (
+        <div className="space-y-0.5">
+          <p className="text-xs text-slate-400">Período anterior: {previousValue}</p>
+          {change !== undefined && Math.abs(change) >= 0.05 && (
+            <ChangeIndicator
+              changePercent={change}
+              isLowerBetter={isLowerBetter}
+              isNeutral={isNeutral}
+            />
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-500">{sub}</p>
+      )}
+    </div>
+  );
+}
+
+function ChangeIndicator({
+  changePercent,
+  isLowerBetter,
+  isNeutral,
+}: {
+  changePercent: number;
+  isLowerBetter?: boolean;
+  isNeutral?: boolean;
+}) {
+  const isPositive = changePercent > 0;
+  const isImprovement = isLowerBetter ? !isPositive : isPositive;
+
+  let color = 'text-slate-400';
+  if (!isNeutral) {
+    color = isImprovement ? 'text-emerald-600' : 'text-red-500';
+  }
+
+  const Arrow = isPositive ? '↑' : '↓';
+  const formatted = `${Arrow} ${changePercent > 0 ? '+' : ''}${changePercent.toFixed(1)}%`;
+
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${color}`}>
+      {formatted}
+    </span>
   );
 }

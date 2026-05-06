@@ -15,18 +15,34 @@ import { Tooltip } from './Tooltip';
 
 type Props = {
   records: CallRecord[];
+  previousRecords?: CallRecord[];
 };
 
-export function QueueHealthDashboard({ records }: Props) {
+export function QueueHealthDashboard({ records, previousRecords }: Props) {
   const metrics = useMemo(() => calculateQueueHealthMetrics(records), [records]);
   const funnelData = useMemo(() => calculateAbandonFunnel(records), [records]);
   const operationalKPIs = useMemo(() => calculateOperationalKPIs(records), [records]);
   const heatmapData = useMemo(() => calculateQueuePerformanceHeatmap(records), [records]);
 
+  const previousMetrics = useMemo(
+    () => previousRecords && previousRecords.length > 0 ? calculateQueueHealthMetrics(previousRecords) : null,
+    [previousRecords],
+  );
+  const previousOperationalKPIs = useMemo(
+    () => previousRecords && previousRecords.length > 0 ? calculateOperationalKPIs(previousRecords) : null,
+    [previousRecords],
+  );
+
   return (
     <div className="space-y-8">
       {/* Metrics Cards: 2 rows x 4 columns + abandonment breakdown */}
-      <QueueHealthMetricsCards metrics={metrics} operationalKPIs={operationalKPIs} funnelData={funnelData} />
+      <QueueHealthMetricsCards
+        metrics={metrics}
+        operationalKPIs={operationalKPIs}
+        funnelData={funnelData}
+        previousMetrics={previousMetrics}
+        previousOperationalKPIs={previousOperationalKPIs}
+      />
 
       {/* Abandon Funnel */}
       <AbandonFunnelChart data={funnelData} />

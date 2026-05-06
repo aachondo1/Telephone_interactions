@@ -31,6 +31,7 @@ import { calculateKPIs } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
+import { getPreviousFilters } from '../lib/periodComparison';
 import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
@@ -359,6 +360,17 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
   const kpis = useMemo(() => calculateKPIs(filteredRecords), [filteredRecords]);
 
+  // Previous period comparison
+  const previousFilters = useMemo(() => getPreviousFilters(filters), [filters]);
+  const previousRecords = useMemo(
+    () => previousFilters ? applyFilters(records, previousFilters) : [],
+    [records, previousFilters],
+  );
+  const previousKpis = useMemo(
+    () => previousFilters ? calculateKPIs(previousRecords) : null,
+    [previousRecords, previousFilters],
+  );
+
   // Scroll to top when section changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -413,7 +425,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       {/* Section content — driven by sidebar */}
       <div key={activeSection} className="animate-section-enter">
       {activeSection === 'inicio' && (
-        <ExecutiveDashboard kpis={kpis} onNavigate={() => {}} />
+        <ExecutiveDashboard kpis={kpis} previousKpis={previousKpis} onNavigate={() => {}} />
       )}
 
       {activeSection === 'llamadas' && (
@@ -423,7 +435,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
             title="Análisis de Llamadas"
             description="Distribución horaria, dirección y duración de las llamadas"
           />
-          <KPICards kpis={kpis} />
+          <KPICards kpis={kpis} previousKpis={previousKpis} />
           <HourlyChart data={kpis.hourlyDistribution} />
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <ExecutivesTable stats={kpis.executiveStats} />
@@ -445,7 +457,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
           />
 
           {/* NIVEL 1: Contexto Inmediato */}
-          <QueueKPICards stats={kpis.queueStats} totalCalls={kpis.totalCalls} />
+          <QueueKPICards stats={kpis.queueStats} totalCalls={kpis.totalCalls} previousStats={previousKpis?.queueStats ?? null} previousTotalCalls={previousKpis?.totalCalls ?? null} />
 
           {/* NIVEL 2: Evolución Temporal */}
           <QueueAttendanceEvolution data={kpis.queueAttendanceEvolution} />
@@ -490,7 +502,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
             title="Salud de Colas"
             description="KPIs críticos, análisis de fugas y alertas automáticas de gestión"
           />
-          <QueueHealthDashboard records={filteredRecords} />
+          <QueueHealthDashboard records={filteredRecords} previousRecords={previousRecords} />
         </div>
       )}
 
@@ -501,7 +513,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
             title="Análisis de Ejecutivos"
             description="Rendimiento individual, tiempo de habla y conectividad"
           />
-          <ExecutiveKPICards stats={kpis.executiveStats} />
+          <ExecutiveKPICards stats={kpis.executiveStats} previousStats={previousKpis?.executiveStats ?? null} />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ExecutiveBarChart stats={kpis.executiveStats} />
             <ExecutiveScatterChart stats={kpis.executiveStats} />
@@ -596,7 +608,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       )}
 
       {activeSection === 'gestion-proactiva' && (
-        <OutboundDashboard records={filteredRecords} />
+        <OutboundDashboard records={filteredRecords} previousRecords={previousRecords} />
       )}
 
       {activeSection === 'audit' && (

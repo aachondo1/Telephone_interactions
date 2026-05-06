@@ -1,13 +1,18 @@
 import { Trophy, Clock, Phone, Users, Zap, AlertOctagon } from 'lucide-react';
 import type { ExecutiveStat } from '../lib/kpi';
 import { formatDuration } from '../lib/kpi';
+import { calcChangePercent } from '../lib/periodComparison';
+import { KPICardWithComparison } from './KPICardWithComparison';
 
 type Props = {
   stats: ExecutiveStat[];
+  previousStats?: ExecutiveStat[] | null;
 };
 
-export function ExecutiveKPICards({ stats }: Props) {
+export function ExecutiveKPICards({ stats, previousStats }: Props) {
   const attended = stats.filter(e => e.executive !== 'SIN ATENDER');
+  const prevAttended = previousStats ? previousStats.filter(e => e.executive !== 'SIN ATENDER') : null;
+
   const topVolume = attended[0] ?? null;
   const topAvgDuration = attended.length > 0
     ? attended.reduce((best, e) => e.avgDurationSeconds > best.avgDurationSeconds ? e : best, attended[0])
@@ -26,71 +31,67 @@ export function ExecutiveKPICards({ stats }: Props) {
     ? Math.round(attended.reduce((a, b) => a + b.bounceRate, 0) / attended.length)
     : 0;
 
-  const cards = [
-    {
-      label: 'Top ejecutivo',
-      value: topVolume ? topVolume.executive : '—',
-      sub: topVolume ? `${topVolume.count.toLocaleString('es-CL')} llamadas` : '',
-      icon: Trophy,
-      color: 'bg-sky-50 text-sky-600',
-      border: 'border-sky-100',
-    },
-    {
-      label: 'Mayor duración prom.',
-      value: topAvgDuration ? topAvgDuration.avgDurationFormatted : '—',
-      sub: topAvgDuration ? topAvgDuration.executive : '',
-      icon: Clock,
-      color: 'bg-amber-50 text-amber-600',
-      border: 'border-amber-100',
-    },
-    {
-      label: 'Mayor tiempo teléfono',
-      value: topTotalTime ? topTotalTime.totalDurationFormatted : '—',
-      sub: topTotalTime ? topTotalTime.executive : '',
-      icon: Phone,
-      color: 'bg-emerald-50 text-emerald-600',
-      border: 'border-emerald-100',
-    },
-    {
-      label: 'Ejecutivos activos',
-      value: totalActive.toLocaleString('es-CL'),
-      sub: 'Con llamadas atendidas',
-      icon: Users,
-      color: 'bg-slate-100 text-slate-600',
-      border: 'border-slate-100',
-    },
-    {
-      label: 'Mayor tiempo manejo',
-      value: topHandleTime ? formatDuration(topHandleTime.avgHandleTimeSeconds) : '—',
-      sub: topHandleTime ? `${topHandleTime.executive}` : '',
-      icon: Zap,
-      color: 'bg-purple-50 text-purple-600',
-      border: 'border-purple-100',
-    },
-    {
-      label: 'Rebote promedio',
-      value: `${avgBounceRate}%`,
-      sub: topBounceRate ? `Max: ${topBounceRate.executive}` : '',
-      icon: AlertOctagon,
-      color: 'bg-orange-50 text-orange-600',
-      border: 'border-orange-100',
-    },
-  ];
+  // Previous period values
+  const prevTotalActive = prevAttended ? prevAttended.length : undefined;
+  const prevAvgBounceRate = prevAttended && prevAttended.length > 0
+    ? Math.round(prevAttended.reduce((a, b) => a + b.bounceRate, 0) / prevAttended.length)
+    : undefined;
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-      {cards.map(({ label, value, sub, icon: Icon, color, border }) => (
-        <div key={label} className={`bg-white rounded-2xl p-5 shadow-sm border ${border} flex items-start gap-4`}>
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
-            <Icon size={20} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-slate-400 uppercase tracking-wide leading-none mb-1">{label}</p>
-            <p className="text-lg font-bold text-slate-800 leading-tight truncate">{value}</p>
-            {sub && <p className="text-xs text-slate-400 mt-0.5 truncate">{sub}</p>}
-          </div>
-        </div>
-      ))}
+      <KPICardWithComparison
+        title="Top ejecutivo"
+        currentValue={topVolume ? topVolume.executive : '—'}
+        subtitle={topVolume ? `${topVolume.count.toLocaleString('es-CL')} llamadas` : ''}
+        icon={<Trophy size={20} className="text-sky-600" />}
+        accent="bg-sky-50 text-sky-600"
+        className="border-sky-100"
+      />
+      <KPICardWithComparison
+        title="Mayor duración prom."
+        currentValue={topAvgDuration ? topAvgDuration.avgDurationFormatted : '—'}
+        subtitle={topAvgDuration ? topAvgDuration.executive : ''}
+        icon={<Clock size={20} className="text-amber-600" />}
+        accent="bg-amber-50 text-amber-600"
+        className="border-amber-100"
+      />
+      <KPICardWithComparison
+        title="Mayor tiempo teléfono"
+        currentValue={topTotalTime ? topTotalTime.totalDurationFormatted : '—'}
+        subtitle={topTotalTime ? topTotalTime.executive : ''}
+        icon={<Phone size={20} className="text-emerald-600" />}
+        accent="bg-emerald-50 text-emerald-600"
+        className="border-emerald-100"
+      />
+      <KPICardWithComparison
+        title="Ejecutivos activos"
+        currentValue={totalActive.toLocaleString('es-CL')}
+        previousValue={prevTotalActive?.toLocaleString('es-CL')}
+        changePercent={calcChangePercent(totalActive, prevTotalActive)}
+        subtitle="Con llamadas atendidas"
+        icon={<Users size={20} className="text-slate-600" />}
+        accent="bg-slate-100 text-slate-600"
+        className="border-slate-100"
+      />
+      <KPICardWithComparison
+        title="Mayor tiempo manejo"
+        currentValue={topHandleTime ? formatDuration(topHandleTime.avgHandleTimeSeconds) : '—'}
+        subtitle={topHandleTime ? `${topHandleTime.executive}` : ''}
+        icon={<Zap size={20} className="text-purple-600" />}
+        accent="bg-purple-50 text-purple-600"
+        className="border-purple-100"
+      />
+      <KPICardWithComparison
+        title="Rebote promedio"
+        currentValue={`${avgBounceRate}%`}
+        previousValue={prevAvgBounceRate !== undefined ? `${prevAvgBounceRate}%` : undefined}
+        changePercent={calcChangePercent(avgBounceRate, prevAvgBounceRate)}
+        isLowerBetter
+        subtitle={topBounceRate ? `Max: ${topBounceRate.executive}` : ''}
+        icon={<AlertOctagon size={20} className="text-orange-600" />}
+        accent="bg-orange-50 text-orange-600"
+        className="border-orange-100"
+      />
     </div>
   );
 }

@@ -1,64 +1,52 @@
 import { Phone, Clock, CheckCircle, PhoneMissed } from 'lucide-react';
 import type { KPISummary } from '../lib/kpi';
+import { calcChangePercent } from '../lib/periodComparison';
+import { KPICardWithComparison } from './KPICardWithComparison';
 
 type Props = {
   kpis: KPISummary;
+  previousKpis?: KPISummary | null;
 };
 
-type CardProps = {
-  title: string;
-  value: string;
-  subtitle?: string;
-  icon: React.ReactNode;
-  accent: string;
-};
+export function KPICards({ kpis, previousKpis }: Props) {
+  const prev = previousKpis;
 
-function KPICard({ title, value, subtitle, icon, accent }: CardProps) {
-  return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col gap-3">
-      <div className="flex items-start justify-between">
-        <p className="text-sm font-medium text-slate-500 leading-tight">{title}</p>
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${accent}`}>
-          {icon}
-        </div>
-      </div>
-      <div>
-        <p className="text-3xl font-bold text-slate-800 leading-none">{value}</p>
-        {subtitle && (
-          <p className="text-sm text-slate-400 mt-1.5">{subtitle}</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export function KPICards({ kpis }: Props) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <KPICard
+      <KPICardWithComparison
         title="Total de llamadas"
-        value={kpis.totalCalls.toLocaleString('es-CL')}
+        currentValue={kpis.totalCalls.toLocaleString('es-CL')}
+        previousValue={prev ? prev.totalCalls.toLocaleString('es-CL') : undefined}
+        changePercent={calcChangePercent(kpis.totalCalls, prev?.totalCalls)}
         subtitle="Registros en el período"
         icon={<Phone size={20} className="text-sky-600" />}
         accent="bg-sky-50"
       />
-      <KPICard
+      <KPICardWithComparison
         title="Duración promedio"
-        value={kpis.avgDurationFormatted}
+        currentValue={kpis.avgDurationFormatted}
+        previousValue={prev ? prev.avgDurationFormatted : undefined}
+        changePercent={prev ? calcChangePercent(kpis.avgDurationSeconds, prev.avgDurationSeconds) : undefined}
+        isNeutral
         subtitle="Por llamada"
         icon={<Clock size={20} className="text-emerald-600" />}
         accent="bg-emerald-50"
       />
-      <KPICard
+      <KPICardWithComparison
         title="Completitud"
-        value={`${kpis.completenessRate}%`}
+        currentValue={`${kpis.completenessRate}%`}
+        previousValue={prev ? `${prev.completenessRate}%` : undefined}
+        changePercent={calcChangePercent(kpis.completenessRate, prev?.completenessRate)}
         subtitle="Exportación completa"
         icon={<CheckCircle size={20} className="text-amber-600" />}
         accent="bg-amber-50"
       />
-      <KPICard
+      <KPICardWithComparison
         title="Sin atender"
-        value={`${kpis.unattendedPercent}%`}
+        currentValue={`${kpis.unattendedPercent}%`}
+        previousValue={prev ? `${prev.unattendedPercent}%` : undefined}
+        changePercent={calcChangePercent(kpis.unattendedPercent, prev?.unattendedPercent)}
+        isLowerBetter
         subtitle={`${kpis.unattendedCount.toLocaleString('es-CL')} llamadas`}
         icon={<PhoneMissed size={20} className="text-red-500" />}
         accent="bg-red-50"

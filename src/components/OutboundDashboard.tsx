@@ -10,12 +10,15 @@ import { OutboundKPICards } from './OutboundKPICards';
 import { ContactabilityHeatmap } from './ContactabilityHeatmap';
 import { OutboundExecutiveScatter } from './OutboundExecutiveScatter';
 import { OutboundExecutiveRankings } from './OutboundExecutiveRankings';
+import { SectionHeader } from './SectionHeader';
+import { PhoneOutgoing } from 'lucide-react';
 
 type Props = {
   records: CallRecord[];
+  previousRecords?: CallRecord[];
 };
 
-export function OutboundDashboard({ records }: Props) {
+export function OutboundDashboard({ records, previousRecords }: Props) {
   const [selectedQueue, setSelectedQueue] = useState<string | 'all'>('all');
 
   const filteredRecords = useMemo(() => {
@@ -26,6 +29,11 @@ export function OutboundDashboard({ records }: Props) {
   }, [records, selectedQueue]);
 
   const kpi = useMemo(() => calculateOutboundKPIs(filteredRecords), [filteredRecords]);
+
+  const previousKpi = useMemo(
+    () => previousRecords && previousRecords.length > 0 ? calculateOutboundKPIs(previousRecords) : null,
+    [previousRecords],
+  );
 
   const heatmapData = useMemo(
     () => generateContactabilityHeatmap(filteredRecords),
@@ -57,16 +65,15 @@ export function OutboundDashboard({ records }: Props) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Gestión Proactiva</h1>
-        <p className="text-sm text-slate-600">
-          Inteligencia de Llamadas Salientes: Contactabilidad, Esfuerzo de Recuperación e Impacto en Ocupación
-        </p>
-      </div>
+      <SectionHeader
+        icon={PhoneOutgoing}
+        title="Gestión Proactiva"
+        description="Inteligencia de Llamadas Salientes: Contactabilidad, Esfuerzo de Recuperación e Impacto en Ocupación"
+      />
 
       {/* Queue Filter */}
       {uniqueQueues.length > 0 && (
-        <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-3">
             Filtrar por Cola
           </div>
@@ -99,7 +106,7 @@ export function OutboundDashboard({ records }: Props) {
       )}
 
       {/* KPI Cards */}
-      <OutboundKPICards kpi={kpi} />
+      <OutboundKPICards kpi={kpi} previousKpi={previousKpi} />
 
       {/* Debug Info - Breakdown de filtros */}
       {kpi.debugStats && (
