@@ -195,7 +195,7 @@ export async function saveAgentStatusUpload(
 
   const upload = uploadData as AgentStatusUpload;
 
-  const records = rows.map(r => ({
+  const candidates = rows.map(r => ({
     upload_id:           upload.id,
     agent_id:            r.agentId,
     agent_name:          r.agentName,
@@ -206,13 +206,28 @@ export async function saveAgentStatusUpload(
     out_of_queue_seconds: r.outOfQueueSeconds,
   }));
 
-  const { error } = await supabase
+  // Dedup at app level before insert because PostgREST cannot resolve conflicts
+  // on functional indexes (which are needed to handle NULL dates in the unique index).
+  const agentIds = candidates.map(r => r.agent_id);
+  const { data: existing } = await supabase
     .from('agent_status_records')
-    .upsert(records, {
-      onConflict: 'agent_id,date_range_start,date_range_end',
-      ignoreDuplicates: true,
-    });
-  if (error) throw new Error(`Error al guardar registros de estado: ${error.message}`);
+    .select('agent_id, date_range_start, date_range_end')
+    .in('agent_id', agentIds);
+
+  const existingKeys = new Set(
+    (existing ?? []).map(r =>
+      `${r.agent_id}|${r.date_range_start ?? 'null'}|${r.date_range_end ?? 'null'}`
+    )
+  );
+
+  const records = candidates.filter(
+    r => !existingKeys.has(`${r.agent_id}|${r.date_range_start ?? 'null'}|${r.date_range_end ?? 'null'}`)
+  );
+
+  if (records.length > 0) {
+    const { error } = await supabase.from('agent_status_records').insert(records);
+    if (error) throw new Error(`Error al guardar registros de estado: ${error.message}`);
+  }
 
   return { upload, savedCount: rows.length };
 }
@@ -281,7 +296,7 @@ export function combineAgentStatusRecords(
   // Process uploads in reverse order (newest first) so we keep the latest version
   for (const { records } of [...uploads].reverse()) {
     for (const record of records) {
-      const key = `${record.agent_id}|${record.date_range_start}|${record.date_range_end}`;
+      const key = `${record.agent_id || record.agent_name}|${record.date_range_start ?? 'null'}|${record.date_range_end ?? 'null'}`;
       if (!seenKey.has(key)) {
         seenKey.add(key);
         deduped.push(record);
