@@ -5,7 +5,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ReferenceLine,
   ResponsiveContainer,
 } from 'recharts';
@@ -73,10 +72,7 @@ export function AgentPerformanceMatrix({ data }: Props) {
       </h3>
 
       <ResponsiveContainer width="100%" height={400}>
-        <ScatterChart
-          margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
-          data={data}
-        >
+        <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis
             type="number"
