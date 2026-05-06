@@ -44,6 +44,7 @@ export function PhoneOccupancyChart({ data }: Props) {
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
             % de 2280 minutos semanales (Manejo + Alertas) · promedio diario<br />
+            Calculado sobre ventana operativa: Lunes-Jueves 08:30-18:00, Viernes 08:30-14:00<br />
             <span className="text-amber-600">⚠ Naranja: 85-90% · Rojo: &gt;90% = Riesgo de Burnout</span>
           </p>
         </div>
