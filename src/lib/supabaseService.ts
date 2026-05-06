@@ -1,3 +1,4 @@
+Set.add(), ivrTotalSeconds -> ivrTimeSeconds, and migrating to signature_hash">
 import { supabase } from './supabase';
 import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert, CallUpload, DeduplicationStats, ProcessedCallSignature } from './supabase';
 import type { ParsedCallRecord } from './csvParser';
@@ -114,7 +115,7 @@ export async function saveUpload(
           record.durationSeconds || 0,
           record.callDirection || '',
           record.queueTimeSeconds || 0,
-          record.ivrTotalSeconds || 0
+          record.ivrTimeSeconds || 0
         );
         
         if (signature) {
@@ -123,6 +124,7 @@ export async function saveUpload(
             ani_hash: record.aniHash,
             call_date: record.callDate,
             call_time: record.callTime,
+            signature_hash: signature,
             last_upload_id: upload.id,
             processed_at: new Date().toISOString(),
             created_at: new Date().toISOString(),
@@ -209,7 +211,7 @@ export async function saveUpload(
 export async function getProcessedSignatures(): Promise<Set<string>> {
   const { data, error } = await supabase
     .from('processed_call_signatures')
-    .select('ani_hash, call_date, call_time');
+    .select('signature_hash');
 
   if (error) {
     console.error('Error fetching processed signatures:', error);
@@ -218,8 +220,9 @@ export async function getProcessedSignatures(): Promise<Set<string>> {
 
   const signatures = new Set<string>();
   for (const row of data || []) {
-    // Create a simple composite key for quick lookup
-    signatures.push(`${row.ani_hash}|${row.call_date}|${row.call_time}`);
+    if (row.signature_hash) {
+      signatures.add(row.signature_hash);
+    }
   }
   
   return signatures;

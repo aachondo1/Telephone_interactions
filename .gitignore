@@ -43,3 +43,4 @@ audit-results/
 
 # Misc
 *.local
+.dyad/
