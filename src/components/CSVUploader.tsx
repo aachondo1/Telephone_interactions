@@ -55,10 +55,10 @@ export function CSVUploader({ onFileSelected, isProcessing, error }: Props) {
         transition-all duration-200 select-none
         ${isProcessing ? 'cursor-not-allowed opacity-70' : ''}
         ${isDragging
-          ? 'border-sky-400 bg-sky-50 scale-[1.01]'
-          : 'border-slate-300 bg-slate-50 hover:border-sky-400 hover:bg-sky-50'
+          ? 'border-bice-cyan bg-bice-cyan-tint scale-[1.01]'
+          : 'border-slate-300 bg-slate-50 hover:border-bice-cyan hover:bg-bice-cyan-tint'
         }
-        ${error ? 'border-red-400 bg-red-50' : ''}
+        ${error ? 'border-bice-alert bg-bice-alert-bg' : ''}
       `}
     >
       <input
@@ -72,22 +72,22 @@ export function CSVUploader({ onFileSelected, isProcessing, error }: Props) {
 
       <div className="flex flex-col items-center gap-3">
         {isProcessing ? (
-          <Loader2 size={40} className="text-sky-500 animate-spin" />
+          <Loader2 size={40} className="text-bice-cyan animate-spin" />
         ) : error ? (
-          <AlertCircle size={40} className="text-red-500" />
+          <AlertCircle size={40} className="text-bice-alert" />
         ) : isDragging ? (
-          <FileText size={40} className="text-sky-500" />
+          <FileText size={40} className="text-bice-cyan" />
         ) : (
           <Upload size={40} className="text-slate-400" />
         )}
 
         <div>
           {isProcessing ? (
-            <p className="text-sky-700 font-semibold text-base">Procesando archivo...</p>
+            <p className="text-bice-navy font-semibold text-base">Procesando archivo...</p>
           ) : error ? (
             <>
-              <p className="text-red-700 font-semibold text-base">Error al procesar</p>
-              <p className="text-red-600 text-sm mt-1 max-w-md mx-auto">{error}</p>
+              <p className="text-bice-alert font-semibold text-base">Error al procesar</p>
+              <p className="text-bice-alert text-sm mt-1 max-w-md mx-auto">{error}</p>
             </>
           ) : (
             <>

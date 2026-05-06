@@ -179,11 +179,11 @@ function DataQualityBanner({ quality }: { quality: DataQualityReport | null }) {
 
   if (isClean) {
     return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-4 flex items-center gap-3">
-        <CheckCircle size={20} className="text-emerald-600" />
+      <div className="bg-bice-success-bg border border-bice-success/20 rounded-2xl px-6 py-4 flex items-center gap-3">
+        <CheckCircle size={20} className="text-bice-success" />
         <div>
-          <p className="font-semibold text-emerald-900">Integridad de datos verificada</p>
-          <p className="text-sm text-emerald-700 mt-0.5">Se analizaron {quality.totalRecords.toLocaleString('es-CL')} registros sin anomalías detectadas</p>
+          <p className="font-semibold text-bice-success">Integridad de datos verificada</p>
+          <p className="text-sm text-bice-success/80 mt-0.5">Se analizaron {quality.totalRecords.toLocaleString('es-CL')} registros sin anomalías detectadas</p>
         </div>
       </div>
     );
@@ -191,12 +191,12 @@ function DataQualityBanner({ quality }: { quality: DataQualityReport | null }) {
 
   if (hasCriticalIssues) {
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl px-6 py-4">
+      <div className="bg-bice-warning-bg border border-bice-warning/20 rounded-2xl px-6 py-4">
         <div className="flex items-start gap-3">
-          <AlertTriangle size={20} className="text-amber-600 mt-0.5" />
+          <AlertTriangle size={20} className="text-bice-warning mt-0.5" />
           <div>
-            <p className="font-semibold text-amber-900">Anomalías detectadas en datos</p>
-            <p className="text-sm text-amber-700 mt-0.5">
+            <p className="font-semibold text-bice-warning">Anomalías detectadas en datos</p>
+            <p className="text-sm text-bice-warning/80 mt-0.5">
               {quality.handleTimeCorrupted} registros con handle_time corrupto, {quality.technicalCuts} cortes técnicos detectados.
               Ver pestaña <strong>Auditoría</strong> para detalles.
             </p>
@@ -208,11 +208,11 @@ function DataQualityBanner({ quality }: { quality: DataQualityReport | null }) {
 
   if (hasOutboundFiltered) {
     return (
-      <div className="bg-sky-50 border border-sky-200 rounded-2xl px-6 py-4 flex items-center gap-3">
-        <Info size={20} className="text-sky-600" />
+      <div className="bg-bice-navy-tint border border-bice-navy/10 rounded-2xl px-6 py-4 flex items-center gap-3">
+        <Info size={20} className="text-bice-navy" />
         <div>
-          <p className="font-semibold text-sky-900">Llamadas salientes filtradas</p>
-          <p className="text-sm text-sky-700 mt-0.5">Se excluyeron {quality.outboundCalls.toLocaleString('es-CL')} llamadas salientes de los cálculos de KPI (Service Level solo incluye entrantes)</p>
+          <p className="font-semibold text-bice-navy">Llamadas salientes filtradas</p>
+          <p className="text-sm text-bice-navy/80 mt-0.5">Se excluyeron {quality.outboundCalls.toLocaleString('es-CL')} llamadas salientes de los cálculos de KPI (Service Level solo incluye entrantes)</p>
         </div>
       </div>
     );
@@ -250,7 +250,7 @@ function AuditTab() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
         <p className="text-slate-500">Cargando registros de auditoría...</p>
       </div>
     );
@@ -258,16 +258,16 @@ function AuditTab() {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-2xl px-6 py-4">
-        <p className="text-red-700 font-semibold">Error al cargar auditoría</p>
-        <p className="text-sm text-red-600 mt-1">{error}</p>
+      <div className="bg-bice-alert-bg border border-bice-alert/20 rounded-2xl px-6 py-4">
+        <p className="text-bice-alert font-semibold">Error al cargar auditoría</p>
+        <p className="text-sm text-bice-alert/80 mt-1">{error}</p>
       </div>
     );
   }
 
   if (auditLogs.length === 0) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
         <AlertCircle size={32} className="mx-auto text-slate-300 mb-3" />
         <p className="text-slate-600 font-semibold">Sin registros de auditoría</p>
         <p className="text-sm text-slate-400 mt-1">Aún no se han detectado anomalías en las importaciones</p>
@@ -278,7 +278,7 @@ function AuditTab() {
   return (
     <div className="space-y-4">
       {auditLogs.map(log => (
-        <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+        <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <div className="flex items-start justify-between mb-3">
             <div>
               <p className="font-semibold text-slate-800">Importación {log.upload_id?.substring(0, 8)}...</p>
@@ -291,12 +291,12 @@ function AuditTab() {
             </div>
             <div className="flex gap-2">
               {log.critical_count > 0 && (
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-bice-alert-bg text-bice-alert">
                   🔴 {log.critical_count} críticas
                 </span>
               )}
               {log.warning_count > 0 && (
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-bice-warning-bg text-bice-warning">
                   ⚠️ {log.warning_count} advertencias
                 </span>
               )}
@@ -330,7 +330,7 @@ function DataQualityIndicator({ quality }: { quality: DataQualityReport | null }
 
   if (hasCritical) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-bice-alert-bg text-bice-alert">
         <AlertCircle size={14} />
         Anomalías detectadas
       </span>
@@ -339,7 +339,7 @@ function DataQualityIndicator({ quality }: { quality: DataQualityReport | null }
 
   if (hasWarning) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-bice-warning-bg text-bice-warning">
         <AlertTriangle size={14} />
         Advertencias
       </span>
@@ -347,7 +347,7 @@ function DataQualityIndicator({ quality }: { quality: DataQualityReport | null }
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-bice-success-bg text-bice-success">
       <CheckCircle size={14} />
       Datos limpios
     </span>
@@ -381,7 +381,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
   return (
     <div className="space-y-6">
       {/* Dataset info bar */}
-      <div className="bg-white rounded-2xl px-6 py-4 shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white rounded-2xl px-6 py-4 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-semibold text-slate-700">Análisis histórico combinado</p>
           {dateRange && <p className="text-sm text-slate-400 mt-0.5">{dateRange}</p>}
@@ -544,7 +544,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
               description="Tiempo en cola, fuera de cola y ocupación real"
             />
             {agentStatusRecords.length === 0 ? (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center py-12 gap-4 text-center">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-center py-12 gap-4 text-center">
                 <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center">
                   <Activity size={28} className="text-slate-300" />
                 </div>
@@ -557,7 +557,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
                 <button
                   type="button"
                   onClick={onUploadAgentStatus}
-                  className="flex items-center gap-2 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+                  className="flex items-center gap-2 text-sm font-medium bg-bice-success hover:bg-bice-success/90 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
                 >
                   <Upload size={15} />
                   Cargar Estado de Agentes
@@ -565,9 +565,9 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
               </div>
             ) : (
               <>
-                <div className="bg-sky-50 border border-sky-100 rounded-2xl px-6 py-4 text-sm text-sky-800 mb-4">
+                <div className="bg-bice-navy-tint border border-bice-navy/10 rounded-2xl px-6 py-4 text-sm text-bice-navy mb-4">
                   <p className="font-semibold mb-1">¿Cómo leer esta sección?</p>
-                  <p className="text-sky-700 text-xs leading-relaxed">
+                  <p className="text-bice-navy/80 text-xs leading-relaxed">
                     <strong>Conectado</strong> = En la cola + Fuera de la cola.{' '}
                     <strong>En la cola</strong>: la agente está disponible para recibir llamados.{' '}
                     <strong>Fuera de la cola</strong>: está conectada al sistema pero no recibe llamados (otras gestiones).
@@ -593,9 +593,9 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
             title="Planificación de Personal"
             description="Ocupación telefónica y demanda para dimensionamiento de equipos"
           />
-          <div className="bg-sky-50 border border-sky-100 rounded-2xl px-6 py-4 text-sm text-sky-800">
+          <div className="bg-bice-navy-tint border border-bice-navy/10 rounded-2xl px-6 py-4 text-sm text-bice-navy">
             <p className="font-semibold mb-1">¿Cómo leer esta sección?</p>
-            <p className="text-sky-700 text-xs leading-relaxed">
+            <p className="text-bice-navy/80 text-xs leading-relaxed">
               <strong>Ocupación telefónica</strong>: % del turno que cada ejecutiva pasa en llamadas. El tiempo restante está disponible para atención presencial, correo u otras gestiones.
               <br />
               <strong>Demanda en Erlangs</strong>: cuántas personas necesitas simultáneamente en teléfono a cada hora. Ajusta el número de personas asignadas y verás en qué franjas hay déficit o exceso.
@@ -618,9 +618,9 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
             title="Auditoría de Datos"
             description="Registro de anomalías detectadas durante las importaciones"
           />
-          <div className="bg-blue-50 border border-blue-200 rounded-2xl px-6 py-4 text-sm text-blue-800">
+          <div className="bg-bice-navy-tint border border-bice-navy/10 rounded-2xl px-6 py-4 text-sm text-bice-navy">
             <p className="font-semibold mb-1">¿Qué es esta sección?</p>
-            <p className="text-blue-700 text-xs leading-relaxed">
+            <p className="text-bice-navy/80 text-xs leading-relaxed">
               Aquí se registran todos los problemas detectados durante la importación de datos:
               <br />
               <strong>Críticos</strong> (🔴): handle_time corrompido, attended sin duration, salientes con queue_time

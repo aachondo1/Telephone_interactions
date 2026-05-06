@@ -38,8 +38,8 @@ export function UploadModal({ isOpen, onClose, onFileSelected, isProcessing, err
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">
-              <UploadCloud size={16} className="text-sky-600" />
+            <div className="w-8 h-8 rounded-lg bg-bice-navy-tint flex items-center justify-center">
+              <UploadCloud size={16} className="text-bice-navy" />
             </div>
             <div>
               <h2 className="text-sm font-semibold text-slate-800">{title ?? 'Cargar nuevo CSV'}</h2>
@@ -65,7 +65,7 @@ export function UploadModal({ isOpen, onClose, onFileSelected, isProcessing, err
           />
 
           {isProcessing && progress && (
-            <p className="text-center text-sm text-sky-600 animate-pulse">{progress}</p>
+            <p className="text-center text-sm text-bice-cyan animate-pulse">{progress}</p>
           )}
 
           {error && (

@@ -11,7 +11,7 @@ export function HourlyChart({ data }: Props) {
   const labelsToShow = new Set([8, 10, 12, 14, 16, 18]);
 
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
       <h3 className="text-sm font-semibold text-slate-700 mb-5 uppercase tracking-wide">
         Distribución Horaria
       </h3>
@@ -25,14 +25,14 @@ export function HourlyChart({ data }: Props) {
               className="flex-1 flex flex-col items-center gap-1 group relative"
             >
               {/* Tooltip */}
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-bice-navy text-white text-xs rounded px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                 {bucket.label}: {bucket.count.toLocaleString('es-CL')}
               </div>
 
               <div className="w-full flex items-end" style={{ height: '130px' }}>
                 <div
                   className={`w-full rounded-t-sm transition-all duration-300 ${
-                    isActive ? 'bg-sky-400 hover:bg-sky-500' : 'bg-slate-100'
+                    isActive ? 'bg-bice-navy hover:bg-bice-navy-light' : 'bg-slate-100'
                   }`}
                   style={{ height: `${Math.max(heightPct, isActive ? 2 : 0)}%` }}
                 />

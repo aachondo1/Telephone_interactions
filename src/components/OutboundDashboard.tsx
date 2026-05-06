@@ -73,7 +73,7 @@ export function OutboundDashboard({ records, previousRecords }: Props) {
 
       {/* Queue Filter */}
       {uniqueQueues.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-3">
             Filtrar por Cola
           </div>
@@ -82,7 +82,7 @@ export function OutboundDashboard({ records, previousRecords }: Props) {
               onClick={() => setSelectedQueue('all')}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 selectedQueue === 'all'
-                  ? 'bg-slate-800 text-white'
+                  ? 'bg-bice-navy text-white'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
@@ -94,7 +94,7 @@ export function OutboundDashboard({ records, previousRecords }: Props) {
                 onClick={() => setSelectedQueue(queue)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   selectedQueue === queue
-                    ? 'bg-slate-800 text-white'
+                    ? 'bg-bice-navy text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
@@ -110,41 +110,41 @@ export function OutboundDashboard({ records, previousRecords }: Props) {
 
       {/* Debug Info - Breakdown de filtros */}
       {kpi.debugStats && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-blue-900 mb-3">
+        <div className="bg-bice-navy-tint border border-bice-navy/10 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-bice-navy mb-3">
             Desglose de Llamadas Salientes
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             <div>
-              <p className="text-blue-600 font-medium">Total Salientes</p>
-              <p className="text-xl font-bold text-blue-900">
+              <p className="text-bice-navy font-medium">Total Salientes</p>
+              <p className="text-xl font-bold text-slate-900">
                 {kpi.debugStats.totalSalientes}
               </p>
             </div>
             <div>
-              <p className="text-blue-600 font-medium">Con Ejecutivo</p>
-              <p className="text-xl font-bold text-blue-900">
+              <p className="text-bice-navy font-medium">Con Ejecutivo</p>
+              <p className="text-xl font-bold text-slate-900">
                 {kpi.debugStats.withValidExecutive}
               </p>
-              <p className="text-xs text-blue-500">
+              <p className="text-xs text-slate-500">
                 {(kpi.debugStats.withValidExecutive / kpi.debugStats.totalSalientes * 100).toFixed(0)}%
               </p>
             </div>
             <div>
-              <p className="text-blue-600 font-medium">Con Conversación</p>
-              <p className="text-xl font-bold text-blue-900">
+              <p className="text-bice-navy font-medium">Con Conversación</p>
+              <p className="text-xl font-bold text-slate-900">
                 {kpi.debugStats.withConversation}
               </p>
-              <p className="text-xs text-blue-500">
+              <p className="text-xs text-slate-500">
                 {(kpi.debugStats.withConversation / kpi.debugStats.totalSalientes * 100).toFixed(0)}%
               </p>
             </div>
             <div>
-              <p className="text-blue-600 font-medium">Desconexión 'Sistema'</p>
-              <p className="text-xl font-bold text-blue-900">
+              <p className="text-bice-navy font-medium">Desconexión 'Sistema'</p>
+              <p className="text-xl font-bold text-slate-900">
                 {kpi.debugStats.withSistemaExit}
               </p>
-              <p className="text-xs text-blue-500">
+              <p className="text-xs text-slate-500">
                 {(kpi.debugStats.withSistemaExit / kpi.debugStats.totalSalientes * 100).toFixed(0)}%
               </p>
             </div>

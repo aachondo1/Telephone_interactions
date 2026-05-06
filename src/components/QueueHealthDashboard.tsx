@@ -58,13 +58,13 @@ export function QueueHealthDashboard({ records, previousRecords }: Props) {
 
       {/* Queue performance table */}
       {metrics.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-6 border-b border-slate-100">
             <h3 className="text-lg font-bold text-slate-800">Tabla de Rendimiento por Cola</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-bice-dark-blue border-b border-slate-100">
+              <thead className="bg-bice-navy border-b border-slate-100">
                 <tr>
                   <th className="px-6 py-3 text-left font-semibold text-white">Cola</th>
                   <th className="px-6 py-3 text-right font-semibold text-white">
@@ -102,7 +102,7 @@ export function QueueHealthDashboard({ records, previousRecords }: Props) {
                       SL%
                       <Tooltip
                         definition="Porcentaje de llamadas atendidas dentro de 20 segundos"
-                        formula="(Atendidas &lt; 20s) / Llamadas válidas × 100"
+                        formula="(Atendidas < 20s) / Llamadas válidas × 100"
                         unit="Porcentaje (%)"
                         benchmark="≥ 80%"
                       />
@@ -130,7 +130,7 @@ export function QueueHealthDashboard({ records, previousRecords }: Props) {
                       />
                     </div>
                   </th>
-                  <th className="px-6 py-3 text-center font-semibold text-slate-700 bg-yellow-200">
+                  <th className="px-6 py-3 text-center font-semibold text-slate-700 bg-bice-cyan-tint">
                     <div className="flex items-center justify-center gap-1">
                       Tendencia SL%
                       <Tooltip
@@ -140,7 +140,7 @@ export function QueueHealthDashboard({ records, previousRecords }: Props) {
                       />
                     </div>
                   </th>
-                  <th className="px-6 py-3 text-center font-semibold text-slate-700 bg-yellow-200">
+                  <th className="px-6 py-3 text-center font-semibold text-slate-700 bg-bice-cyan-tint">
                     <div className="flex items-center justify-center gap-1">
                       Análisis Staff
                       <Tooltip
@@ -163,8 +163,8 @@ export function QueueHealthDashboard({ records, previousRecords }: Props) {
                       <span
                         className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                           m.serviceLevelPercent >= 80
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-red-100 text-red-700'
+                            ? 'bg-bice-success-bg text-bice-success'
+                            : 'bg-bice-alert-bg text-bice-alert'
                         }`}
                       >
                         {m.serviceLevelPercent}%
@@ -174,33 +174,33 @@ export function QueueHealthDashboard({ records, previousRecords }: Props) {
                       <span
                         className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                           m.abandonmentRatePercent <= 10
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-orange-100 text-orange-700'
+                            ? 'bg-bice-success-bg text-bice-success'
+                            : 'bg-bice-warning-bg text-bice-warning'
                         }`}
                       >
                         {m.abandonmentRatePercent}%
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right text-slate-600">{m.erlangC.toFixed(1)}</td>
-                    <td className="px-6 py-4 text-center bg-yellow-100">
+                    <td className="px-6 py-4 text-center bg-bice-cyan-tint/30">
                       <span className="inline-flex items-center gap-1.5 text-xs font-semibold">
                         <span className={`text-lg ${
-                          m.slTrend === 'up' ? 'text-bice-green' :
-                          m.slTrend === 'stable' ? 'text-amber-500' :
-                          'text-red-500'
+                          m.slTrend === 'up' ? 'text-bice-success' :
+                          m.slTrend === 'stable' ? 'text-bice-warning' :
+                          'text-bice-alert'
                         }`}>
                           {m.slTrend === 'up' ? '↑' : m.slTrend === 'stable' ? '→' : '↓'}
                         </span>
                         {m.serviceLevelPercent >= 80 ? 'Mejora' : m.serviceLevelPercent >= 70 ? 'Estable' : 'Decae'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center bg-yellow-100 font-semibold">
+                    <td className="px-6 py-4 text-center bg-bice-cyan-tint/30 font-semibold">
                       {m.serviceLevelPercent >= 80 ? (
-                        <span className="text-bice-green">✓ Óptimo</span>
+                        <span className="text-bice-success">✓ Óptimo</span>
                       ) : m.staffingEfficiency > 80 ? (
-                        <span className="text-red-500">↑ Falta Staff</span>
+                        <span className="text-bice-alert">↑ Falta Staff</span>
                       ) : (
-                        <span className="text-amber-500">⚠ Baja Adherencia</span>
+                        <span className="text-bice-warning">⚠ Baja Adherencia</span>
                       )}
                     </td>
                   </tr>
