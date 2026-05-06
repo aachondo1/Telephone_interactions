@@ -1,4 +1,5 @@
 import { parseCSVText } from './csvParser';
+import { getBusinessHoursOverlap } from './businessHours';
 
 export type AgentStatusRow = {
   agentId: string;
@@ -203,8 +204,8 @@ function parseTimelineFormat(
       continue;
     }
 
-    const durationSeconds = Math.max(0, (endTime.getTime() - startTime.getTime()) / 1000);
-    if (durationSeconds === 0) {
+    const totalDurationSeconds = Math.max(0, (endTime.getTime() - startTime.getTime()) / 1000);
+    if (totalDurationSeconds === 0) {
       skippedZeroDuration++;
       if (i < 3) {
         console.log(`[TimelineFormat] Fila ${i} - Duración cero:`, { startStr, endStr });
@@ -212,8 +213,33 @@ function parseTimelineFormat(
       continue;
     }
 
+    // HARD CUT: Apply business hours filter during import
+    // Only count time that falls within operational window
+    const overlap = getBusinessHoursOverlap(startTime, endTime);
+    if (!overlap) {
+      // Time completely outside business hours
+      if (i < 3) {
+        console.log(`[TimelineFormat] Fila ${i} - Fuera de horario operativo:`, {
+          agentName,
+          startStr: startTime.toISOString(),
+          endStr: endTime.toISOString(),
+          reason: 'Hard cut applied',
+        });
+      }
+      continue;
+    }
+
+    const durationSeconds = Math.max(0, (overlap.end.getTime() - overlap.start.getTime()) / 1000);
+    const wasTruncated = durationSeconds < totalDurationSeconds;
+
     if (i < 3) {
-      console.log(`[TimelineFormat] Fila ${i} - Procesada:`, { agentName, status, durationSeconds, startTime, endTime });
+      console.log(`[TimelineFormat] Fila ${i} - Procesada:`, {
+        agentName,
+        status,
+        durationSeconds,
+        originalDuration: totalDurationSeconds,
+        wasTruncated,
+      });
     }
 
     processedCount++;
@@ -230,8 +256,8 @@ function parseTimelineFormat(
     }
 
     const agent = agentMap.get(agentId)!;
-    const startDate = startTime.toISOString().split('T')[0];
-    const endDate = endTime.toISOString().split('T')[0];
+    const startDate = overlap.start.toISOString().split('T')[0];
+    const endDate = overlap.end.toISOString().split('T')[0];
 
     if (!agent.minDate || startDate < agent.minDate) agent.minDate = startDate;
     if (!agent.maxDate || endDate > agent.maxDate) agent.maxDate = endDate;
