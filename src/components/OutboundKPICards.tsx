@@ -1,4 +1,3 @@
-character">
 import type { OutboundKPI } from '../lib/kpi';
 import { calcChangePercent } from '../lib/periodComparison';
 
