@@ -31,7 +31,7 @@ import { calculateKPIs, getEmptyKPISummary, calculateAgentAuditFlags } from '../
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
-import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Upload, Users } from 'lucide-react';
+import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Users } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
 import { AgentAuditFlags } from './AgentAuditFlags';
@@ -568,14 +568,6 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
                     Carga el reporte "Estado de Agentes" para ver la conectividad.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={onUploadAgentStatus}
-                  className="flex items-center gap-2 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
-                >
-                  <Upload size={15} />
-                  Cargar Estado de Agentes
-                </button>
               </div>
             ) : (
               <>

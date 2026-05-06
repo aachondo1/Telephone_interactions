@@ -13,6 +13,7 @@ type Props = {
   agentStatusCount: number;
   dataQuality: DataQualityReport | null;
   onUploadClick: () => void;
+  onUploadAgentStatus: () => void;
 };
 
 type NavItemDef = {
@@ -59,7 +60,7 @@ function DataQualityDot({ quality }: { quality: DataQualityReport | null }) {
   );
 }
 
-export function Sidebar({ activeSection, onNavigate, agentStatusCount, dataQuality, onUploadClick }: Props) {
+export function Sidebar({ activeSection, onNavigate, agentStatusCount, dataQuality, onUploadClick, onUploadAgentStatus }: Props) {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -86,15 +87,23 @@ export function Sidebar({ activeSection, onNavigate, agentStatusCount, dataQuali
         </div>
       </div>
 
-      {/* Upload button */}
-      <div className="px-4 pt-4">
+      {/* Upload buttons */}
+      <div className="px-4 pt-4 space-y-2">
         <button
           type="button"
           onClick={() => { onUploadClick(); setMobileOpen(false); }}
           className="w-full flex items-center justify-center gap-2 text-xs font-medium bg-sky-600 hover:bg-sky-700 text-white px-3 py-2 rounded-lg transition-colors"
         >
           <UploadCloud size={14} />
-          Cargar CSV
+          Cargar llamadas
+        </button>
+        <button
+          type="button"
+          onClick={() => { onUploadAgentStatus(); setMobileOpen(false); }}
+          className="w-full flex items-center justify-center gap-2 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg transition-colors"
+        >
+          <UploadCloud size={14} />
+          Cargar conectividad
         </button>
       </div>
 
