@@ -102,7 +102,7 @@ function calcFunnelByGranularity(records: CallRecord[], granularity: Granularity
 
     if (granularity === 'hour') {
       const hour = r.call_hour ?? 0;
-      key = `${r.call_date}:${hour}`;
+      key = String(hour).padStart(2, '0');
       label = `${String(hour).padStart(2, '0')}:00`;
     } else if (granularity === 'day') {
       key = r.call_date;
@@ -149,7 +149,7 @@ function calcOutboundByGranularity(records: CallRecord[], granularity: Granulari
 
     if (granularity === 'hour') {
       const hour = r.call_hour ?? 0;
-      key = `${r.call_date}:${hour}`;
+      key = String(hour).padStart(2, '0');
       label = `${String(hour).padStart(2, '0')}:00`;
     } else if (granularity === 'day') {
       key = r.call_date;
