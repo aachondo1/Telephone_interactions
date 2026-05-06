@@ -1,221 +1,452 @@
 import { useMemo } from 'react';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Legend,
 } from 'recharts';
 import {
-  Phone, Clock, Layers, Users, Target, ArrowRight,
-  PhoneIncoming, PhoneOutgoing, TrendingUp,
+  Phone, PhoneIncoming, PhoneOff, Clock, Users, TrendingUp, TrendingDown,
+  Minus, LayoutDashboard,
 } from 'lucide-react';
 import type { KPISummary } from '../lib/kpi';
+import type { CallRecord } from '../lib/supabase';
+import type { FilterState } from './FilterBar';
+import { getDateRangeForRelative } from './FilterBar';
+import { getMondayKey, weekLabel, monthLabel, isInbound } from '../lib/kpi/shared';
+import { isCorruptedTechnicalCall } from '../lib/kpi/calidad';
+import { SectionHeader } from './SectionHeader';
 
-type TrafficLight = 'green' | 'yellow' | 'red';
+const BICE_BLUE = '#326295';
+const BICE_GREEN = '#84BD00';
+const BICE_GRAY = '#94a3b8';
 
-type Props = {
-  kpis: KPISummary;
-  onNavigate?: (tab: string) => void;
-};
+type Granularity = 'hour' | 'day' | 'week' | 'month';
 
-const LIGHT_BORDER: Record<TrafficLight, string> = {
-  green: 'border-l-emerald-400',
-  yellow: 'border-l-amber-400',
-  red: 'border-l-red-400',
-};
-const LIGHT_VALUE: Record<TrafficLight, string> = {
-  green: 'text-emerald-700',
-  yellow: 'text-amber-700',
-  red: 'text-red-600',
-};
-const LIGHT_BADGE: Record<TrafficLight, { bg: string; text: string; label: string }> = {
-  green:  { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Óptimo'  },
-  yellow: { bg: 'bg-amber-100',   text: 'text-amber-700',   label: 'Atención' },
-  red:    { bg: 'bg-red-100',     text: 'text-red-700',     label: 'Crítico'  },
-};
-
-function attendanceLight(pct: number): TrafficLight {
-  if (pct >= 90) return 'green';
-  if (pct >= 80) return 'yellow';
-  return 'red';
+function getGranularity(days: number): Granularity {
+  if (days <= 7) return 'hour';
+  if (days <= 60) return 'day';
+  if (days <= 180) return 'week';
+  return 'month';
 }
-const fmtAxisDate = (dateStr: string) =>
-  new Date(dateStr + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
 
-function TrendTooltip({ active, payload, label }: { active?: boolean; payload?: { dataKey: string; color: string; name: string; value: number }[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  const total = payload.reduce((s, p) => s + (p.value ?? 0), 0);
+function getTickInterval(granularity: Granularity, length: number): number {
+  switch (granularity) {
+    case 'hour':
+      return Math.max(0, Math.floor(length / 6) - 1);
+    case 'day':
+      return Math.max(0, Math.floor(length / 10) - 1);
+    case 'week':
+      return Math.max(0, Math.floor(length / 8) - 1);
+    case 'month':
+      return length > 12 ? Math.floor(length / 6) : 0;
+  }
+}
+
+
+function fmtSecs(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+type HalfPeriodMetrics = {
+  totalInbound: number;
+  queueCalls: number;
+  executiveCalls: number;
+  attendedCalls: number;
+  abandonedCalls: number;
+  avgQueueTimeSec: number;
+  avgAHTSec: number;
+  avgConversationSec: number;
+};
+
+// Mismos criterios que calculateKPIs: isInbound de shared.ts, excluye cortes técnicos, usa r.attended
+function countHalfPeriodMetrics(records: CallRecord[]): HalfPeriodMetrics {
+  const inbound = records.filter(r => isInbound(r.call_direction));
+  const valid = inbound.filter(r => !isCorruptedTechnicalCall(r));
+  const ivrAbandons = valid.filter(r => r.abandon_type === 'ivr').length;
+  const queueAbandons = valid.filter(r => r.abandon_type === 'queue').length;
+  const alertAbandons = valid.filter(r => r.abandon_type === 'alert').length;
+  const attended = valid.filter(r => r.attended);
+
+  const queueBase = valid.filter(r => r.flow_exit !== false && (r.queue_time_seconds ?? 0) >= 1);
+  const avgQueueTime = queueBase.length > 0
+    ? queueBase.reduce((s, r) => s + (r.queue_time_seconds ?? 0), 0) / queueBase.length : 0;
+  const avgAHT = attended.length > 0
+    ? attended.reduce((s, r) => s + (r.handle_time_seconds ?? 0), 0) / attended.length : 0;
+  const avgConversation = attended.length > 0
+    ? attended.reduce((s, r) => s + (r.conversation_total_seconds ?? 0), 0) / attended.length : 0;
+
+  return {
+    totalInbound: valid.length,
+    queueCalls: valid.length - ivrAbandons,
+    executiveCalls: valid.length - ivrAbandons - queueAbandons,
+    attendedCalls: attended.length,
+    abandonedCalls: queueAbandons + alertAbandons,
+    avgQueueTimeSec: Math.round(avgQueueTime),
+    avgAHTSec: Math.round(avgAHT),
+    avgConversationSec: Math.round(avgConversation),
+  };
+}
+
+type FunnelPoint = { date: string; label: string; entrantes: number; aCola: number; contestadas: number };
+
+function calcFunnelByGranularity(records: CallRecord[], granularity: Granularity): FunnelPoint[] {
+  const map = new Map<string, { key: string; label: string; entrantes: number; aCola: number; contestadas: number }>();
+
+  for (const r of records) {
+    if (!isInbound(r.call_direction) || !r.call_date) continue;
+
+    let key = '';
+    let label = '';
+
+    if (granularity === 'hour') {
+      const hour = r.call_hour ?? 0;
+      key = `${r.call_date}:${hour}`;
+      label = `${String(hour).padStart(2, '0')}:00`;
+    } else if (granularity === 'day') {
+      key = r.call_date;
+      label = new Date(r.call_date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+    } else if (granularity === 'week') {
+      key = getMondayKey(r.call_date);
+      label = weekLabel(key);
+    } else {
+      const [year, month] = r.call_date.split('-');
+      key = `${year}-${month}`;
+      label = monthLabel(key);
+    }
+
+    if (!map.has(key)) {
+      map.set(key, { key, label, entrantes: 0, aCola: 0, contestadas: 0 });
+    }
+    const d = map.get(key)!;
+    d.entrantes++;
+    if (r.flow_exit !== false && (r.queue_time_seconds ?? 0) >= 1) d.aCola++;
+    if ((r.conversation_total_seconds ?? 0) > 0) d.contestadas++;
+  }
+
+  return Array.from(map.values())
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map(({ key, label, entrantes, aCola, contestadas }) => ({
+      date: key,
+      label,
+      entrantes,
+      aCola,
+      contestadas,
+    }));
+}
+
+type OutboundDay = { date: string; label: string; efectivos: number; fallidos: number };
+
+function calcOutboundByGranularity(records: CallRecord[], granularity: Granularity): OutboundDay[] {
+  const map = new Map<string, { key: string; label: string; efectivos: number; fallidos: number }>();
+
+  for (const r of records) {
+    if (isInbound(r.call_direction) || !r.call_date) continue;
+
+    let key = '';
+    let label = '';
+
+    if (granularity === 'hour') {
+      const hour = r.call_hour ?? 0;
+      key = `${r.call_date}:${hour}`;
+      label = `${String(hour).padStart(2, '0')}:00`;
+    } else if (granularity === 'day') {
+      key = r.call_date;
+      label = new Date(r.call_date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+    } else if (granularity === 'week') {
+      key = getMondayKey(r.call_date);
+      label = weekLabel(key);
+    } else {
+      const [year, month] = r.call_date.split('-');
+      key = `${year}-${month}`;
+      label = monthLabel(key);
+    }
+
+    if (!map.has(key)) {
+      map.set(key, { key, label, efectivos: 0, fallidos: 0 });
+    }
+    const d = map.get(key)!;
+    if ((r.conversation_total_seconds ?? 0) > 10) d.efectivos++;
+    else d.fallidos++;
+  }
+
+  return Array.from(map.values())
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map(({ key, label, efectivos, fallidos }) => ({
+      date: key,
+      label,
+      efectivos,
+      fallidos,
+    }));
+}
+
+function splitHalves(records: CallRecord[]): [CallRecord[], CallRecord[]] {
+  const dates = [...new Set(records.map(r => r.call_date).filter(Boolean) as string[])].sort();
+  if (dates.length < 2) return [records, []];
+  const midIdx = Math.floor(dates.length / 2);
+  const midDate = dates[midIdx];
+  return [
+    records.filter(r => r.call_date && r.call_date >= midDate),
+    records.filter(r => r.call_date && r.call_date < midDate),
+  ];
+}
+
+function changePct(current: number, prev: number): number | null {
+  if (prev === 0) return null;
+  return Math.round(((current - prev) / prev) * 100);
+}
+
+function countQueueCalls(records: CallRecord[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const r of records) {
+    if (!isInbound(r.call_direction) || r.flow_exit === false || (r.queue_time_seconds ?? 0) < 1) continue;
+    const queue = r.queue || 'Sin cola';
+    map.set(queue, (map.get(queue) ?? 0) + 1);
+  }
+  return map;
+}
+
+type QueueWithVariation = { queue: string; count: number; variation: number | null };
+
+function addQueueVariation(currentQueues: QueueWithVariation[], prevQueueCounts: Map<string, number>): QueueWithVariation[] {
+  return currentQueues.map(q => ({
+    queue: q.queue,
+    count: q.count,
+    variation: changePct(q.count, prevQueueCounts.get(q.queue) ?? 0),
+  }));
+}
+
+function ChangeBadge({ pct, inverted = false }: { pct: number | null; inverted?: boolean }) {
+  if (pct === null) return null;
+  const isPositive = inverted ? pct < 0 : pct > 0;
+  const isNeutral = pct === 0;
+  if (isNeutral) return (
+    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-slate-400">
+      <Minus size={10} /> 0%
+    </span>
+  );
   return (
-    <div className="bg-white border border-slate-100 rounded-xl px-3 py-2.5 shadow-lg text-xs space-y-1">
-      <p className="font-semibold text-slate-700">{label ? fmtAxisDate(label) : ''}</p>
-      {payload.map(p => (
-        <div key={p.dataKey} className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
-          <span className="text-slate-500">{p.name}:</span>
-          <span className="font-medium text-slate-700">{p.value.toLocaleString('es-CL')}</span>
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
+      {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+      {Math.abs(pct)}%
+    </span>
+  );
+}
+
+type KPICardProps = {
+  label: string;
+  value: string;
+  change: number | null;
+  invertedChange?: boolean;
+  iconColor: string;
+  iconBg: string;
+  icon: React.ElementType;
+};
+
+function KPICard({ label, value, change, invertedChange = false, iconColor, iconBg, icon: Icon }: KPICardProps) {
+  return (
+    <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+      <div className="flex items-start justify-between mb-3">
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide leading-tight">{label}</p>
+        <div className={`w-9 h-9 ${iconBg} rounded-xl flex items-center justify-center flex-shrink-0`}>
+          <Icon size={17} style={{ color: iconColor }} />
         </div>
-      ))}
-      <div className="border-t border-slate-100 pt-1 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-slate-300 flex-shrink-0" />
-        <span className="text-slate-500">Total:</span>
-        <span className="font-semibold text-slate-700">{total.toLocaleString('es-CL')}</span>
+      </div>
+      <p className="text-2xl font-bold text-slate-800 leading-none">{value}</p>
+      <div className="mt-1.5 h-4">
+        <ChangeBadge pct={change} inverted={invertedChange} />
       </div>
     </div>
   );
 }
 
-export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
-  const attendedPercent = useMemo(
-    () => kpis.totalCalls > 0
-      ? Math.round(((kpis.totalCalls - kpis.unattendedCount) / kpis.totalCalls) * 100)
-      : 0,
-    [kpis],
+function FunnelTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; color: string; value: number }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-slate-100 rounded-xl px-3 py-2.5 shadow-lg text-xs space-y-1">
+      <p className="font-semibold text-slate-700">{label}</p>
+      {payload.map(p => (
+        <div key={p.name} className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
+          <span className="text-slate-500">{p.name}:</span>
+          <span className="font-medium text-slate-700">{p.value.toLocaleString('es-CL')}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+type Props = {
+  kpis: KPISummary;
+  records: CallRecord[];
+  filters: FilterState;
+  onNavigate?: (tab: string) => void;
+};
+
+export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavigate }: Props) {
+  // Valores de display: derivados de kpis (fuente única = calculateKPIs(filteredRecords))
+  // Garantiza consistencia con todas las demás pestañas del dashboard
+  const fullPeriod = useMemo(() => ({
+    totalInbound:   kpis.totalCalls,
+    queueCalls:     kpis.totalCalls - kpis.abandonStats.abandonedInIVR,
+    executiveCalls: kpis.totalCalls - kpis.abandonStats.abandonedInIVR - kpis.abandonStats.abandonedInQueue,
+    attendedCalls:  kpis.totalCalls - kpis.unattendedCount,
+    abandonedCalls: kpis.abandonStats.abandonedInQueue + kpis.abandonStats.abandonedInAlert,
+    avgQueueTimeSec:    Math.round(kpis.avgQueueTimeSeconds),
+    avgAHTSec:          Math.round(kpis.avgHandleTimeSeconds),
+    avgConversationSec: Math.round(kpis.avgDurationSeconds),
+  }), [kpis]);
+
+  // Valores de variación: splitHalves para el badge de cambio (mismos criterios que calculateKPIs)
+  const [currentRecords, prevRecords] = useMemo(() => splitHalves(records), [records]);
+  const curr = useMemo(() => countHalfPeriodMetrics(currentRecords), [currentRecords]);
+  const prev = useMemo(() => countHalfPeriodMetrics(prevRecords), [prevRecords]);
+
+  const granularity = useMemo(() => {
+    let start = filters.dateStart;
+    let end = filters.dateEnd;
+    if (!start || !end) {
+      const resolved = getDateRangeForRelative(filters.dateRange);
+      start = resolved.start;
+      end = resolved.end;
+    }
+    if (!start || !end) return 'day';
+    const startDate = new Date(start + 'T00:00:00');
+    const endDate = new Date(end + 'T23:59:59');
+    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    return getGranularity(Math.max(1, days));
+  }, [filters.dateStart, filters.dateEnd, filters.dateRange]);
+
+  const funnelData = useMemo(() => calcFunnelByGranularity(records, granularity), [records, granularity]);
+  const outboundData = useMemo(() => calcOutboundByGranularity(records, granularity), [records, granularity]);
+
+  const topQueues = useMemo(() => {
+    const currQueueCounts = countQueueCalls(currentRecords);
+    const prevQueueCounts = countQueueCalls(prevRecords);
+    const hasPrevData = prevRecords.length > 0;
+    return kpis.queueStats
+      .filter(q => q.queue !== 'Sin cola')
+      .slice(0, 8)
+      .map(q => ({
+        queue: q.queue,
+        count: q.count,
+        variation: hasPrevData
+          ? changePct(currQueueCounts.get(q.queue) ?? 0, prevQueueCounts.get(q.queue) ?? 0)
+          : null,
+      }));
+  }, [kpis.queueStats, currentRecords, prevRecords]);
+  const maxQueueCount = topQueues[0]?.count ?? 1;
+
+  const top10Executives = useMemo(
+    () => kpis.executiveStats
+      .filter(e => e.executive !== 'SIN ATENDER')
+      .slice(0, 10)
+      .map(e => ({
+        executive: e.executive,
+        attended: e.inboundCount,
+        tmo: fmtSecs(e.avgHandleTimeSeconds),
+      })),
+    [kpis.executiveStats],
   );
 
-  const globalBounceRate = useMemo(
-    () => {
-      const execs = kpis.executiveStats.filter(e => e.executive !== 'SIN ATENDER');
-      if (execs.length === 0) return 0;
-      const total = execs.reduce((sum, e) => sum + e.bounceRate, 0);
-      return Math.round(total / execs.length);
-    },
-    [kpis],
-  );
+  const hasPrev = prevRecords.length > 0;
 
-  const activeQueues     = kpis.queueStats.filter(q => q.queue !== 'Sin cola').length;
-  const activeExecutives = kpis.executiveStats.filter(e => e.executive !== 'SIN ATENDER').length;
-
-  const topQueues      = kpis.queueStats.filter(q => q.queue !== 'Sin cola').slice(0, 5);
-  const maxQueueCount  = topQueues[0]?.count ?? 1;
-
-  const topExecutives  = kpis.executiveStats.filter(e => e.executive !== 'SIN ATENDER').slice(0, 5);
-  const maxExecCount   = topExecutives[0]?.count ?? 1;
-
-  const inbound  = kpis.directionStats.find(d => ['inbound',  'entrante'].includes(d.direction.toLowerCase()));
-  const outbound = kpis.directionStats.find(d => ['outbound', 'saliente'].includes(d.direction.toLowerCase()));
-
-  const trendData    = kpis.dailyAttendedVsUnattended;
-  const tickInterval = Math.max(0, Math.floor(trendData.length / 10) - 1);
-
-  const attLight  = attendanceLight(attendedPercent);
-
-  const topExec = kpis.executiveStats.find(e => e.executive !== 'SIN ATENDER');
+  const tickInterval = getTickInterval(granularity, funnelData.length);
+  const outboundTickInterval = getTickInterval(granularity, outboundData.length);
 
   return (
     <div className="space-y-6">
+      <SectionHeader
+        icon={LayoutDashboard}
+        title="Vista de Directorio"
+        description="Volumen, eficiencia y rankings de productividad"
+      />
 
-      {/* ── 7 KPI cards (prioritarios) ────────────────────────────── */}
+      {/* ── 1. Fichas de KPIs Directos ──────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-        {/* 1. Total llamadas */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total llamadas</p>
-            <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Phone size={20} className="text-sky-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">
-            {kpis.totalCalls.toLocaleString('es-CL')}
-          </p>
-          <p className="text-xs text-slate-400 mt-1.5">Registros en el período</p>
-        </div>
-
-        {/* 2. Tasa de atención */}
-        <div className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-100 border-l-4 ${LIGHT_BORDER[attLight]}`}>
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tasa de atención</p>
-            <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${LIGHT_BADGE[attLight].bg} ${LIGHT_BADGE[attLight].text}`}>
-              {LIGHT_BADGE[attLight].label}
-            </span>
-          </div>
-          <p className={`text-3xl font-bold leading-none ${LIGHT_VALUE[attLight]}`}>{attendedPercent}%</p>
-          <p className="text-xs text-slate-400 mt-1.5">
-            {(kpis.totalCalls - kpis.unattendedCount).toLocaleString('es-CL')} llamadas atendidas
-          </p>
-        </div>
-
-        {/* 3. Duración promedio */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Duración promedio</p>
-            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Clock size={20} className="text-emerald-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.avgDurationFormatted}</p>
-          <p className="text-xs text-slate-400 mt-1.5">Por llamada</p>
-        </div>
-
-        {/* 4. Tasa de rebotes */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tasa de rebotes</p>
-            <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <TrendingUp size={20} className="text-rose-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">{globalBounceRate}%</p>
-          <p className="text-xs text-slate-400 mt-1.5">Promedio de ejecutivos</p>
-        </div>
-
-        {/* 5. Service Level */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Service Level</p>
-            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Target size={20} className="text-indigo-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.serviceLevel.overallSL}%</p>
-          <p className="text-xs text-slate-400 mt-1.5">Atendidas en ≤20s</p>
-        </div>
-
-        {/* 6. Espera promedio */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Espera promedio</p>
-            <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Clock size={20} className="text-orange-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.avgQueueTimeFormatted}</p>
-          <p className="text-xs text-slate-400 mt-1.5">En cola</p>
-        </div>
-
-        {/* 7. Tiempo de manejo */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tiempo de manejo</p>
-            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Clock size={20} className="text-purple-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-slate-800 leading-none">{kpis.avgHandleTimeFormatted}</p>
-          <p className="text-xs text-slate-400 mt-1.5">Duración total promedio</p>
-        </div>
-
+        <KPICard
+          label="Llamadas Totales"
+          value={fullPeriod.totalInbound.toLocaleString('es-CL')}
+          change={hasPrev ? changePct(curr.totalInbound, prev.totalInbound) : null}
+          icon={Phone}
+          iconColor={BICE_BLUE}
+          iconBg="bg-blue-50"
+        />
+        <KPICard
+          label="Llamadas a Cola"
+          value={fullPeriod.queueCalls.toLocaleString('es-CL')}
+          change={hasPrev ? changePct(curr.queueCalls, prev.queueCalls) : null}
+          icon={PhoneIncoming}
+          iconColor={BICE_BLUE}
+          iconBg="bg-blue-50"
+        />
+        <KPICard
+          label="Llamadas a Ejecutivo"
+          value={fullPeriod.executiveCalls.toLocaleString('es-CL')}
+          change={hasPrev ? changePct(curr.executiveCalls, prev.executiveCalls) : null}
+          icon={Users}
+          iconColor={BICE_BLUE}
+          iconBg="bg-blue-50"
+        />
+        <KPICard
+          label="Llamadas Atendidas"
+          value={fullPeriod.attendedCalls.toLocaleString('es-CL')}
+          change={hasPrev ? changePct(curr.attendedCalls, prev.attendedCalls) : null}
+          icon={Phone}
+          iconColor={BICE_GREEN}
+          iconBg="bg-green-50"
+        />
+        <KPICard
+          label="Llamadas Abandonadas"
+          value={fullPeriod.abandonedCalls.toLocaleString('es-CL')}
+          change={hasPrev ? changePct(curr.abandonedCalls, prev.abandonedCalls) : null}
+          invertedChange
+          icon={PhoneOff}
+          iconColor="#ef4444"
+          iconBg="bg-red-50"
+        />
+        <KPICard
+          label="Tiempo Cola Prom."
+          value={fmtSecs(fullPeriod.avgQueueTimeSec)}
+          change={hasPrev ? changePct(curr.avgQueueTimeSec, prev.avgQueueTimeSec) : null}
+          invertedChange
+          icon={Clock}
+          iconColor={BICE_BLUE}
+          iconBg="bg-blue-50"
+        />
+        <KPICard
+          label="AHT Promedio"
+          value={fmtSecs(fullPeriod.avgAHTSec)}
+          change={hasPrev ? changePct(curr.avgAHTSec, prev.avgAHTSec) : null}
+          invertedChange
+          icon={Clock}
+          iconColor="#7c3aed"
+          iconBg="bg-purple-50"
+        />
+        <KPICard
+          label="Tiempo Conversación Prom."
+          value={fmtSecs(fullPeriod.avgConversationSec)}
+          change={hasPrev ? changePct(curr.avgConversationSec, prev.avgConversationSec) : null}
+          icon={Clock}
+          iconColor={BICE_GREEN}
+          iconBg="bg-green-50"
+        />
       </div>
 
-      {/* ── Evolución diaria ─────────────────────────────────────── */}
-      {trendData.length > 0 && (
+      {/* ── 2. Panel de Gráficos Diarios ────────────────────────────── */}
+      {funnelData.length > 1 && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <h3 className="text-sm font-semibold text-slate-700 mb-5 uppercase tracking-wide">
-            Evolución diaria de llamadas
+          <h3 className="text-sm font-semibold text-slate-700 mb-1 uppercase tracking-wide">
+            Funnel de Demanda Entrante
           </h3>
+          <p className="text-xs text-slate-400 mb-5">
+            Evolución diaria: Entrantes → A Cola → Contestadas
+          </p>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={trendData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="gradAtt" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#38bdf8" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.04} />
-                </linearGradient>
-                <linearGradient id="gradUnatt" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#f87171" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#f87171" stopOpacity={0.04} />
-                </linearGradient>
-              </defs>
+            <ComposedChart data={funnelData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis
-                dataKey="date"
-                tickFormatter={fmtAxisDate}
+                dataKey="label"
                 tick={{ fontSize: 11, fill: '#94a3b8' }}
                 tickLine={false}
                 axisLine={false}
@@ -225,52 +456,87 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
                 tick={{ fontSize: 11, fill: '#94a3b8' }}
                 tickLine={false}
                 axisLine={false}
-                width={36}
+                width={38}
               />
-              <Tooltip content={<TrendTooltip />} />
-              <Area
+              <Tooltip content={<FunnelTooltip />} />
+              <Legend
+                wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
+                iconType="plainline"
+              />
+              <Line
                 type="monotone"
-                dataKey="attended"
-                name="Atendidas"
-                stroke="#0ea5e9"
+                dataKey="entrantes"
+                name="Llamadas Entrantes"
+                stroke={BICE_BLUE}
                 strokeWidth={2}
-                fill="url(#gradAtt)"
                 dot={false}
                 activeDot={{ r: 4, strokeWidth: 0 }}
               />
-              <Area
+              <Line
                 type="monotone"
-                dataKey="unattended"
-                name="Sin atender"
-                stroke="#f87171"
+                dataKey="aCola"
+                name="Asignadas a Cola"
+                stroke={BICE_GRAY}
                 strokeWidth={2}
-                fill="url(#gradUnatt)"
                 dot={false}
                 activeDot={{ r: 4, strokeWidth: 0 }}
               />
-            </AreaChart>
+              <Line
+                type="monotone"
+                dataKey="contestadas"
+                name="Contestadas"
+                stroke={BICE_GREEN}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
-          <div className="flex items-center gap-6 mt-3 justify-center">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-0.5 bg-sky-400 rounded" />
-              <span className="text-xs text-slate-500">Atendidas</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-0.5 bg-red-400 rounded" />
-              <span className="text-xs text-slate-500">Sin atender</span>
-            </div>
-          </div>
         </div>
       )}
 
-      {/* ── Colas top + Tipo + Ejecutivos ────────────────────────── */}
+      {outboundData.length > 0 && (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+          <h3 className="text-sm font-semibold text-slate-700 mb-1 uppercase tracking-wide">
+            Volumen de Gestión Saliente (Outbound)
+          </h3>
+          <p className="text-xs text-slate-400 mb-5">
+            Proactividad diaria: Contactos efectivos vs Intentos fallidos
+          </p>
+          <ResponsiveContainer width="100%" height={200}>
+            <ComposedChart data={outboundData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                tickLine={false}
+                axisLine={false}
+                interval={outboundTickInterval}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                tickLine={false}
+                axisLine={false}
+                width={38}
+              />
+              <Tooltip content={<FunnelTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
+              <Bar dataKey="efectivos" name="Contactos Efectivos" fill={BICE_GREEN} stackId="outbound" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="fallidos" name="Intentos Fallidos" fill={BICE_GRAY} stackId="outbound" radius={[3, 3, 0, 0]} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* ── 3. Rankings ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* Top 5 colas */}
+        {/* Ranking de Colas por Volumen */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <h3 className="text-sm font-semibold text-slate-700 mb-5 uppercase tracking-wide">
-            Top colas por volumen
+          <h3 className="text-sm font-semibold text-slate-700 mb-1 uppercase tracking-wide">
+            Ranking de Colas por Volumen
           </h3>
+          <p className="text-xs text-slate-400 mb-5">Volumen de demanda entrante que llegó a cada cola</p>
           {topQueues.length === 0 ? (
             <p className="text-slate-400 text-sm text-center py-8">Sin datos</p>
           ) : (
@@ -279,18 +545,23 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
                 <div key={q.queue}>
                   <div className="flex items-center justify-between text-sm mb-1.5">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs font-bold text-slate-300 w-4 flex-shrink-0">{i + 1}</span>
+                      <span className="text-xs font-bold text-slate-300 w-5 flex-shrink-0">{i + 1}</span>
                       <span className="text-slate-700 font-medium truncate">{q.queue}</span>
                     </div>
-                    <div className="flex items-center gap-3 ml-3 flex-shrink-0">
-                      <span className="text-xs text-slate-400">{q.unattendedPercent}% perdidas</span>
-                      <span className="font-bold text-slate-800">{q.count.toLocaleString('es-CL')}</span>
+                    <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                      <span className="font-bold text-slate-800">
+                        {q.count.toLocaleString('es-CL')}
+                      </span>
+                      <ChangeBadge pct={q.variation} />
                     </div>
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-sky-400 transition-all duration-500"
-                      style={{ width: `${(q.count / maxQueueCount) * 100}%` }}
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${(q.count / maxQueueCount) * 100}%`,
+                        backgroundColor: BICE_BLUE,
+                      }}
                     />
                   </div>
                 </div>
@@ -299,171 +570,41 @@ export function ExecutiveDashboard({ kpis, onNavigate }: Props) {
           )}
         </div>
 
-        {/* Tipo de llamada + Top ejecutivos */}
-        <div className="space-y-4">
-
-          {/* Tipo de llamada */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-            <h3 className="text-sm font-semibold text-slate-700 mb-4 uppercase tracking-wide">
-              Tipo de llamada
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              {inbound ? (
-                <div className="bg-sky-50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <PhoneIncoming size={13} className="text-sky-600" />
-                    <span className="text-xs font-semibold text-sky-700 uppercase tracking-wide">Entrantes</span>
-                  </div>
-                  <p className="text-2xl font-bold text-slate-800">{inbound.count.toLocaleString('es-CL')}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{inbound.percentage}% del total</p>
-                </div>
-              ) : (
-                <div className="bg-slate-50 rounded-xl p-4 flex items-center justify-center">
-                  <p className="text-xs text-slate-400">Sin datos</p>
-                </div>
-              )}
-              {outbound ? (
-                <div className="bg-emerald-50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <PhoneOutgoing size={13} className="text-emerald-600" />
-                    <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Salientes</span>
-                  </div>
-                  <p className="text-2xl font-bold text-slate-800">{outbound.count.toLocaleString('es-CL')}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{outbound.percentage}% del total</p>
-                </div>
-              ) : (
-                <div className="bg-slate-50 rounded-xl p-4 flex items-center justify-center">
-                  <p className="text-xs text-slate-400">Sin datos</p>
-                </div>
-              )}
+        {/* Top 10 Ejecutivos */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+          <h3 className="text-sm font-semibold text-slate-700 mb-1 uppercase tracking-wide">
+            Top 10 Ejecutivos
+          </h3>
+          <p className="text-xs text-slate-400 mb-4">Mayor gestión entrante · con TMO</p>
+          {top10Executives.length === 0 ? (
+            <p className="text-slate-400 text-sm text-center py-8">Sin datos</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-slate-400 uppercase tracking-wide">
+                    <th className="text-left pb-3 w-8">#</th>
+                    <th className="text-left pb-3">Ejecutivo</th>
+                    <th className="text-right pb-3">Atendidas</th>
+                    <th className="text-right pb-3">TMO</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {top10Executives.map((e, i) => (
+                    <tr key={e.executive} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-2.5 text-xs font-bold text-slate-300">{i + 1}</td>
+                      <td className="py-2.5 font-medium text-slate-700 truncate max-w-[160px]">{e.executive}</td>
+                      <td className="py-2.5 text-right font-bold" style={{ color: BICE_GREEN }}>
+                        {e.attended.toLocaleString('es-CL')}
+                      </td>
+                      <td className="py-2.5 text-right text-slate-500 font-mono text-xs">{e.tmo}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-
-          {/* Top ejecutivos */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Top ejecutivos</h3>
-              <span className="text-xs text-slate-400">{activeExecutives} activos</span>
-            </div>
-            {topExecutives.length === 0 ? (
-              <p className="text-slate-400 text-sm text-center py-4">Sin datos</p>
-            ) : (
-              <div className="space-y-3">
-                {topExecutives.map((e, i) => (
-                  <div key={e.executive} className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-slate-300 w-4 flex-shrink-0">{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-slate-700 font-medium truncate">{e.executive}</span>
-                        <span className="text-xs font-bold text-slate-800 ml-2 flex-shrink-0">
-                          {e.count.toLocaleString('es-CL')}
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-violet-400 transition-all duration-500"
-                          style={{ width: `${(e.count / maxExecCount) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
+          )}
         </div>
-      </div>
-
-      {/* ── Tarjetas de navegación ────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-        <button
-          type="button"
-          onClick={() => onNavigate?.('colas')}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-left hover:border-sky-200 hover:shadow-md transition-all group"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center">
-              <Layers size={20} className="text-sky-600" />
-            </div>
-            <ArrowRight size={15} className="text-slate-300 group-hover:text-sky-500 group-hover:translate-x-1 transition-all" />
-          </div>
-          <h4 className="font-semibold text-slate-800 mb-1">Análisis de Colas</h4>
-          <p className="text-sm text-slate-400 mb-4 leading-relaxed">
-            Rendimiento por cola, heatmaps de carga y evolución de la tasa de atención.
-          </p>
-          <div className="flex items-center gap-4">
-            <div>
-              <p className="text-xs text-slate-400">Colas activas</p>
-              <p className="font-bold text-slate-700">{activeQueues}</p>
-            </div>
-            {kpis.queueStats.find(q => q.queue !== 'Sin cola') && (
-              <div className="min-w-0">
-                <p className="text-xs text-slate-400">Mayor volumen</p>
-                <p className="font-bold text-slate-700 truncate">
-                  {kpis.queueStats.find(q => q.queue !== 'Sin cola')?.queue}
-                </p>
-              </div>
-            )}
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onNavigate?.('ejecutivos')}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-left hover:border-violet-200 hover:shadow-md transition-all group"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center">
-              <Users size={20} className="text-violet-600" />
-            </div>
-            <ArrowRight size={15} className="text-slate-300 group-hover:text-violet-500 group-hover:translate-x-1 transition-all" />
-          </div>
-          <h4 className="font-semibold text-slate-800 mb-1">Rendimiento de Ejecutivos</h4>
-          <p className="text-sm text-slate-400 mb-4 leading-relaxed">
-            Volumen, tiempos de atención y distribución horaria individual por ejecutivo.
-          </p>
-          <div className="flex items-center gap-4">
-            <div>
-              <p className="text-xs text-slate-400">Ejecutivos activos</p>
-              <p className="font-bold text-slate-700">{activeExecutives}</p>
-            </div>
-            {topExec && (
-              <div className="min-w-0">
-                <p className="text-xs text-slate-400">Top ejecutivo</p>
-                <p className="font-bold text-slate-700 truncate">{topExec.executive}</p>
-              </div>
-            )}
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onNavigate?.('planificacion')}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-left hover:border-emerald-200 hover:shadow-md transition-all group"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-              <Target size={20} className="text-emerald-600" />
-            </div>
-            <ArrowRight size={15} className="text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
-          </div>
-          <h4 className="font-semibold text-slate-800 mb-1">Planificación de Personal</h4>
-          <p className="text-sm text-slate-400 mb-4 leading-relaxed">
-            Ocupación telefónica y demanda en Erlangs para dimensionamiento de turnos.
-          </p>
-          <div className="flex items-center gap-4">
-            <div>
-              <p className="text-xs text-slate-400">Pico de demanda</p>
-              <p className="font-bold text-slate-700">{kpis.hourlyDemand.peakErlangs.toFixed(1)} Erl</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400">Ejecutivos activos</p>
-              <p className="font-bold text-slate-700">{activeExecutives}</p>
-            </div>
-          </div>
-        </button>
 
       </div>
     </div>

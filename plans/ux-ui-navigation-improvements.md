@@ -62,7 +62,7 @@ Reorganizar la navegacion del dashboard para que sea mas clara, jerarquica y ord
 
 | # | Seccion | Fusiona tabs actuales | Descripcion |
 |---|---------|----------------------|-------------|
-| 1 | **Inicio** | Vista Directiva | Dashboard ejecutivo con KPIs clave, mini-graficos de tendencia y accesos rapidos. Primer pantallazo al entrar |
+| 1 | **Inicio** | Vista Directiva | **Configuración optimizada para mostrar volumen, eficiencia y rankings de productividad.** Incluye: (1) Fichas de KPIs Directos con comparativa con periodo anterior (Llamadas Totales, a Cola, a Ejecutivo, Atendidas, Abandonadas, Tiempos promedio, AHT). (2) Panel de Gráficos Diarios con Funnel de Demanda Entrante (líneas de Llamadas Entrantes, Asignadas a Cola, Contestadas) y Volumen de Gestión Saliente con barras de Contactos Efectivos (verde #84BD00) e Intentos Fallidos. (3) Sección de Rankings con Ranking de Colas por Volumen Entrante y Top 10 Ejecutivos por Mayor Gestión Entrante. Colores institucionales: Azul BICE (#326295) para demanda, Verde BICE (#84BD00) para éxito/atención. Ver `docs/VISTA_DIRECTORIO_INICIO.md` para especificación técnica completa. |
 | 2 | **Llamadas** | General | Vista detallada: KPIs, distribucion horaria, direccion, duraciones extremas, tablas resumidas |
 | 3 | **Colas** | Colas | Todo el analisis de colas actual (se mantiene igual) |
 | 4 | **Ejecutivos** | Ejecutivos + Conectividad | Analisis de ejecutivos + conectividad integrada como sub-seccion (solo visible si hay datos de agentes) |
