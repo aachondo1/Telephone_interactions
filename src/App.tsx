@@ -70,6 +70,7 @@ export default function App() {
           date_range_end: dateRange.end,
         };
 
+        setUploads(prev => [upload, ...prev.filter(u => u.id !== upload.id)]);
         setDataState({ phase: 'ready', records, upload: virtualUpload });
       })
       .catch(() => setDataState({ phase: 'empty' }));
@@ -206,10 +207,10 @@ export default function App() {
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Simplified header */}
-        <header className="bg-white border-b border-slate-100 sticky top-0 z-20 shadow-sm">
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
           <div className="px-6 py-4">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-sky-600 flex items-center justify-center flex-shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-bice-navy flex items-center justify-center flex-shrink-0">
                 <PhoneCall size={18} className="text-white" />
               </div>
               <div>
@@ -224,7 +225,7 @@ export default function App() {
           {/* Processing bar */}
           {isProcessing && (
             <div className="h-0.5 bg-slate-100 overflow-hidden">
-              <div className="h-full w-1/3 bg-sky-400 animate-[slide_1.5s_ease-in-out_infinite]" />
+              <div className="h-full w-1/3 bg-bice-cyan animate-[slide_1.5s_ease-in-out_infinite]" />
             </div>
           )}
         </header>
@@ -233,7 +234,7 @@ export default function App() {
           {dataState.phase === 'loading' && (
             <div className="flex items-center justify-center h-64">
               <div className="flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-2 border-sky-300 border-t-sky-600 rounded-full animate-spin" />
+                <div className="w-8 h-8 border-2 border-bice-cyan border-t-bice-navy rounded-full animate-spin" />
                 <p className="text-sm text-slate-400">Cargando datos...</p>
               </div>
             </div>
@@ -241,8 +242,8 @@ export default function App() {
 
           {dataState.phase === 'empty' && (
             <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-sky-50 flex items-center justify-center">
-                <UploadCloud size={32} className="text-sky-400" />
+              <div className="w-16 h-16 rounded-2xl bg-bice-navy-tint flex items-center justify-center">
+                <UploadCloud size={32} className="text-bice-navy" />
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-slate-700">Bienvenido al Dashboard</h2>
@@ -253,7 +254,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={openModal}
-                className="flex items-center gap-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-xl transition-colors shadow-sm"
+                className="flex items-center gap-2 text-sm font-medium bg-bice-navy hover:bg-bice-navy-dark text-white px-5 py-2.5 rounded-xl transition-colors shadow-sm"
               >
                 <UploadCloud size={16} />
                 Cargar CSV

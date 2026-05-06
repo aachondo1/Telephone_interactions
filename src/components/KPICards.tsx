@@ -19,8 +19,8 @@ export function KPICards({ kpis, previousKpis }: Props) {
         previousValue={prev ? prev.totalCalls.toLocaleString('es-CL') : undefined}
         changePercent={calcChangePercent(kpis.totalCalls, prev?.totalCalls)}
         subtitle="Registros en el período"
-        icon={<Phone size={20} className="text-sky-600" />}
-        accent="bg-sky-50"
+        icon={<Phone size={20} className="text-bice-navy" />}
+        accent="bg-bice-navy-tint"
       />
       <KPICardWithComparison
         title="Duración promedio"
@@ -29,8 +29,8 @@ export function KPICards({ kpis, previousKpis }: Props) {
         changePercent={prev ? calcChangePercent(kpis.avgDurationSeconds, prev.avgDurationSeconds) : undefined}
         isNeutral
         subtitle="Por llamada"
-        icon={<Clock size={20} className="text-emerald-600" />}
-        accent="bg-emerald-50"
+        icon={<Clock size={20} className="text-bice-cyan" />}
+        accent="bg-bice-cyan-tint"
       />
       <KPICardWithComparison
         title="Completitud"
@@ -38,8 +38,8 @@ export function KPICards({ kpis, previousKpis }: Props) {
         previousValue={prev ? `${prev.completenessRate}%` : undefined}
         changePercent={calcChangePercent(kpis.completenessRate, prev?.completenessRate)}
         subtitle="Exportación completa"
-        icon={<CheckCircle size={20} className="text-amber-600" />}
-        accent="bg-amber-50"
+        icon={<CheckCircle size={20} className="text-bice-success" />}
+        accent="bg-bice-success-bg"
       />
       <KPICardWithComparison
         title="Sin atender"
@@ -48,8 +48,8 @@ export function KPICards({ kpis, previousKpis }: Props) {
         changePercent={calcChangePercent(kpis.unattendedPercent, prev?.unattendedPercent)}
         isLowerBetter
         subtitle={`${kpis.unattendedCount.toLocaleString('es-CL')} llamadas`}
-        icon={<PhoneMissed size={20} className="text-red-500" />}
-        accent="bg-red-50"
+        icon={<PhoneMissed size={20} className="text-bice-alert" />}
+        accent="bg-bice-alert-bg"
       />
     </div>
   );

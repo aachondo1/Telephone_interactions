@@ -44,9 +44,9 @@ export function KPICardWithComparison({
     if (isNeutral) {
       changeColor = 'text-slate-400';
     } else if (isImprovement) {
-      changeColor = 'text-emerald-600';
+      changeColor = 'text-bice-success';
     } else {
-      changeColor = 'text-red-500';
+      changeColor = 'text-bice-alert';
     }
 
     ChangeIcon = isPositive ? ArrowUp : ArrowDown;
@@ -59,7 +59,7 @@ export function KPICardWithComparison({
 
   return (
     <div
-      className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col gap-3 ${className}`}
+      className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col gap-3 ${className}`}
     >
       <div className="flex items-start justify-between">
         <p className="text-sm font-medium text-slate-500 leading-tight">{title}</p>

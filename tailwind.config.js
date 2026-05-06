@@ -9,10 +9,13 @@ export default {
       colors: {
         // BICE Hipotecaria Brand Colors
         bice: {
-          navy: '#003A70',      // Pantone 654 C — primary corporate blue
-          'navy-tint': '#e8f0f8',
-          cyan: '#00ABC8',      // Pantone 3125 C — secondary accent cyan
-          'cyan-tint': '#e6f7fa',
+          navy: '#003A70',           // Pantone 654 C — primary corporate blue
+          'navy-dark': '#002a52',    // Darker navy for hover/active
+          'navy-light': '#1a5a9e',  // Lighter navy for backgrounds
+          'navy-tint': '#e8f0f8',   // Very light navy tint for backgrounds
+          cyan: '#00ABC8',           // Pantone 3125 C — secondary accent cyan
+          'cyan-light': '#5cc9dd',  // Lighter cyan for secondary accents
+          'cyan-tint': '#e6f7fa',   // Very light cyan tint for backgrounds
           // Semantic colors
           success: '#1d8e6e',
           'success-bg': '#e3f4ee',

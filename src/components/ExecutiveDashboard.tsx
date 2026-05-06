@@ -19,14 +19,14 @@ type Props = {
 };
 
 const LIGHT_BORDER: Record<TrafficLight, string> = {
-  green: 'border-l-emerald-400',
-  yellow: 'border-l-amber-400',
-  red: 'border-l-red-400',
+  green: 'border-l-bice-success',
+  yellow: 'border-l-bice-warning',
+  red: 'border-l-bice-alert',
 };
 const LIGHT_BADGE: Record<TrafficLight, { bg: string; text: string; label: string }> = {
-  green:  { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Óptimo'  },
-  yellow: { bg: 'bg-amber-100',   text: 'text-amber-700',   label: 'Atención' },
-  red:    { bg: 'bg-red-100',     text: 'text-red-700',     label: 'Crítico'  },
+  green:  { bg: 'bg-bice-success-bg', text: 'text-bice-success', label: 'Óptimo'  },
+  yellow: { bg: 'bg-bice-warning-bg',   text: 'text-bice-warning',   label: 'Atención' },
+  red:    { bg: 'bg-bice-alert-bg',     text: 'text-bice-alert',     label: 'Crítico'  },
 };
 
 function attendanceLight(pct: number): TrafficLight {
@@ -41,7 +41,7 @@ function TrendTooltip({ active, payload, label }: { active?: boolean; payload?: 
   if (!active || !payload?.length) return null;
   const total = payload.reduce((s, p) => s + (p.value ?? 0), 0);
   return (
-    <div className="bg-white border border-slate-100 rounded-xl px-3 py-2.5 shadow-lg text-xs space-y-1">
+    <div className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 shadow-lg text-xs space-y-1">
       <p className="font-semibold text-slate-700">{label ? fmtAxisDate(label) : ''}</p>
       {payload.map(p => (
         <div key={p.dataKey} className="flex items-center gap-2">
@@ -130,8 +130,8 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
           previousValue={prev ? prev.totalCalls.toLocaleString('es-CL') : undefined}
           changePercent={calcChangePercent(kpis.totalCalls, prev?.totalCalls)}
           subtitle="Registros en el período"
-          icon={<Phone size={20} className="text-sky-600" />}
-          accent="bg-sky-50"
+          icon={<Phone size={20} className="text-bice-navy" />}
+          accent="bg-bice-navy-tint"
         />
 
         {/* 2. Tasa de atención */}
@@ -157,8 +157,8 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
           changePercent={prev ? calcChangePercent(kpis.avgDurationSeconds, prev.avgDurationSeconds) : undefined}
           isNeutral
           subtitle="Por llamada"
-          icon={<Clock size={20} className="text-emerald-600" />}
-          accent="bg-emerald-50"
+          icon={<Clock size={20} className="text-bice-cyan" />}
+          accent="bg-bice-cyan-tint"
         />
 
         {/* 4. Tasa de rebotes */}
@@ -169,8 +169,8 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
           changePercent={calcChangePercent(globalBounceRate, previousGlobalBounceRate)}
           isLowerBetter
           subtitle="Promedio de ejecutivos"
-          icon={<TrendingUp size={20} className="text-rose-600" />}
-          accent="bg-rose-50"
+          icon={<TrendingUp size={20} className="text-bice-alert" />}
+          accent="bg-bice-alert-bg"
         />
 
         {/* 5. Service Level */}
@@ -180,8 +180,8 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
           previousValue={prev ? `${prev.serviceLevel.overallSL}%` : undefined}
           changePercent={calcChangePercent(kpis.serviceLevel.overallSL, prev?.serviceLevel.overallSL)}
           subtitle="Atendidas en ≤20s"
-          icon={<Target size={20} className="text-indigo-600" />}
-          accent="bg-indigo-50"
+          icon={<Target size={20} className="text-bice-navy" />}
+          accent="bg-bice-navy-tint"
         />
 
         {/* 6. Espera promedio */}
@@ -192,8 +192,8 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
           changePercent={prev ? calcChangePercent(kpis.avgQueueTimeSeconds, prev.avgQueueTimeSeconds) : undefined}
           isLowerBetter
           subtitle="En cola"
-          icon={<Clock size={20} className="text-orange-600" />}
-          accent="bg-orange-50"
+          icon={<Clock size={20} className="text-bice-warning" />}
+          accent="bg-bice-warning-bg"
         />
 
         {/* 7. Tiempo de manejo */}
@@ -204,15 +204,15 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
           changePercent={prev ? calcChangePercent(kpis.avgHandleTimeSeconds, prev.avgHandleTimeSeconds) : undefined}
           isNeutral
           subtitle="Duración total promedio"
-          icon={<Clock size={20} className="text-purple-600" />}
-          accent="bg-purple-50"
+          icon={<Clock size={20} className="text-bice-cyan" />}
+          accent="bg-bice-cyan-tint"
         />
 
       </div>
 
       {/* ── Evolución diaria ─────────────────────────────────────── */}
       {trendData.length > 0 && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
           <h3 className="text-sm font-semibold text-slate-700 mb-5 uppercase tracking-wide">
             Evolución diaria de llamadas
           </h3>
@@ -220,12 +220,12 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
             <AreaChart data={trendData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="gradAtt" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#38bdf8" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.04} />
+                  <stop offset="5%"  stopColor="#003A70" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#003A70" stopOpacity={0.02} />
                 </linearGradient>
                 <linearGradient id="gradUnatt" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#f87171" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#f87171" stopOpacity={0.04} />
+                  <stop offset="5%"  stopColor="#c0392b" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#c0392b" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -248,7 +248,7 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
                 type="monotone"
                 dataKey="attended"
                 name="Atendidas"
-                stroke="#0ea5e9"
+                stroke="#003A70"
                 strokeWidth={2}
                 fill="url(#gradAtt)"
                 dot={false}
@@ -258,7 +258,7 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
                 type="monotone"
                 dataKey="unattended"
                 name="Sin atender"
-                stroke="#f87171"
+                stroke="#c0392b"
                 strokeWidth={2}
                 fill="url(#gradUnatt)"
                 dot={false}
@@ -268,11 +268,11 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
           </ResponsiveContainer>
           <div className="flex items-center gap-6 mt-3 justify-center">
             <div className="flex items-center gap-2">
-              <div className="w-4 h-0.5 bg-sky-400 rounded" />
+              <div className="w-4 h-0.5 bg-bice-navy rounded" />
               <span className="text-xs text-slate-500">Atendidas</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-0.5 bg-red-400 rounded" />
+              <div className="w-4 h-0.5 bg-bice-alert rounded" />
               <span className="text-xs text-slate-500">Sin atender</span>
             </div>
           </div>
@@ -283,7 +283,7 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Top 5 colas */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
           <h3 className="text-sm font-semibold text-slate-700 mb-5 uppercase tracking-wide">
             Top colas por volumen
           </h3>
@@ -305,7 +305,7 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-sky-400 transition-all duration-500"
+                      className="h-full rounded-full bg-bice-navy transition-all duration-500"
                       style={{ width: `${(q.count / maxQueueCount) * 100}%` }}
                     />
                   </div>
@@ -319,16 +319,16 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
         <div className="space-y-4">
 
           {/* Tipo de llamada */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
             <h3 className="text-sm font-semibold text-slate-700 mb-4 uppercase tracking-wide">
               Tipo de llamada
             </h3>
             <div className="grid grid-cols-2 gap-3">
               {inbound ? (
-                <div className="bg-sky-50 rounded-xl p-4">
+                <div className="bg-bice-navy-tint rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <PhoneIncoming size={13} className="text-sky-600" />
-                    <span className="text-xs font-semibold text-sky-700 uppercase tracking-wide">Entrantes</span>
+                    <PhoneIncoming size={13} className="text-bice-navy" />
+                    <span className="text-xs font-semibold text-bice-navy uppercase tracking-wide">Entrantes</span>
                   </div>
                   <p className="text-2xl font-bold text-slate-800">{inbound.count.toLocaleString('es-CL')}</p>
                   <p className="text-xs text-slate-500 mt-0.5">{inbound.percentage}% del total</p>
@@ -339,10 +339,10 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
                 </div>
               )}
               {outbound ? (
-                <div className="bg-emerald-50 rounded-xl p-4">
+                <div className="bg-bice-cyan-tint rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <PhoneOutgoing size={13} className="text-emerald-600" />
-                    <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Salientes</span>
+                    <PhoneOutgoing size={13} className="text-bice-cyan" />
+                    <span className="text-xs font-semibold text-bice-cyan uppercase tracking-wide">Salientes</span>
                   </div>
                   <p className="text-2xl font-bold text-slate-800">{outbound.count.toLocaleString('es-CL')}</p>
                   <p className="text-xs text-slate-500 mt-0.5">{outbound.percentage}% del total</p>
@@ -356,7 +356,7 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
           </div>
 
           {/* Top ejecutivos */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Top ejecutivos</h3>
               <span className="text-xs text-slate-400">{activeExecutives} activos</span>
@@ -377,7 +377,7 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
                       </div>
                       <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-violet-400 transition-all duration-500"
+                          className="h-full rounded-full bg-bice-cyan transition-all duration-500"
                           style={{ width: `${(e.count / maxExecCount) * 100}%` }}
                         />
                       </div>
@@ -397,13 +397,13 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
         <button
           type="button"
           onClick={() => onNavigate?.('colas')}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-left hover:border-sky-200 hover:shadow-md transition-all group"
+          className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 text-left hover:border-bice-navy/30 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center">
-              <Layers size={20} className="text-sky-600" />
+            <div className="w-10 h-10 bg-bice-navy-tint rounded-xl flex items-center justify-center">
+              <Layers size={20} className="text-bice-navy" />
             </div>
-            <ArrowRight size={15} className="text-slate-300 group-hover:text-sky-500 group-hover:translate-x-1 transition-all" />
+            <ArrowRight size={15} className="text-slate-300 group-hover:text-bice-navy group-hover:translate-x-1 transition-all" />
           </div>
           <h4 className="font-semibold text-slate-800 mb-1">Análisis de Colas</h4>
           <p className="text-sm text-slate-400 mb-4 leading-relaxed">
@@ -428,13 +428,13 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
         <button
           type="button"
           onClick={() => onNavigate?.('ejecutivos')}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-left hover:border-violet-200 hover:shadow-md transition-all group"
+          className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 text-left hover:border-bice-cyan/30 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center">
-              <Users size={20} className="text-violet-600" />
+            <div className="w-10 h-10 bg-bice-cyan-tint rounded-xl flex items-center justify-center">
+              <Users size={20} className="text-bice-cyan" />
             </div>
-            <ArrowRight size={15} className="text-slate-300 group-hover:text-violet-500 group-hover:translate-x-1 transition-all" />
+            <ArrowRight size={15} className="text-slate-300 group-hover:text-bice-cyan group-hover:translate-x-1 transition-all" />
           </div>
           <h4 className="font-semibold text-slate-800 mb-1">Rendimiento de Ejecutivos</h4>
           <p className="text-sm text-slate-400 mb-4 leading-relaxed">
@@ -457,13 +457,13 @@ export function ExecutiveDashboard({ kpis, previousKpis, onNavigate }: Props) {
         <button
           type="button"
           onClick={() => onNavigate?.('planificacion')}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-left hover:border-emerald-200 hover:shadow-md transition-all group"
+          className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 text-left hover:border-bice-success/30 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-              <Target size={20} className="text-emerald-600" />
+            <div className="w-10 h-10 bg-bice-success-bg rounded-xl flex items-center justify-center">
+              <Target size={20} className="text-bice-success" />
             </div>
-            <ArrowRight size={15} className="text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+            <ArrowRight size={15} className="text-slate-300 group-hover:text-bice-success group-hover:translate-x-1 transition-all" />
           </div>
           <h4 className="font-semibold text-slate-800 mb-1">Planificación de Personal</h4>
           <p className="text-sm text-slate-400 mb-4 leading-relaxed">

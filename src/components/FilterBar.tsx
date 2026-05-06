@@ -120,9 +120,9 @@ function DateRangeDropdown({
         onClick={() => setOpen(o => !o)}
         className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-colors ${
           dateRange !== 'custom'
-            ? 'border-orange-400 bg-orange-50 text-orange-700'
+            ? 'border-bice-navy bg-bice-navy-tint text-bice-navy'
             : dateStart || dateEnd
-              ? 'border-orange-400 bg-orange-50 text-orange-700'
+              ? 'border-bice-navy bg-bice-navy-tint text-bice-navy'
               : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
         }`}
       >
@@ -139,21 +139,21 @@ function DateRangeDropdown({
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute top-full mt-1 left-0 z-20 bg-white border border-slate-200 rounded-xl shadow-lg min-w-[250px] p-3 space-y-3">
             <div className="space-y-2">
-                          {(['thisWeek', 'lastWeek', 'thisMonth', 'lastMonth', 'thisQuarter', 'lastQuarter'] as const).map(opt => (
-                            <button
-                              key={opt}
-                              type="button"
-                              onClick={() => handleSelect(opt)}
-                              className={`w-full text-left text-sm px-3 py-2 rounded-lg transition-colors ${
-                                dateRange === opt
-                                  ? 'bg-orange-100 text-orange-700 font-medium'
-                                  : 'hover:bg-slate-50 text-slate-700'
-                              }`}
-                            >
-                              {labels[opt]}
-                            </button>
-                          ))}
-                        </div>
+              {(['thisWeek', 'lastWeek', 'thisMonth', 'lastMonth', 'thisQuarter', 'lastQuarter'] as const).map(opt => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => handleSelect(opt)}
+                  className={`w-full text-left text-sm px-3 py-2 rounded-lg transition-colors ${
+                    dateRange === opt
+                      ? 'bg-bice-navy-tint text-bice-navy font-medium'
+                      : 'hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  {labels[opt]}
+                </button>
+              ))}
+            </div>
             <div className="border-t border-slate-200 pt-3">
               <p className="text-xs font-medium text-slate-500 mb-2">O personalizado:</p>
               <div className="flex items-center gap-2">
@@ -163,7 +163,7 @@ function DateRangeDropdown({
                   min={minDate}
                   max={dateEnd || maxDate}
                   onChange={e => onChange('custom', e.target.value, dateEnd)}
-                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400"
+                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-bice-cyan/30 focus:border-bice-cyan"
                 />
                 <span className="text-slate-400 text-xs">—</span>
                 <input
@@ -172,7 +172,7 @@ function DateRangeDropdown({
                   min={dateStart || minDate}
                   max={maxDate}
                   onChange={e => onChange('custom', dateStart, e.target.value)}
-                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400"
+                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-bice-cyan/30 focus:border-bice-cyan"
                 />
               </div>
             </div>
@@ -213,13 +213,13 @@ function MultiSelect({
         onClick={() => setOpen(o => !o)}
         className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-colors ${
           selected.length > 0
-            ? 'border-sky-400 bg-sky-50 text-sky-700'
+            ? 'border-bice-cyan bg-bice-cyan-tint text-bice-navy'
             : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
         }`}
       >
         <span>{label}</span>
         {selected.length > 0 && (
-          <span className="bg-sky-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-medium">
+          <span className="bg-bice-cyan text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-medium">
             {selected.length}
           </span>
         )}
@@ -242,7 +242,7 @@ function MultiSelect({
                   type="checkbox"
                   checked={selected.includes(opt)}
                   onChange={() => toggle(opt)}
-                  className="accent-sky-500 rounded"
+                  className="accent-bice-navy rounded"
                 />
                 <span className="text-sm text-slate-700 truncate">{renderOption(opt)}</span>
               </label>
@@ -361,7 +361,7 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
   const activeFilterCount = activeChips.length;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-5 py-4 space-y-3">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 px-5 py-4 space-y-3">
       {/* Collapsed bar: always visible */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 text-slate-500 mr-1">
@@ -387,13 +387,13 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
           onClick={() => setExpanded(e => !e)}
           className={`flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border transition-colors ${
             activeFilterCount > 0
-              ? 'border-sky-400 bg-sky-50 text-sky-700'
+              ? 'border-bice-cyan bg-bice-cyan-tint text-bice-navy'
               : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
           }`}
         >
           <span>Más filtros</span>
           {activeFilterCount > 0 && (
-            <span className="bg-sky-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
+            <span className="bg-bice-cyan text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
               {activeFilterCount}
             </span>
           )}
@@ -405,7 +405,7 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
           <button
             type="button"
             onClick={clearAll}
-            className="flex items-center gap-1 text-sm text-slate-400 hover:text-red-500 transition-colors px-2 py-1.5"
+            className="flex items-center gap-1 text-sm text-slate-400 hover:text-bice-alert transition-colors px-2 py-1.5"
           >
             <X size={13} />
             Limpiar
@@ -424,7 +424,7 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
 
       {/* Expanded filters */}
       {expanded && (
-        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-200">
           {/* Departments multi-select */}
           <MultiSelect
             label="Departamento"
@@ -484,13 +484,13 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
           {activeChips.map(chip => (
             <span
               key={chip.label}
-              className="inline-flex items-center gap-1 bg-sky-50 text-sky-700 text-xs px-2.5 py-1 rounded-full border border-sky-200"
+              className="inline-flex items-center gap-1 bg-bice-navy-tint text-bice-navy text-xs px-2.5 py-1 rounded-full border border-bice-navy/10"
             >
               {chip.label}
               <button
                 type="button"
                 onClick={chip.onRemove}
-                className="hover:text-sky-900 transition-colors"
+                className="hover:text-bice-alert transition-colors"
               >
                 <X size={11} />
               </button>

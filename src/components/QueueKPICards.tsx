@@ -44,9 +44,9 @@ export function QueueKPICards({ stats, totalCalls, previousStats, previousTotalC
         title="Cola principal (por tiempo)"
         currentValue={topQueue ? topQueue.queue : '—'}
         subtitle={topQueue ? `${topQueue.totalDurationFormatted} tiempo total` : ''}
-        icon={<Layers size={20} className="text-sky-600" />}
-        accent="bg-sky-50 text-sky-600"
-        className="border-sky-100"
+        icon={<Layers size={20} className="text-bice-navy" />}
+        accent="bg-bice-navy-tint"
+        className="border-bice-navy/10"
       />
       <KPICardWithComparison
         title="Duración promedio"
@@ -55,9 +55,9 @@ export function QueueKPICards({ stats, totalCalls, previousStats, previousTotalC
         changePercent={prevAvgDuration !== undefined ? calcChangePercent(avgDuration, prevAvgDuration) : undefined}
         isNeutral
         subtitle="Todas las colas"
-        icon={<Clock size={20} className="text-emerald-600" />}
-        accent="bg-emerald-50 text-emerald-600"
-        className="border-emerald-100"
+        icon={<Clock size={20} className="text-bice-cyan" />}
+        accent="bg-bice-cyan-tint"
+        className="border-bice-cyan/10"
       />
       <KPICardWithComparison
         title="% tiempo en cola principal"
@@ -66,9 +66,9 @@ export function QueueKPICards({ stats, totalCalls, previousStats, previousTotalC
         changePercent={prevTopQueue ? calcChangePercent(topQueue?.percentage ?? 0, prevTopQueue.percentage) : undefined}
         isNeutral
         subtitle={topQueue ? 'del tiempo total' : ''}
-        icon={<BarChart2 size={20} className="text-amber-600" />}
-        accent="bg-amber-50 text-amber-600"
-        className="border-amber-100"
+        icon={<BarChart2 size={20} className="text-bice-success" />}
+        accent="bg-bice-success-bg"
+        className="border-bice-success/10"
       />
       <KPICardWithComparison
         title="Sin atender"
@@ -77,9 +77,9 @@ export function QueueKPICards({ stats, totalCalls, previousStats, previousTotalC
         changePercent={calcChangePercent(unattendedPct, prevUnattendedPct)}
         isLowerBetter
         subtitle={totalCalls > 0 ? `${unattendedPct}% del total` : ''}
-        icon={<AlertCircle size={20} className="text-red-500" />}
-        accent="bg-red-50 text-red-500"
-        className="border-red-100"
+        icon={<AlertCircle size={20} className="text-bice-alert" />}
+        accent="bg-bice-alert-bg"
+        className="border-bice-alert/10"
       />
       <KPICardWithComparison
         title="Abandonos en cola"
@@ -88,9 +88,9 @@ export function QueueKPICards({ stats, totalCalls, previousStats, previousTotalC
         changePercent={calcChangePercent(Math.round(totalAbandonedInQueue), prevTotalAbandonedInQueue !== undefined ? Math.round(prevTotalAbandonedInQueue) : undefined)}
         isLowerBetter
         subtitle={totalUnattended > 0 ? `${Math.round((totalAbandonedInQueue / totalUnattended) * 100)}% de abandonos` : ''}
-        icon={<TrendingDown size={20} className="text-orange-600" />}
-        accent="bg-orange-50 text-orange-600"
-        className="border-orange-100"
+        icon={<TrendingDown size={20} className="text-bice-warning" />}
+        accent="bg-bice-warning-bg"
+        className="border-bice-warning/10"
       />
       <KPICardWithComparison
         title="Tasa de rebote"
@@ -99,9 +99,9 @@ export function QueueKPICards({ stats, totalCalls, previousStats, previousTotalC
         changePercent={calcChangePercent(avgBounceRate, prevAvgBounceRate)}
         isLowerBetter
         subtitle="Promedio entre colas"
-        icon={<Zap size={20} className="text-purple-600" />}
-        accent="bg-purple-50 text-purple-600"
-        className="border-purple-100"
+        icon={<Zap size={20} className="text-bice-navy" />}
+        accent="bg-bice-navy-tint"
+        className="border-bice-navy/10"
       />
     </div>
   );

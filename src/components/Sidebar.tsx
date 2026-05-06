@@ -35,19 +35,34 @@ const NAV_ITEMS: NavItemDef[] = [
   { id: 'audit',          label: 'Auditoría',       icon: Shield,          group: 'tools' },
 ];
 
+// BICE Isotipo: 7 horizontal bars
+function BiceIsotipo({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 28 24" fill="currentColor">
+      <rect y="0" width="28" height="2.5" rx="0.5" />
+      <rect y="3.5" width="28" height="2.5" rx="0.5" />
+      <rect y="7" width="28" height="2.5" rx="0.5" />
+      <rect y="10.5" width="28" height="2.5" rx="0.5" />
+      <rect y="14" width="28" height="2.5" rx="0.5" />
+      <rect y="17.5" width="28" height="2.5" rx="0.5" />
+      <rect y="21" width="28" height="2.5" rx="0.5" />
+    </svg>
+  );
+}
+
 function DataQualityDot({ quality }: { quality: DataQualityReport | null }) {
   if (!quality) return null;
 
   const hasCritical = quality.criticalIssues.handleTimeCorrupted > 0 || quality.criticalIssues.technicalCutsAsAttended > 0;
   const hasWarning = quality.handleTimeCorrupted > 0 || quality.technicalCuts > 0;
 
-  let colorClass = 'bg-emerald-400';
+  let colorClass = 'bg-bice-success';
   let label = 'Datos limpios';
   if (hasCritical) {
-    colorClass = 'bg-red-400';
+    colorClass = 'bg-bice-alert';
     label = 'Anomalías detectadas';
   } else if (hasWarning) {
-    colorClass = 'bg-amber-400';
+    colorClass = 'bg-bice-warning';
     label = 'Advertencias';
   }
 
@@ -73,15 +88,15 @@ export function Sidebar({ activeSection, onNavigate, agentStatusCount, dataQuali
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
-      {/* Logo area */}
-      <div className="px-5 py-4 border-b border-slate-100">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-sky-600 flex items-center justify-center flex-shrink-0">
-            <PhoneCall size={14} className="text-white" />
+      {/* Logo area with BICE isotipo */}
+      <div className="px-5 py-5 border-b border-slate-200">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-7 text-bice-navy flex-shrink-0">
+            <BiceIsotipo className="w-full h-full" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-slate-800 leading-none truncate">Dashboard</p>
-            <p className="text-[10px] text-slate-400 mt-0.5 truncate">Llamadas</p>
+            <p className="text-sm font-bold text-bice-navy leading-none truncate">BICE Hipotecaria</p>
+            <p className="text-[10px] text-slate-400 mt-0.5 truncate tracking-wide uppercase">Dashboard de Llamadas</p>
           </div>
         </div>
       </div>
@@ -91,7 +106,7 @@ export function Sidebar({ activeSection, onNavigate, agentStatusCount, dataQuali
         <button
           type="button"
           onClick={() => { onUploadClick(); setMobileOpen(false); }}
-          className="w-full flex items-center justify-center gap-2 text-xs font-medium bg-sky-600 hover:bg-sky-700 text-white px-3 py-2 rounded-lg transition-colors"
+          className="w-full flex items-center justify-center gap-2 text-xs font-medium bg-bice-navy hover:bg-bice-navy-dark text-white px-3 py-2.5 rounded-lg transition-colors shadow-sm"
         >
           <UploadCloud size={14} />
           Cargar CSV
@@ -114,15 +129,15 @@ export function Sidebar({ activeSection, onNavigate, agentStatusCount, dataQuali
               onClick={() => handleNavigate(item.id)}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                 isActive
-                  ? 'bg-slate-800 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                  ? 'bg-bice-navy text-white shadow-sm'
+                  : 'text-slate-500 hover:text-bice-navy hover:bg-bice-navy-tint'
               }`}
             >
               <Icon size={16} />
               <span>{item.label}</span>
               {showBadge && (
                 <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
-                  isActive ? 'bg-emerald-400 text-white' : 'bg-emerald-100 text-emerald-700'
+                  isActive ? 'bg-bice-cyan text-bice-navy' : 'bg-bice-cyan-tint text-bice-cyan'
                 }`}>
                   {agentStatusCount}
                 </span>
@@ -132,7 +147,7 @@ export function Sidebar({ activeSection, onNavigate, agentStatusCount, dataQuali
         })}
 
         {/* Tools section (collapsible) */}
-        <div className="pt-3 mt-3 border-t border-slate-100">
+        <div className="pt-3 mt-3 border-t border-slate-200">
           <button
             type="button"
             onClick={() => setToolsOpen(o => !o)}
@@ -153,8 +168,8 @@ export function Sidebar({ activeSection, onNavigate, agentStatusCount, dataQuali
                     onClick={() => handleNavigate(item.id)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                       isActive
-                        ? 'bg-slate-800 text-white shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                        ? 'bg-bice-navy text-white shadow-sm'
+                        : 'text-slate-500 hover:text-bice-navy hover:bg-bice-navy-tint'
                     }`}
                   >
                     <Icon size={16} />
@@ -168,7 +183,7 @@ export function Sidebar({ activeSection, onNavigate, agentStatusCount, dataQuali
       </nav>
 
       {/* Footer: data quality indicator */}
-      <div className="px-5 py-3 border-t border-slate-100">
+      <div className="px-5 py-3 border-t border-slate-200">
         <DataQualityDot quality={dataQuality} />
       </div>
     </div>
@@ -180,7 +195,7 @@ export function Sidebar({ activeSection, onNavigate, agentStatusCount, dataQuali
       <button
         type="button"
         onClick={() => setMobileOpen(o => !o)}
-        className="fixed top-3 left-3 z-50 md:hidden w-9 h-9 rounded-lg bg-white border border-slate-200 shadow-sm flex items-center justify-center"
+        className="fixed top-3 left-3 z-50 md:hidden w-9 h-9 rounded-lg  bg-white border border-slate-200 shadow-sm flex items-center justify-center"
       >
         {mobileOpen ? <X size={16} className="text-slate-600" /> : <Menu size={16} className="text-slate-600" />}
       </button>
@@ -195,7 +210,7 @@ export function Sidebar({ activeSection, onNavigate, agentStatusCount, dataQuali
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-40 h-full w-56 bg-white border-r border-slate-100 flex flex-col transition-transform duration-200 md:translate-x-0 md:static md:z-0 ${
+        className={`fixed top-0 left-0 z-40 h-full w-56 bg-white border-r border-slate-200 flex flex-col transition-transform duration-200 md:translate-x-0 md:static md:z-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

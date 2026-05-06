@@ -43,25 +43,25 @@ export function ExecutiveKPICards({ stats, previousStats }: Props) {
         title="Top ejecutivo"
         currentValue={topVolume ? topVolume.executive : '—'}
         subtitle={topVolume ? `${topVolume.count.toLocaleString('es-CL')} llamadas` : ''}
-        icon={<Trophy size={20} className="text-sky-600" />}
-        accent="bg-sky-50 text-sky-600"
-        className="border-sky-100"
+        icon={<Trophy size={20} className="text-bice-navy" />}
+        accent="bg-bice-navy-tint"
+        className="border-bice-navy/10"
       />
       <KPICardWithComparison
         title="Mayor duración prom."
         currentValue={topAvgDuration ? topAvgDuration.avgDurationFormatted : '—'}
         subtitle={topAvgDuration ? topAvgDuration.executive : ''}
-        icon={<Clock size={20} className="text-amber-600" />}
-        accent="bg-amber-50 text-amber-600"
-        className="border-amber-100"
+        icon={<Clock size={20} className="text-bice-cyan" />}
+        accent="bg-bice-cyan-tint"
+        className="border-bice-cyan/10"
       />
       <KPICardWithComparison
         title="Mayor tiempo teléfono"
         currentValue={topTotalTime ? topTotalTime.totalDurationFormatted : '—'}
         subtitle={topTotalTime ? topTotalTime.executive : ''}
-        icon={<Phone size={20} className="text-emerald-600" />}
-        accent="bg-emerald-50 text-emerald-600"
-        className="border-emerald-100"
+        icon={<Phone size={20} className="text-bice-success" />}
+        accent="bg-bice-success-bg"
+        className="border-bice-success/10"
       />
       <KPICardWithComparison
         title="Ejecutivos activos"
@@ -70,16 +70,16 @@ export function ExecutiveKPICards({ stats, previousStats }: Props) {
         changePercent={calcChangePercent(totalActive, prevTotalActive)}
         subtitle="Con llamadas atendidas"
         icon={<Users size={20} className="text-slate-600" />}
-        accent="bg-slate-100 text-slate-600"
-        className="border-slate-100"
+        accent="bg-slate-100"
+        className="border-slate-200"
       />
       <KPICardWithComparison
         title="Mayor tiempo manejo"
         currentValue={topHandleTime ? formatDuration(topHandleTime.avgHandleTimeSeconds) : '—'}
         subtitle={topHandleTime ? `${topHandleTime.executive}` : ''}
-        icon={<Zap size={20} className="text-purple-600" />}
-        accent="bg-purple-50 text-purple-600"
-        className="border-purple-100"
+        icon={<Zap size={20} className="text-bice-warning" />}
+        accent="bg-bice-warning-bg"
+        className="border-bice-warning/10"
       />
       <KPICardWithComparison
         title="Rebote promedio"
@@ -88,9 +88,9 @@ export function ExecutiveKPICards({ stats, previousStats }: Props) {
         changePercent={calcChangePercent(avgBounceRate, prevAvgBounceRate)}
         isLowerBetter
         subtitle={topBounceRate ? `Max: ${topBounceRate.executive}` : ''}
-        icon={<AlertOctagon size={20} className="text-orange-600" />}
-        accent="bg-orange-50 text-orange-600"
-        className="border-orange-100"
+        icon={<AlertOctagon size={20} className="text-bice-alert" />}
+        accent="bg-bice-alert-bg"
+        className="border-bice-alert/10"
       />
     </div>
   );

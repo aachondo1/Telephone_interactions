@@ -90,7 +90,7 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData, 
 
   if (!agg) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
         <p className="text-slate-500">Sin datos disponibles</p>
       </div>
     );
@@ -98,11 +98,11 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData, 
 
   const getDiagnosis = (asa: number, ata: number) => {
     if (asa > ata) {
-      return { message: 'Equipo lento', color: 'bg-red-50 text-red-600', border: 'border-red-100' };
+      return { message: 'Equipo lento', color: 'bg-bice-alert-bg text-bice-alert', border: 'border-bice-alert/20' };
     } else if (asa < ata) {
-      return { message: 'Equipo rápido', color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' };
+      return { message: 'Equipo rápido', color: 'bg-bice-success-bg text-bice-success', border: 'border-bice-success/20' };
     }
-    return { message: 'En el límite', color: 'bg-amber-50 text-amber-600', border: 'border-amber-100' };
+    return { message: 'En el límite', color: 'bg-bice-warning-bg text-bice-warning', border: 'border-bice-warning/20' };
   };
   const diagnosis = getDiagnosis(agg.asaSeconds, agg.ataSeconds);
 
@@ -115,8 +115,8 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData, 
       previousValue: prevAgg ? `${prevAgg.serviceLevelPercent}%` : undefined,
       sub: 'Espera perceptual ≤ 20s',
       icon: TrendingUp,
-      color: agg.serviceLevelPercent >= 80 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600',
-      border: agg.serviceLevelPercent >= 80 ? 'border-emerald-100' : 'border-red-100',
+      color: agg.serviceLevelPercent >= 80 ? 'bg-bice-success-bg text-bice-success' : 'bg-bice-alert-bg text-bice-alert',
+      border: agg.serviceLevelPercent >= 80 ? 'border-bice-success/20' : 'border-bice-alert/20',
       benchmark: '≥ 80%',
       tooltip: {
         definition: 'Porcentaje de llamadas atendidas dentro de 20 segundos (INCLUYENDO tiempo en cola + tiempo en alerta)',
@@ -134,8 +134,8 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData, 
       isLowerBetter: true,
       sub: 'Clientes perdidos',
       icon: TrendingDown,
-      color: agg.abandonmentRatePercent <= 10 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600',
-      border: agg.abandonmentRatePercent <= 10 ? 'border-emerald-100' : 'border-orange-100',
+      color: agg.abandonmentRatePercent <= 10 ? 'bg-bice-success-bg text-bice-success' : 'bg-bice-warning-bg text-bice-warning',
+      border: agg.abandonmentRatePercent <= 10 ? 'border-bice-success/20' : 'border-bice-warning/20',
       benchmark: '≤ 10%',
       tooltip: {
         definition: 'Porcentaje de clientes que cuelgan antes de ser atendidos (en cola o alerta)',
@@ -153,8 +153,8 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData, 
       isLowerBetter: true,
       sub: 'Solo llamadas atendidas (perceptual)',
       icon: Clock,
-      color: 'bg-blue-50 text-blue-600',
-      border: 'border-blue-100',
+      color: 'bg-bice-navy-tint text-bice-navy',
+      border: 'border-bice-navy/10',
       benchmark: 'Menor es mejor',
       tooltip: {
         definition: 'Tiempo promedio de espera PERCEPTUAL (en cola + en alerta) de llamadas atendidas',
@@ -194,8 +194,8 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData, 
       isLowerBetter: true,
       sub: 'De llamadas atendidas',
       icon: PhoneOff,
-      color: 'bg-purple-50 text-purple-600',
-      border: 'border-purple-100',
+      color: 'bg-bice-navy-tint text-bice-navy',
+      border: 'border-bice-navy/10',
       benchmark: 'Menor es mejor',
       tooltip: {
         definition: 'Porcentaje de llamadas atendidas que fueron devueltas a cola (alert_segments > 1)',
@@ -213,8 +213,8 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData, 
       isLowerBetter: true,
       sub: 'De llamadas inbound',
       icon: TrendingDown,
-      color: operationalKPIs.menuAbandonRatePercent <= 10 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600',
-      border: operationalKPIs.menuAbandonRatePercent <= 10 ? 'border-emerald-100' : 'border-orange-100',
+      color: operationalKPIs.menuAbandonRatePercent <= 10 ? 'bg-bice-success-bg text-bice-success' : 'bg-bice-warning-bg text-bice-warning',
+      border: operationalKPIs.menuAbandonRatePercent <= 10 ? 'border-bice-success/20' : 'border-bice-warning/20',
       benchmark: '≤ 10%',
       tooltip: {
         definition: 'Porcentaje de llamadas que abandonaron en el IVR después de 10 segundos (indicativo de confusión/frustración)',
@@ -231,8 +231,8 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData, 
       previousValue: previousOperationalKPIs ? `${previousOperationalKPIs.alertSuccessRatio}%` : undefined,
       sub: 'Probabilidad de respuesta',
       icon: Activity,
-      color: 'bg-emerald-50 text-emerald-600',
-      border: 'border-emerald-100',
+      color: 'bg-bice-success-bg text-bice-success',
+      border: 'border-bice-success/20',
       benchmark: 'Mayor es mejor',
       tooltip: {
         definition: 'Probabilidad de que un ejecutivo atienda una alerta (inversión de tasa de no responden)',
@@ -253,8 +253,8 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData, 
       isNeutral: true,
       sub: 'Intensidad de tráfico',
       icon: Zap,
-      color: agg.erlangC <= 0.8 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600',
-      border: agg.erlangC <= 0.8 ? 'border-emerald-100' : 'border-amber-100',
+      color: agg.erlangC <= 0.8 ? 'bg-bice-success-bg text-bice-success' : 'bg-bice-warning-bg text-bice-warning',
+      border: agg.erlangC <= 0.8 ? 'border-bice-success/20' : 'border-bice-warning/20',
       benchmark: '≤ 0.8 ideal',
       tooltip: {
         definition: 'Intensidad de tráfico normalizada: promedio de agentes ocupados durante el período',
@@ -271,8 +271,8 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData, 
       value: funnelData.abandonInQueue.toLocaleString('es-ES'),
       sub: 'Nunca asignadas a agente',
       icon: PhoneOff,
-      color: 'bg-red-50 text-red-600',
-      border: 'border-red-100',
+      color: 'bg-bice-alert-bg text-bice-alert',
+      border: 'border-bice-alert/20',
       benchmark: 'Estado 1',
       tooltip: {
         definition: 'Llamadas abandonadas en cola sin ser asignadas a un agente (alert_time = 0)',
@@ -286,8 +286,8 @@ export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData, 
       value: funnelData.abandonInAlert.toLocaleString('es-ES'),
       sub: 'Asignadas pero no contestadas',
       icon: PhoneOff,
-      color: 'bg-amber-50 text-amber-600',
-      border: 'border-amber-100',
+      color: 'bg-bice-warning-bg text-bice-warning',
+      border: 'border-bice-warning/20',
       benchmark: 'Estado 2',
       tooltip: {
         definition: 'Llamadas asignadas a un agente pero no contestadas (alert_time > 0, conversation = 0)',
@@ -407,7 +407,7 @@ function ChangeIndicator({
 
   let color = 'text-slate-400';
   if (!isNeutral) {
-    color = isImprovement ? 'text-emerald-600' : 'text-red-500';
+    color = isImprovement ? 'text-bice-success' : 'text-bice-alert';
   }
 
   const Arrow = isPositive ? '↑' : '↓';

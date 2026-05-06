@@ -9,10 +9,10 @@ type Props = {
 
 export function SectionHeader({ icon: Icon, title, description, actions }: Props) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+    <div className="flex flex-wrap items-start justify-between gap-3 mb-6 pb-4 border-b border-slate-200">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
-          <Icon size={18} className="text-slate-600" />
+        <div className="w-10 h-10 rounded-xl bg-bice-navy-tint flex items-center justify-center flex-shrink-0">
+          <Icon size={20} className="text-bice-navy" />
         </div>
         <div className="min-w-0">
           <h2 className="text-lg font-bold text-slate-800 leading-tight truncate">{title}</h2>
