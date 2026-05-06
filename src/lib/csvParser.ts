@@ -28,12 +28,39 @@ export function parseCSVText(text: string): { headers: string[]; rows: string[][
   return { headers, rows };
 }
 
-// ... existing imports (keep them all) ...
-// ❌ REMOVE THIS LINE if present: import { crypto } from 'crypto'; 
+// ... rest of existing imports and code ...
 
-// ... rest of the file ...
+// Helper: clean phone number
+export function cleanPhone(phone: string): string {
+  if (!phone) return '';
+  return phone
+    .replace(/^sip:[^@]*/i, '')  // sip:number@domain -> keep number part
+    .replace(/^sip:/i, '')
+    .replace(/@.*$/, '')
+    .replace(/[^0-9+]/g, '')
+    .replace(/^\+/, '');
+}
 
-// Find the generateCallSignature function and replace it with this version:
+// Helper: hash phone
+export async function hashPhone(phone: string): Promise<string> {
+  const cleaned = cleanPhone(phone);
+  if (!cleaned) return '';
+  const encoder = new TextEncoder();
+  const data = encoder.encode(cleaned);
+  const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Helper: mask phone
+export function maskPhone(phone: string): string {
+  const cleaned = cleanPhone(phone);
+  if (!cleaned) return '';
+  if (cleaned.length <= 4) return cleaned;
+  return cleaned.slice(0, 2) + '****' + cleaned.slice(-4);
+}
+
+// New function: Generate unique signature for deduplication
 export async function generateCallSignature(
   callDate: string | null,
   callTime: string | null,
@@ -57,18 +84,115 @@ export async function generateCallSignature(
   // ✅ Use Web Crypto API (Standard, works in Browser + Node v15+)
   const encoder = new TextEncoder();
   const data = encoder.encode(fullString);
-  
-  // Use globalThis.crypto which is available in modern browsers and Node
-  const cryptoApi = globalThis.crypto;
-  if (!cryptoApi || !cryptoApi.subtle) {
-    console.warn('Web Crypto API not available, falling back to simple hash');
-    // Simple fallback for environments without subtle (shouldn't happen in modern setups)
-    return btoa(fullString); 
-  }
-
-  const hashBuffer = await cryptoApi.subtle.digest('SHA-256', data);
+  const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// ... rest of the file (transformRows, detectColumns, etc.) ...
+// filterOverlappingCalls function
+export function filterOverlappingCalls(records: any[]): { records: any[]; canceledCount: number } {
+  let canceledCount = 0;
+  
+  // Group by executive and date
+  const recordsByDateAndExecutive: Record<string, any[]> = {};
+  
+  for (const record of records) {
+    if (!record.executives || record.executives.length === 0) continue;
+    const key = `${record.callDate}_${record.executives[0]}`;
+    if (!recordsByDateAndExecutive[key]) {
+      recordsByDateAndExecutive[key] = [];
+    }
+    recordsByDateAndExecutive[key].push(record);
+  }
+  
+  // Mark overlapping calls
+  const markedRecords = records.map(r => ({ ...r }));
+  
+  for (const key in recordsByDateAndExecutive) {
+    const callsForExecutive = recordsByDateAndExecutive[key];
+    // Sort by call time
+    callsForExecutive.sort((a, b) => {
+      const timeA = a.callTime || '';
+      const timeB = b.callTime || '';
+      return timeA.localeCompare(timeB);
+    });
+    
+    for (let i = 0; i < callsForExecutive.length; i++) {
+      for (let j = i + 1; j < callsForExecutive.length; j++) {
+        const callA = callsForExecutive[i];
+        const callB = callsForExecutive[j];
+        
+        // If call B starts after call A ends, no more overlaps
+        if (callB.callTime > callA.callTime) {
+          const timeASeconds = timeToSeconds(callA.callTime) + (callA.durationSeconds || 0);
+          const timeBSeconds = timeToSeconds(callB.callTime);
+          if (timeBSeconds >= timeASeconds) break;
+        }
+        
+        // Mark as overlapping
+        const markedA = markedRecords.find(r => r.originalCallId === callA.originalCallId);
+        const markedB = markedRecords.find(r => r.originalCallId === callB.originalCallId);
+        
+        if (markedA && markedB && !markedA.isOverlapping && !markedB.isOverlapping) {
+          markedB.isOverlapping = true;
+          canceledCount++;
+        }
+      }
+    }
+  }
+  
+  return { records: markedRecords, canceledCount };
+}
+
+// Helper: convert time string to seconds
+function timeToSeconds(timeStr: string): number {
+  if (!timeStr) return 0;
+  const parts = timeStr.split(':').map(Number);
+  if (parts.length < 2) return 0;
+  const hours = parts[0] || 0;
+  const minutes = parts[1] || 0;
+  const seconds = parts[2] || 0;
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
+// ... rest of the file (transformRows, detectColumns, validateColumns, etc.) ...
+// Make sure transformRows uses generateCallSignature correctly:
+
+export async function transformRows(
+  rows: RawCallRecord[],
+  columnMap: Record<string, string>,
+  processedSignatures?: Set<string>
+): Promise<{ records: ParsedCallRecord[]; duplicateCount: number; anomalies: any[] }> {
+  const records: ParsedCallRecord[] = [];
+  const anomalies: any[] = [];
+  let duplicateCount = 0;
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    // ... existing parsing code ...
+    
+    // Check for duplicates if signatures provided
+    if (processedSignatures && callDate && callTime) {
+      const signature = await generateCallSignature(
+        callDate,
+        callTime,
+        hash,
+        durationSeconds,
+        direction,
+        queueTimeSeconds,
+        ivrTotalSeconds
+      );
+
+      if (processedSignatures.has(signature)) {
+        duplicateCount++;
+        continue;
+      }
+    }
+
+    // ... rest of the loop ...
+  }
+
+  return { records, duplicateCount, anomalies };
+}
+
+// ... existing interfaces (RawCallRecord, ParsedCallRecord, etc.) ...
