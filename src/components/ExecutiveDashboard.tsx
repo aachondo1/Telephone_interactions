@@ -9,11 +9,35 @@ import {
 } from 'lucide-react';
 import type { KPISummary } from '../lib/kpi';
 import type { CallRecord } from '../lib/supabase';
+import type { FilterState } from './FilterBar';
+import { getMondayKey, weekLabel, monthLabel, MONTH_LABELS } from '../lib/kpi/shared';
 import { SectionHeader } from './SectionHeader';
 
 const BICE_BLUE = '#326295';
 const BICE_GREEN = '#84BD00';
 const BICE_GRAY = '#94a3b8';
+
+type Granularity = 'hour' | 'day' | 'week' | 'month';
+
+function getGranularity(days: number): Granularity {
+  if (days <= 7) return 'hour';
+  if (days <= 60) return 'day';
+  if (days <= 180) return 'week';
+  return 'month';
+}
+
+function getTickInterval(granularity: Granularity, length: number): number {
+  switch (granularity) {
+    case 'hour':
+      return Math.max(0, Math.floor(length / 6) - 1);
+    case 'day':
+      return Math.max(0, Math.floor(length / 10) - 1);
+    case 'week':
+      return Math.max(0, Math.floor(length / 8) - 1);
+    case 'month':
+      return length > 12 ? Math.floor(length / 6) : 0;
+  }
+}
 
 function isInboundDir(dir: string): boolean {
   const d = (dir || '').toLowerCase();
@@ -68,44 +92,95 @@ function calcDirectorKPIs(records: CallRecord[]): DirectorKPIs {
   };
 }
 
-type FunnelDay = { date: string; label: string; entrantes: number; aCola: number; contestadas: number };
+type FunnelPoint = { date: string; label: string; entrantes: number; aCola: number; contestadas: number };
 
-function calcDailyFunnel(records: CallRecord[]): FunnelDay[] {
-  const map = new Map<string, { entrantes: number; aCola: number; contestadas: number }>();
+function calcFunnelByGranularity(records: CallRecord[], granularity: Granularity): FunnelPoint[] {
+  const map = new Map<string, { key: string; label: string; entrantes: number; aCola: number; contestadas: number }>();
+
   for (const r of records) {
     if (!isInboundDir(r.call_direction) || !r.call_date) continue;
-    if (!map.has(r.call_date)) map.set(r.call_date, { entrantes: 0, aCola: 0, contestadas: 0 });
-    const d = map.get(r.call_date)!;
+
+    let key = '';
+    let label = '';
+
+    if (granularity === 'hour') {
+      const hour = r.call_hour ?? 0;
+      key = `${r.call_date}:${hour}`;
+      label = `${String(hour).padStart(2, '0')}:00`;
+    } else if (granularity === 'day') {
+      key = r.call_date;
+      label = new Date(r.call_date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+    } else if (granularity === 'week') {
+      key = getMondayKey(r.call_date);
+      label = weekLabel(key);
+    } else {
+      const [year, month] = r.call_date.split('-');
+      key = `${year}-${month}`;
+      label = monthLabel(key);
+    }
+
+    if (!map.has(key)) {
+      map.set(key, { key, label, entrantes: 0, aCola: 0, contestadas: 0 });
+    }
+    const d = map.get(key)!;
     d.entrantes++;
     if (r.flow_exit !== false && (r.queue_time_seconds ?? 0) >= 1) d.aCola++;
     if ((r.conversation_total_seconds ?? 0) > 0) d.contestadas++;
   }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, counts]) => ({
-      date,
-      label: new Date(date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }),
-      ...counts,
+
+  return Array.from(map.values())
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map(({ key, label, entrantes, aCola, contestadas }) => ({
+      date: key,
+      label,
+      entrantes,
+      aCola,
+      contestadas,
     }));
 }
 
 type OutboundDay = { date: string; label: string; efectivos: number; fallidos: number };
 
-function calcDailyOutbound(records: CallRecord[]): OutboundDay[] {
-  const map = new Map<string, { efectivos: number; fallidos: number }>();
+function calcOutboundByGranularity(records: CallRecord[], granularity: Granularity): OutboundDay[] {
+  const map = new Map<string, { key: string; label: string; efectivos: number; fallidos: number }>();
+
   for (const r of records) {
     if (isInboundDir(r.call_direction) || !r.call_date) continue;
-    if (!map.has(r.call_date)) map.set(r.call_date, { efectivos: 0, fallidos: 0 });
-    const d = map.get(r.call_date)!;
+
+    let key = '';
+    let label = '';
+
+    if (granularity === 'hour') {
+      const hour = r.call_hour ?? 0;
+      key = `${r.call_date}:${hour}`;
+      label = `${String(hour).padStart(2, '0')}:00`;
+    } else if (granularity === 'day') {
+      key = r.call_date;
+      label = new Date(r.call_date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+    } else if (granularity === 'week') {
+      key = getMondayKey(r.call_date);
+      label = weekLabel(key);
+    } else {
+      const [year, month] = r.call_date.split('-');
+      key = `${year}-${month}`;
+      label = monthLabel(key);
+    }
+
+    if (!map.has(key)) {
+      map.set(key, { key, label, efectivos: 0, fallidos: 0 });
+    }
+    const d = map.get(key)!;
     if ((r.conversation_total_seconds ?? 0) > 10) d.efectivos++;
     else d.fallidos++;
   }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, counts]) => ({
-      date,
-      label: new Date(date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }),
-      ...counts,
+
+  return Array.from(map.values())
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map(({ key, label, efectivos, fallidos }) => ({
+      date: key,
+      label,
+      efectivos,
+      fallidos,
     }));
 }
 
@@ -188,17 +263,25 @@ function FunnelTooltip({ active, payload, label }: { active?: boolean; payload?:
 type Props = {
   kpis: KPISummary;
   records: CallRecord[];
+  filters: FilterState;
   onNavigate?: (tab: string) => void;
 };
 
-export function ExecutiveDashboard({ kpis, records, onNavigate: _onNavigate }: Props) {
+export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavigate }: Props) {
   const [currentRecords, prevRecords] = useMemo(() => splitHalves(records), [records]);
 
   const curr = useMemo(() => calcDirectorKPIs(currentRecords), [currentRecords]);
   const prev = useMemo(() => calcDirectorKPIs(prevRecords), [prevRecords]);
 
-  const funnelData = useMemo(() => calcDailyFunnel(records), [records]);
-  const outboundData = useMemo(() => calcDailyOutbound(records), [records]);
+  const granularity = useMemo(() => {
+    const startDate = new Date(filters.dateStart + 'T00:00:00');
+    const endDate = new Date(filters.dateEnd + 'T23:59:59');
+    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    return getGranularity(days);
+  }, [filters.dateStart, filters.dateEnd]);
+
+  const funnelData = useMemo(() => calcFunnelByGranularity(records, granularity), [records, granularity]);
+  const outboundData = useMemo(() => calcOutboundByGranularity(records, granularity), [records, granularity]);
 
   const topQueues = useMemo(
     () => kpis.queueStats.filter(q => q.queue !== 'Sin cola').slice(0, 8),
@@ -220,8 +303,8 @@ export function ExecutiveDashboard({ kpis, records, onNavigate: _onNavigate }: P
 
   const hasPrev = prevRecords.length > 0;
 
-  const tickInterval = Math.max(0, Math.floor(funnelData.length / 10) - 1);
-  const outboundTickInterval = Math.max(0, Math.floor(outboundData.length / 10) - 1);
+  const tickInterval = getTickInterval(granularity, funnelData.length);
+  const outboundTickInterval = getTickInterval(granularity, outboundData.length);
 
   return (
     <div className="space-y-6">
