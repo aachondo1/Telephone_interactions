@@ -195,7 +195,7 @@ export async function saveAgentStatusUpload(
 
   const upload = uploadData as AgentStatusUpload;
 
-  const records = rows.map(r => ({
+  const candidates = rows.map(r => ({
     upload_id:           upload.id,
     agent_id:            r.agentId,
     agent_name:          r.agentName,
@@ -206,8 +206,28 @@ export async function saveAgentStatusUpload(
     out_of_queue_seconds: r.outOfQueueSeconds,
   }));
 
-  const { error } = await supabase.from('agent_status_records').insert(records);
-  if (error) throw new Error(`Error al guardar registros de estado: ${error.message}`);
+  // Dedup at app level before insert because PostgREST cannot resolve conflicts
+  // on functional indexes (which are needed to handle NULL dates in the unique index).
+  const agentIds = candidates.map(r => r.agent_id);
+  const { data: existing } = await supabase
+    .from('agent_status_records')
+    .select('agent_id, date_range_start, date_range_end')
+    .in('agent_id', agentIds);
+
+  const existingKeys = new Set(
+    (existing ?? []).map(r =>
+      `${r.agent_id}|${r.date_range_start ?? 'null'}|${r.date_range_end ?? 'null'}`
+    )
+  );
+
+  const records = candidates.filter(
+    r => !existingKeys.has(`${r.agent_id}|${r.date_range_start ?? 'null'}|${r.date_range_end ?? 'null'}`)
+  );
+
+  if (records.length > 0) {
+    const { error } = await supabase.from('agent_status_records').insert(records);
+    if (error) throw new Error(`Error al guardar registros de estado: ${error.message}`);
+  }
 
   return { upload, savedCount: rows.length };
 }
@@ -270,19 +290,32 @@ export async function getAllAgentStatusUploads(): Promise<Array<{ upload: AgentS
 export function combineAgentStatusRecords(
   uploads: Array<{ upload: AgentStatusUpload; records: AgentStatusRecord[] }>
 ): AgentStatusRecord[] {
-  const seenKey = new Set<string>();
-  const deduped: AgentStatusRecord[] = [];
+  // Group by agent and SUM their time across different periods (March + April + May → one row).
+  // Track seen periods per agent to avoid double-counting when the same file is loaded twice.
+  type MergedEntry = { record: AgentStatusRecord; seenPeriods: Set<string> };
+  const agentMap = new Map<string, MergedEntry>();
 
-  // Process uploads in reverse order (newest first) so we keep the latest version
   for (const { records } of [...uploads].reverse()) {
     for (const record of records) {
-      const key = `${record.agent_id}|${record.date_range_start}|${record.date_range_end}`;
-      if (!seenKey.has(key)) {
-        seenKey.add(key);
-        deduped.push(record);
+      const agentKey = record.agent_id || record.agent_name;
+      const periodKey = `${record.date_range_start ?? 'null'}|${record.date_range_end ?? 'null'}`;
+
+      if (!agentMap.has(agentKey)) {
+        agentMap.set(agentKey, {
+          record: { ...record },
+          seenPeriods: new Set([periodKey]),
+        });
+      } else {
+        const entry = agentMap.get(agentKey)!;
+        if (!entry.seenPeriods.has(periodKey)) {
+          entry.seenPeriods.add(periodKey);
+          entry.record.connected_seconds    += record.connected_seconds;
+          entry.record.in_queue_seconds     += record.in_queue_seconds;
+          entry.record.out_of_queue_seconds += record.out_of_queue_seconds;
+        }
       }
     }
   }
 
-  return deduped;
+  return Array.from(agentMap.values()).map(e => e.record);
 }

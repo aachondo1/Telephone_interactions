@@ -111,7 +111,7 @@ Para esos archivos, por favor usa: Importar → Conectividad de Agentes (Timelin
     if (connectedSeconds === 0 && inQueueSeconds === 0 && outOfQueueSeconds === 0) continue;
 
     result.push({
-      agentId:           colAgentId ? (row[colAgentId] ?? '').trim() : '',
+      agentId:           colAgentId ? (row[colAgentId] ?? '').trim() : agentName,
       agentName,
       dateRangeStart:    colStart ? parseAgentDate(row[colStart] ?? '') : null,
       dateRangeEnd:      colEnd   ? parseAgentDate(row[colEnd] ?? '')   : null,
