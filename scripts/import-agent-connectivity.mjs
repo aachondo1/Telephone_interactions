@@ -21,13 +21,57 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
+ * Parse Spanish date format: DD-MM-YYYY HH:MM or DD-MM-YYYY HH:MM:SS
+ */
+function parseSpanishDateTime(dateStr) {
+  if (!dateStr) return null;
+  const trimmed = String(dateStr).trim();
+  const match = trimmed.match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!match) {
+    console.warn(`⚠️  Formato de fecha no reconocido: "${trimmed}"`);
+    return null;
+  }
+  const [, day, month, year, hour, minute, second] = match;
+  const dateObj = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second || '00'}`);
+  if (isNaN(dateObj.getTime())) {
+    console.warn(`⚠️  Fecha inválida: "${trimmed}"`);
+    return null;
+  }
+  return dateObj;
+}
+
+/**
+ * Parse duration string like "3d 20h 1m 26s" to seconds
+ */
+function parseDurationToSeconds(durationStr) {
+  if (!durationStr) return 0;
+  const str = String(durationStr).trim().toLowerCase();
+  let totalSeconds = 0;
+
+  const dayMatch = str.match(/(\d+)\s*d(?:ía)?/);
+  if (dayMatch) totalSeconds += parseInt(dayMatch[1], 10) * 86400;
+
+  const hourMatch = str.match(/(\d+)\s*h(?:ora)?/);
+  if (hourMatch) totalSeconds += parseInt(hourMatch[1], 10) * 3600;
+
+  const minMatch = str.match(/(\d+)\s*m(?:in)?/);
+  if (minMatch) totalSeconds += parseInt(minMatch[1], 10) * 60;
+
+  const secMatch = str.match(/(\d+)\s*s(?:eg)?/);
+  if (secMatch) totalSeconds += parseInt(secMatch[1], 10);
+
+  return totalSeconds;
+}
+
+/**
  * Parse CSV file and import agent connectivity data
- * Expected columns in CSV:
- * - "Nombre del agente" or "Agent Name" → agent_name
- * - "Hora de inicio" or "Start Time" → start_time
- * - "Hora de finalización" or "End Time" → end_time
- * - "Estado principal" or "Primary Status" → status
- * - "Duración" or "Duration" → duration_raw (in seconds)
+ * Expected columns in CSV (Spanish):
+ * - "ID del agente" → agent_id
+ * - "Nombre del agente" → agent_name
+ * - "Hora de inicio" → start_time
+ * - "Hora de finalización" → end_time
+ * - "Estado principal" → status
+ * - "Duración" → duration_raw (in seconds)
  */
 async function importAgentConnectivity(csvFilePath) {
   try {
@@ -42,54 +86,61 @@ async function importAgentConnectivity(csvFilePath) {
     const records = parse(fileContent, {
       columns: true,
       skip_empty_lines: true,
-      delimiter: ',',
+      delimiter: '\t',
       quote: '"',
       relax_column_count: true,
+      encoding: 'utf-8',
     });
 
     console.log(`✓ Archivo leído: ${records.length} registros encontrados\n`);
 
-    // Normalize column names and filter out "Desconectado" records
+    // Normalize column names (Spanish → English) and filter out "Desconectado" records
     const normalizedRecords = records
-      .map(row => {
-        const agentName = row['Nombre del agente'] || row['Agent Name'] || '';
-        const agentId = row['ID del agente'] || row['Agent ID'] || row['ID'] || '';
-        const startTime = row['Hora de inicio'] || row['Start Time'] || '';
-        const endTime = row['Hora de finalización'] || row['End Time'] || '';
-        const status = row['Estado principal'] || row['Primary Status'] || 'Disponible';
-        const durationStr = row['Duración'] || row['Duration'] || '0';
+      .map((row, idx) => {
+        const agentId = row['ID del agente'] || row['ID del agente'] || '';
+        const agentName = row['Nombre del agente'] || '';
+        const startTimeStr = row['Hora de inicio'] || '';
+        const endTimeStr = row['Hora de finalización'] || '';
+        const status = row['Estado principal'] || 'Disponible';
+        const durationStr = row['Duración'] || '0';
+
+        const startTime = parseSpanishDateTime(startTimeStr);
+        const endTime = parseSpanishDateTime(endTimeStr);
+        const durationSeconds = parseDurationToSeconds(durationStr);
+
+        if (!startTime || !endTime) {
+          console.warn(`⚠️  Saltando fila ${idx + 1}: formato de fecha inválido`);
+          return null;
+        }
 
         return {
           agent_id: String(agentId).trim(),
           agent_name: String(agentName).trim(),
-          start_time: String(startTime).trim(),
-          end_time: String(endTime).trim(),
+          start_time: startTime,
+          end_time: endTime,
           status: String(status).trim(),
-          duration_seconds: parseInt(durationStr, 10) || 0,
+          duration_seconds: durationSeconds,
         };
       })
-      .filter(row => {
+      .filter((row) => {
+        if (!row) return false;
         // Filter out "Desconectado" status as per requirements
         if (row.status === 'Desconectado') return false;
         // Ensure required fields
-        if (!row.agent_name || !row.start_time || !row.end_time) return false;
+        if (!row.agent_name || !row.agent_id || !row.start_time || !row.end_time) return false;
         return true;
       });
 
     console.log(`✓ Registros válidos después de filtrado: ${normalizedRecords.length}\n`);
 
-    // Upload metadata
-    const dateRanges = normalizedRecords
-      .map(r => new Date(r.start_time))
-      .filter(d => !isNaN(d.getTime()));
-
-    if (dateRanges.length === 0) {
-      console.error('❌ No valid dates found in records');
+    if (normalizedRecords.length === 0) {
+      console.error('❌ No valid records to import after filtering');
       process.exit(1);
     }
 
-    const dateRangeStart = new Date(Math.min(...dateRanges.map(d => d.getTime())));
-    const dateRangeEnd = new Date(Math.max(...dateRanges.map(d => d.getTime())));
+    // Upload metadata
+    const dateRangeStart = new Date(Math.min(...normalizedRecords.map(r => r.start_time.getTime())));
+    const dateRangeEnd = new Date(Math.max(...normalizedRecords.map(r => r.end_time.getTime())));
 
     const { data: uploadRecord, error: uploadError } = await supabase
       .from('agent_connectivity_uploads')
@@ -111,8 +162,8 @@ async function importAgentConnectivity(csvFilePath) {
       upload_id: uploadId,
       agent_id: row.agent_id,
       agent_name: row.agent_name,
-      start_time: new Date(row.start_time).toISOString(),
-      end_time: new Date(row.end_time).toISOString(),
+      start_time: row.start_time.toISOString(),
+      end_time: row.end_time.toISOString(),
       status: row.status,
       duration_raw: row.duration_seconds,
     }));
@@ -128,13 +179,8 @@ async function importAgentConnectivity(csvFilePath) {
     const hourlyMap = new Map();
 
     for (const record of normalizedRecords) {
-      const startTime = new Date(record.start_time);
-      const endTime = new Date(record.end_time);
-
-      if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
-        console.warn(`⚠️  Saltando registro con timestamp inválido: ${record.agent_name}`);
-        continue;
-      }
+      const startTime = record.start_time;
+      const endTime = record.end_time;
 
       // Iterate through each hour bucket
       let currentTime = new Date(startTime);
