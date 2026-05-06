@@ -95,6 +95,7 @@ function calcFunnelByGranularity(records: CallRecord[], granularity: Granularity
 
   for (const r of records) {
     if (!isInbound(r.call_direction) || !r.call_date) continue;
+    if (isCorruptedTechnicalCall(r)) continue;
 
     let key = '';
     let label = '';
@@ -121,7 +122,7 @@ function calcFunnelByGranularity(records: CallRecord[], granularity: Granularity
     const d = map.get(key)!;
     d.entrantes++;
     if (r.flow_exit !== false && (r.queue_time_seconds ?? 0) >= 1) d.aCola++;
-    if ((r.conversation_total_seconds ?? 0) > 0) d.contestadas++;
+    if (r.attended) d.contestadas++;
   }
 
   return Array.from(map.values())
