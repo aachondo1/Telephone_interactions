@@ -56,9 +56,30 @@ export function AgentGanttChart({ agents, demandData }: Props) {
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
-      <h3 className="text-lg font-semibold text-slate-900">
-        Súper Gantt: Conectividad vs. Demanda
-      </h3>
+      <div>
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">
+          Súper Gantt: Conectividad vs. Demanda (08:00-18:00)
+        </h3>
+        <p className="text-sm text-slate-600 mb-3">
+          Las barras de colores muestran el estado de cada agente por hora. Los picos de demanda están arriba.
+          <span className="font-semibold"> Las barras ROJAS durante alta demanda requieren investigación.</span>
+        </p>
+
+        {/* Legend - Moved to top */}
+        <div className="flex flex-wrap gap-4 text-xs pb-3 border-b border-slate-100">
+          {[
+            { status: 'productivo', label: 'Productivo - Manejando llamadas' },
+            { status: 'ocioso', label: 'Ocioso/Disponible - Conectado sin actividad' },
+            { status: 'pausa', label: 'Pausa - Descanso/Reunión' },
+            { status: 'no_responde', label: 'No Responde - Ignorando alertas ⚠️' },
+          ].map(({ status, label }) => (
+            <div key={status} className="flex items-center gap-2">
+              <div className="w-4 h-3 rounded" style={{ backgroundColor: statusColors[status] }} />
+              <span className="text-slate-600">{label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Demand Curve */}
       {hasDemand && (
@@ -162,20 +183,6 @@ export function AgentGanttChart({ agents, demandData }: Props) {
         </div>
       )}
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-xs pt-3 border-t border-slate-100">
-        {[
-          { status: 'productivo', label: 'Productivo' },
-          { status: 'ocioso', label: 'Ocioso / Disponible' },
-          { status: 'pausa', label: 'Pausa' },
-          { status: 'no_responde', label: 'No Responde' },
-        ].map(({ status, label }) => (
-          <div key={status} className="flex items-center gap-2">
-            <div className="w-4 h-3 rounded" style={{ backgroundColor: statusColors[status] }} />
-            <span className="text-slate-600">{label}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

@@ -46,18 +46,30 @@ export function AgentPerformanceMatrix({ data }: Props) {
   const avgOccupancy = data.reduce((sum, d) => sum + d.occupancy, 0) / data.length;
   const avgHours = data.reduce((sum, d) => sum + d.activeHours, 0) / data.length;
 
+  const quadrantDescriptions: Record<string, string> = {
+    heroes: 'Alto desempeño pero riesgo de burnout. Considerar reducción de carga.',
+    efficient: 'Desempeño ideal. Mantener estándares actual.',
+    inflators: 'Baja productividad con sesiones largas. Revisar calidad de trabajo.',
+    underperformers: 'Bajo desempeño general. Sesiones cortas y baja ocupación. Requiere coaching.',
+  };
+
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-white border border-slate-300 rounded p-2 shadow-lg">
+        <div className="bg-white border border-slate-300 rounded p-3 shadow-lg max-w-xs z-50">
           <p className="font-semibold text-sm text-slate-900">{data.name}</p>
-          <p className="text-xs text-slate-600">
-            Ocupación: {data.occupancy.toFixed(1)}%
+          <p className="text-xs text-slate-600 mt-1">
+            Ocupación: <span className="font-medium">{data.occupancy.toFixed(1)}%</span>
           </p>
-          <p className="text-xs text-slate-600">Horas: {data.activeHours.toFixed(1)}h</p>
-          <p className="text-xs text-slate-500 font-semibold mt-1">
+          <p className="text-xs text-slate-600">
+            Sesión: <span className="font-medium">{data.activeHours.toFixed(1)}h</span>
+          </p>
+          <p className="text-xs font-semibold mt-2" style={{ color: quadrantColors[data.quadrant] }}>
             {quadrantLabels[data.quadrant]}
+          </p>
+          <p className="text-xs text-slate-500 italic mt-1">
+            {quadrantDescriptions[data.quadrant]}
           </p>
         </div>
       );
