@@ -1,4 +1,4 @@
-import { TrendingUp, AlertCircle, Clock, AlertTriangle } from 'lucide-react';
+import { TrendingUp, AlertCircle, Clock, AlertTriangle, PhoneCall } from 'lucide-react';
 
 export type OccupationKPIData = {
   effectiveOccupancy: number;
@@ -9,6 +9,8 @@ export type OccupationKPIData = {
   evasionCalls: number;
   ghostHours: { hours: number; minutes: number };
   ghostImpact: number;
+  cascadeResponseRate: number;
+  totalAlerted: number;
 };
 
 type Props = {
@@ -28,6 +30,18 @@ export function OccupationKPICards({ data }: Props) {
     return 'border-emerald-100';
   };
 
+  const getCascadeColor = (rate: number) => {
+    if (rate >= 80) return 'text-emerald-600 bg-emerald-50';
+    if (rate >= 50) return 'text-orange-600 bg-orange-50';
+    return 'text-red-600 bg-red-50';
+  };
+
+  const getCascadeBorder = (rate: number) => {
+    if (rate >= 80) return 'border-emerald-100';
+    if (rate >= 50) return 'border-orange-100';
+    return 'border-red-100';
+  };
+
   const cards = [
     {
       label: 'Ocupación Efectiva',
@@ -36,7 +50,7 @@ export function OccupationKPICards({ data }: Props) {
       icon: TrendingUp,
       color: 'bg-sky-50 text-sky-600',
       border: 'border-sky-100',
-      tooltip: '(Tiempo Conversación + ACW) / Tiempo Disponible real',
+      tooltip: '(Conversación + ACW) / Tiempo conectado · Solo agentes con ≥10 alertas inbound para evitar distorsión por agentes de paso',
     },
     {
       label: 'Pérdida por Shrinkage',
@@ -45,7 +59,7 @@ export function OccupationKPICards({ data }: Props) {
       icon: AlertTriangle,
       color: getShrinkageColor(data.shrinkagePercent),
       border: getShrinkageBorder(data.shrinkagePercent),
-      tooltip: 'Tiempo en Pausa, Comida o Reunión',
+      tooltip: 'Tiempo en Pausa / Comida / Reunión / Capacitación vs. total conectado · Solo agentes con ≥10 alertas inbound',
     },
     {
       label: 'Fugas por Evasión',
@@ -54,7 +68,7 @@ export function OccupationKPICards({ data }: Props) {
       icon: AlertCircle,
       color: 'bg-red-50 text-red-600',
       border: 'border-red-100',
-      tooltip: 'Total de tiempo No Responde',
+      tooltip: 'Suma de alert_time_seconds en llamadas entrantes donde al menos un agente no respondió (users_not_respond ≠ vacío)',
     },
     {
       label: 'Inflación de Horas',
@@ -63,12 +77,21 @@ export function OccupationKPICards({ data }: Props) {
       icon: Clock,
       color: 'bg-violet-50 text-violet-600',
       border: 'border-violet-100',
-      tooltip: 'Horas "Fantasma" detectadas',
+      tooltip: 'Segundos conectados fuera del horario laboral (antes de 08:00 o después de 18:00) · Solo agentes con ≥10 alertas inbound',
+    },
+    {
+      label: 'Tasa Respuesta Cascada',
+      value: `${data.cascadeResponseRate}%`,
+      subValue: `Sobre ${data.totalAlerted} alertas totales`,
+      icon: PhoneCall,
+      color: getCascadeColor(data.cascadeResponseRate),
+      border: getCascadeBorder(data.cascadeResponseRate),
+      tooltip: 'Solo llamadas entrantes · Veces alertado y respondido / Total veces alertado en el equipo',
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       {cards.map((card) => {
         const Icon = card.icon;
         return (
@@ -87,7 +110,7 @@ export function OccupationKPICards({ data }: Props) {
             </div>
 
             {/* Tooltip */}
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-slate-900 text-white text-xs rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 text-white text-xs rounded max-w-xs whitespace-normal text-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10">
               {card.tooltip}
               <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
             </div>

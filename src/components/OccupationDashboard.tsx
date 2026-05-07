@@ -3,14 +3,36 @@ import type { CallRecord, AgentConnectivityHourly } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
 import { SectionHeader } from './SectionHeader';
 import { BarChart3 } from 'lucide-react';
-import {
-  OccupationFilterPanel,
-  type OccupationFilters,
-} from './OccupationFilterPanel';
 import { OccupationKPICards, type OccupationKPIData } from './OccupationKPICards';
 import { AgentGanttChart, type AgentGanttData, type DemandPoint } from './AgentGanttChart';
 import { AgentPerformanceMatrix, type PerformancePoint } from './AgentPerformanceMatrix';
 import { AgentAuditTable, type AuditTableRow } from './AgentAuditTable';
+import { CascadeAgentChart } from './CascadeAgentChart';
+import { AgentAvailabilityChart } from './AgentAvailabilityChart';
+
+export type AgentCascadeStat = {
+  agent: string;
+  timesAlerted: number;
+  timesAnswered: number;
+  timesEvaded: number;
+  responseRate: number;
+};
+
+export type CascadeDepthPoint = {
+  label: string;
+  value: number;
+  percent: number;
+  color: string;
+};
+
+export type AgentAvailabilityEntry = {
+  agentName: string;
+  inQueueSeconds: number;
+  outQueueSeconds: number;
+  disconnectedSeconds: number;
+  totalExpectedSeconds: number;
+  workingDays: number;
+};
 
 type Props = {
   records: CallRecord[];
@@ -42,26 +64,73 @@ function formatHHMM(totalSeconds: number): { hours: number; minutes: number } {
 
 function calculateOccupancyMetrics(
   records: CallRecord[],
-  connectivity: AgentConnectivityHourly[],
-  filters: OccupationFilters
+  connectivity: AgentConnectivityHourly[]
 ) {
-  const uniqueQueues = Array.from(new Set(records.map((r) => r.queue).filter(Boolean)));
+  // records are already filtered by the global FilterBar
+  const filteredRecords = records;
 
-  // Filter records by selected queue
-  const filteredRecords = filters.group
-    ? records.filter((r) => r.queue === filters.group)
-    : records;
+  // ----- Step 1: Cascade stats per agent (inbound only) — moved to TOP for key-agent derivation -----
+  const MIN_ALERTS = 5;
+  const KEY_ALERTS = 10; // min alerts to be included in KPI denominators
+  const inboundRecords = filteredRecords.filter((r) =>
+    ['inbound', 'entrante'].includes((r.call_direction || '').toLowerCase())
+  );
+  const agentCascadeMap = new Map<string, { alerted: number; answered: number; evaded: number }>();
+
+  for (const r of inboundRecords) {
+    const alertedList = r.alerted_users
+      ? r.alerted_users.split(';').map((u) => u.trim()).filter(Boolean)
+      : [];
+    for (const agent of alertedList) {
+      if (!agentCascadeMap.has(agent)) agentCascadeMap.set(agent, { alerted: 0, answered: 0, evaded: 0 });
+      agentCascadeMap.get(agent)!.alerted++;
+    }
+    if (r.attended && r.executive && r.executive !== 'SIN ATENDER') {
+      if (!agentCascadeMap.has(r.executive)) agentCascadeMap.set(r.executive, { alerted: 0, answered: 0, evaded: 0 });
+      agentCascadeMap.get(r.executive)!.answered++;
+    }
+    if (r.users_not_respond) {
+      for (const agent of r.users_not_respond.split(';').map((u) => u.trim()).filter(Boolean)) {
+        if (!agentCascadeMap.has(agent)) agentCascadeMap.set(agent, { alerted: 0, answered: 0, evaded: 0 });
+        agentCascadeMap.get(agent)!.evaded++;
+      }
+    }
+  }
+
+  // ----- Step 2: Key agents = ≥10 inbound alerts (for KPI denominators) -----
+  const keyAgentNames = new Set<string>(
+    Array.from(agentCascadeMap.entries())
+      .filter(([, v]) => v.alerted >= KEY_ALERTS)
+      .map(([name]) => name)
+  );
+
+  // ----- Step 3: Connectivity filtered to records' date range -----
+  const recordDates = filteredRecords.map((r) => r.call_date).filter(Boolean) as string[];
+  const dateMin = recordDates.length ? recordDates.reduce((a, b) => (a < b ? a : b)) : '';
+  const dateMax = recordDates.length ? recordDates.reduce((a, b) => (a > b ? a : b)) : '';
+  const filteredConnectivity = dateMin
+    ? connectivity.filter((c) => c.date && c.date >= dateMin && c.date <= dateMax)
+    : connectivity;
+
+  // keyConnectivity: only key agents, date-filtered
+  const keyConnectivity = keyAgentNames.size > 0
+    ? filteredConnectivity.filter((c) => c.agent_name && keyAgentNames.has(c.agent_name))
+    : filteredConnectivity;
 
   // Attended calls only
   const attendedRecords = filteredRecords.filter((r) => r.attended && r.executive && r.executive !== 'SIN ATENDER');
+  // Key agent attended records (for KPI numerators)
+  const keyAttendedRecords = keyAgentNames.size > 0
+    ? attendedRecords.filter((r) => r.executive && keyAgentNames.has(r.executive))
+    : attendedRecords;
 
   // ----- KPI 1: Ocupación Efectiva -----
-  // (Conversación + ACW) / Tiempo total disponible en conectividad
-  const totalTalkACWSeconds = attendedRecords.reduce(
+  // (Conversación + ACW) / Tiempo conectado · solo agentes con ≥10 alertas inbound
+  const totalTalkACWSeconds = keyAttendedRecords.reduce(
     (sum, r) => sum + (r.duration_seconds || 0) + (r.acw_seconds || 0),
     0
   );
-  const totalConnectedSeconds = connectivity.reduce(
+  const totalConnectedSeconds = keyConnectivity.reduce(
     (sum, c) => sum + (c.seconds_in_bucket || 0),
     0
   );
@@ -71,8 +140,8 @@ function calculateOccupancyMetrics(
       : 0;
 
   // ----- KPI 2: Shrinkage -----
-  // Time NOT in queue/available vs total connected
-  const pauseSeconds = connectivity
+  // Time NOT in queue/available vs total connected · solo agentes con ≥10 alertas inbound
+  const pauseSeconds = keyConnectivity
     .filter((c) => {
       const s = (c.status || '').toLowerCase();
       return (
@@ -88,9 +157,8 @@ function calculateOccupancyMetrics(
       ? Math.min(100, Math.round((pauseSeconds / totalConnectedSeconds) * 100))
       : 0;
 
-  // ----- KPI 3: Evasión ('No Responde') -----
-  // Agentes que aparecen en users_not_respond y su alert_time_seconds
-  const evasionSeconds = filteredRecords
+  // ----- KPI 3: Evasión ('No Responde') — inbound only -----
+  const evasionSeconds = inboundRecords
     .filter((r) => r.users_not_respond && r.users_not_respond.trim() !== '')
     .reduce((sum, r) => sum + (r.alert_time_seconds || 0), 0);
   const AHT_SECONDS = 600; // 10 min default AHT
@@ -98,8 +166,8 @@ function calculateOccupancyMetrics(
   const evasionTime = formatHHMM(evasionSeconds);
 
   // ----- KPI 4: Horas Fantasma -----
-  // Connected seconds outside business hours (before 08:30 or after 18:00)
-  const ghostSeconds = connectivity
+  // Connected seconds outside business hours · solo agentes con ≥10 alertas inbound
+  const ghostSeconds = keyConnectivity
     .filter((c) => c.hour < 8 || c.hour >= 18)
     .reduce((sum, c) => sum + (c.seconds_in_bucket || 0), 0);
   const ghostImpact =
@@ -120,25 +188,22 @@ function calculateOccupancyMetrics(
   };
 
   // ----- Gantt: Build agent periods from hourly connectivity -----
-  // Group by agent_name, then by date, then by hour → determine dominant status per hour
   type AgentHourMap = Map<string, Map<string, Map<number, { status: string; seconds: number }>>>;
   const agentDateHourMap: AgentHourMap = new Map();
 
-  for (const c of connectivity) {
+  for (const c of filteredConnectivity) {
     if (!c.agent_name) continue;
     if (!agentDateHourMap.has(c.agent_name)) agentDateHourMap.set(c.agent_name, new Map());
     const dateMap = agentDateHourMap.get(c.agent_name)!;
     const dateKey = c.date || 'unknown';
     if (!dateMap.has(dateKey)) dateMap.set(dateKey, new Map());
     const hourMap = dateMap.get(dateKey)!;
-    // Keep the status with the most seconds for that hour
     const existing = hourMap.get(c.hour);
     if (!existing || c.seconds_in_bucket > existing.seconds) {
       hourMap.set(c.hour, { status: c.status, seconds: c.seconds_in_bucket });
     }
   }
 
-  // Build call time lookup per agent per hour (to mark productive hours)
   const agentHourCallMap = new Map<string, Set<number>>();
   for (const r of attendedRecords) {
     if (!r.executive || r.call_hour == null) continue;
@@ -146,7 +211,6 @@ function calculateOccupancyMetrics(
     agentHourCallMap.get(r.executive)!.add(r.call_hour);
   }
 
-  // Take most recent date per agent for Gantt display
   const ganttData: AgentGanttData[] = [];
   for (const [agentName, dateMap] of agentDateHourMap.entries()) {
     const sortedDates = Array.from(dateMap.keys()).sort().reverse();
@@ -173,7 +237,6 @@ function calculateOccupancyMetrics(
     }
   }
 
-  // Show max 12 agents in Gantt
   const displayedGantt = ganttData.slice(0, 12);
 
   // ----- Demand Curve: inbound calls per hour -----
@@ -192,11 +255,10 @@ function calculateOccupancyMetrics(
   });
 
   // ----- Performance Matrix -----
-  // Per-agent occupancy and connected hours
   const agentConnectedSeconds = new Map<string, number>();
   const agentTalkSeconds = new Map<string, number>();
 
-  for (const c of connectivity) {
+  for (const c of filteredConnectivity) {
     if (!c.agent_name) continue;
     agentConnectedSeconds.set(
       c.agent_name,
@@ -247,18 +309,18 @@ function calculateOccupancyMetrics(
       const validatedTurnHours = Math.floor(validatedTotalMinutes / 60);
       const validatedTurnMinutes = validatedTotalMinutes % 60;
 
-      const pauseSec = connectivity
+      const pauseSec = filteredConnectivity
         .filter((c) => c.agent_name === agent && (c.hour < 8 || c.hour >= 18))
         .reduce((sum, c) => sum + (c.seconds_in_bucket || 0), 0);
       const agentShrinkage =
         connSec > 0 ? Math.min(100, Math.round((pauseSec / connSec) * 100)) : 0;
 
-      const agentEvasionSec = filteredRecords
+      const agentEvasionSec = inboundRecords
         .filter((r) => r.users_not_respond && r.users_not_respond.includes(agent))
         .reduce((sum, r) => sum + (r.alert_time_seconds || 0), 0);
       const evasion = formatHHMM(agentEvasionSec);
 
-      const agentGhostSec = connectivity
+      const agentGhostSec = filteredConnectivity
         .filter((c) => c.agent_name === agent && (c.hour < 8 || c.hour >= 18))
         .reduce((sum, c) => sum + (c.seconds_in_bucket || 0), 0);
       const ghost = formatHHMM(agentGhostSec);
@@ -279,22 +341,108 @@ function calculateOccupancyMetrics(
     }
   );
 
+  // ----- Cascade depth: only calls that reached cascade (alert_segments >= 1, inbound) -----
+  let hop1 = 0, hop2 = 0, hop3plus = 0;
+  for (const r of inboundRecords) {
+    const segs = r.alert_segments ?? 0;
+    if (segs < 1) continue;
+    if (segs === 1) hop1++;
+    else if (segs === 2) hop2++;
+    else hop3plus++;
+  }
+  const depthTotal = hop1 + hop2 + hop3plus;
+  const pct = (n: number) => depthTotal > 0 ? Math.round((n / depthTotal) * 100) : 0;
+  const cascadeDepth: CascadeDepthPoint[] = [
+    { label: '1ra oferta',  value: hop1,     percent: pct(hop1),     color: '#00ABC8' },
+    { label: '2da oferta',  value: hop2,     percent: pct(hop2),     color: '#5BCEE5' },
+    { label: '3ra+ oferta', value: hop3plus, percent: pct(hop3plus), color: '#A8E4F0' },
+  ];
+
+  // ----- Cascade KPI -----
+  const totalAlertedTeam = Array.from(agentCascadeMap.values()).reduce((s, v) => s + v.alerted, 0);
+  const totalAnsweredTeam = Array.from(agentCascadeMap.values()).reduce((s, v) => s + v.answered, 0);
+  const cascadeResponseRate = totalAlertedTeam > 0
+    ? Math.round((totalAnsweredTeam / totalAlertedTeam) * 100)
+    : 0;
+
+  const cascadeStats: AgentCascadeStat[] = Array.from(agentCascadeMap.entries())
+    .map(([agent, s]) => ({
+      agent,
+      timesAlerted: s.alerted,
+      timesAnswered: s.answered,
+      timesEvaded: s.evaded,
+      responseRate: s.alerted > 0 ? Math.round((s.answered / s.alerted) * 100) : 0,
+    }))
+    .sort((a, b) => b.timesEvaded - a.timesEvaded);
+
+  // ----- Availability map per agent (filteredConnectivity, agents with ≥MIN_ALERTS inbound alerts) -----
+  const WORKING_SECONDS_MON_THU = 36000; // 10h (08:00–18:00)
+  const WORKING_SECONDS_FRI = 21600;     // 6h  (08:00–14:00)
+  const isFriday = (dateStr: string) => new Date(dateStr + 'T12:00:00').getDay() === 5;
+
+  const agentDateConn = new Map<string, Map<string, { inQueue: number; outQueue: number }>>();
+  for (const c of filteredConnectivity) {
+    if (!c.agent_name || !c.date) continue;
+    if (c.hour < 8 || c.hour >= 18) continue;
+    if (isFriday(c.date) && c.hour >= 14) continue;
+
+    if (!agentDateConn.has(c.agent_name)) agentDateConn.set(c.agent_name, new Map());
+    const dateMap = agentDateConn.get(c.agent_name)!;
+    if (!dateMap.has(c.date)) dateMap.set(c.date, { inQueue: 0, outQueue: 0 });
+    const day = dateMap.get(c.date)!;
+
+    const s = (c.status || '').toLowerCase();
+    const isInQueue = s.includes('cola') || s.includes('queue') || s.includes('disponible') || s.includes('available');
+    if (isInQueue) day.inQueue += c.seconds_in_bucket;
+    else day.outQueue += c.seconds_in_bucket;
+  }
+
+  const availabilityData: AgentAvailabilityEntry[] = Array.from(agentDateConn.entries())
+    .map(([agentName, dateMap]) => {
+      let inQ = 0, outQ = 0, disconn = 0, expected = 0;
+      for (const [date, stats] of dateMap.entries()) {
+        const dayExpected = isFriday(date) ? WORKING_SECONDS_FRI : WORKING_SECONDS_MON_THU;
+        const connected = stats.inQueue + stats.outQueue;
+        inQ += stats.inQueue;
+        outQ += stats.outQueue;
+        disconn += Math.max(0, dayExpected - connected);
+        expected += dayExpected;
+      }
+      return { agentName, inQueueSeconds: inQ, outQueueSeconds: outQ, disconnectedSeconds: disconn, totalExpectedSeconds: expected, workingDays: dateMap.size };
+    })
+    .filter((a) => (agentCascadeMap.get(a.agentName)?.alerted ?? 0) >= MIN_ALERTS);
+
+  // ----- Merge cascade into auditData -----
+  const enrichedAuditData: AuditTableRow[] = auditData.map((row) => {
+    const cs = agentCascadeMap.get(row.agent) ?? { alerted: 0, answered: 0, evaded: 0 };
+    return {
+      ...row,
+      timesAlerted: cs.alerted,
+      timesAnswered: cs.answered,
+      cascadeResponseRate: cs.alerted > 0 ? Math.round((cs.answered / cs.alerted) * 100) : 0,
+    };
+  });
+
+  // Update kpiData with cascade rate
+  const enrichedKpiData: OccupationKPIData = {
+    ...kpiData,
+    cascadeResponseRate,
+    totalAlerted: totalAlertedTeam,
+  };
+
   return {
-    kpiData,
+    kpiData: enrichedKpiData,
     ganttData: displayedGantt,
     demandData,
     performanceData,
-    auditData,
-    uniqueQueues,
+    auditData: enrichedAuditData,
+    cascadeStats,
+    cascadeDepth,
+    availabilityData,
   };
 }
 
 export function OccupationDashboard({ records, connectivityData }: Props) {
-  const [filters, setFilters] = useState<OccupationFilters>({
-    dateRange: 'thisWeek',
-    anomaliesOnly: false,
-    group: '',
-  });
 
   const [connectivity, setConnectivity] = useState<AgentConnectivityHourly[]>(connectivityData || []);
   const [loading, setLoading] = useState(false);
@@ -320,24 +468,13 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
     demandData,
     performanceData,
     auditData,
-    uniqueQueues,
+    cascadeStats,
+    cascadeDepth,
+    availabilityData,
   } = useMemo(
-    () => calculateOccupancyMetrics(records, connectivity, filters),
-    [records, connectivity, filters]
+    () => calculateOccupancyMetrics(records, connectivity),
+    [records, connectivity]
   );
-
-  const filteredAuditData = filters.anomaliesOnly
-    ? auditData.filter((row) => row.ghostMinutes > 30 || row.evasionMinutes > 15)
-    : auditData;
-
-  const filteredPerformanceData = filters.anomaliesOnly
-    ? performanceData.filter(
-        (p) =>
-          p.quadrant === 'heroes' ||
-          p.quadrant === 'inflators' ||
-          p.quadrant === 'underperformers'
-      )
-    : performanceData;
 
   const hasData = records.length > 0 || connectivity.length > 0;
 
@@ -347,12 +484,6 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
         icon={BarChart3}
         title="Ocupación de Agentes"
         description="Panel completo de ocupación, conectividad y auditoría forense"
-      />
-
-      <OccupationFilterPanel
-        filters={filters}
-        onFiltersChange={setFilters}
-        availableGroups={uniqueQueues}
       />
 
       {loading && (
@@ -372,9 +503,11 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
       ) : (
         <>
           <OccupationKPICards data={kpiData} />
+          <CascadeAgentChart data={cascadeStats} depthData={cascadeDepth} />
           <AgentGanttChart agents={ganttData} demandData={demandData} />
-          <AgentPerformanceMatrix data={filteredPerformanceData} />
-          <AgentAuditTable rows={filteredAuditData} />
+          <AgentAvailabilityChart data={availabilityData} />
+          <AgentPerformanceMatrix data={performanceData} />
+          <AgentAuditTable rows={auditData} cascadeStats={cascadeStats} />
         </>
       )}
     </div>
