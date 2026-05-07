@@ -50,9 +50,19 @@ function findCol(headers: string[], candidates: string[]): string | null {
   return null;
 }
 
+export type AgentConnectivityRawRow = {
+  agentId: string;
+  agentName: string;
+  startTime: string; // ISO timestamp string
+  endTime: string;   // ISO timestamp string
+  status: string;
+  durationRaw: number; // seconds (unclipped, no BH filter)
+};
+
 export type AgentStatusParseResult = {
   rows: AgentStatusRow[];
   errors: string[];
+  rawEvents?: AgentConnectivityRawRow[];
 };
 
 export function parseAgentStatusCSV(text: string): AgentStatusParseResult {
@@ -139,6 +149,7 @@ function parseTimelineFormat(
   colStatus: string
 ): AgentStatusParseResult {
   const result: AgentStatusRow[] = [];
+  const rawEvents: AgentConnectivityRawRow[] = [];
 
   console.log('[TimelineFormat] Detectadas columnas:', {
     colAgentId,
@@ -148,6 +159,14 @@ function parseTimelineFormat(
     colStatus,
     totalRows: rows.length,
   });
+
+  // Log first few raw date strings so we can diagnose format issues
+  const sampleDates = rows.slice(0, 3).map(r => ({
+    start: (r[colStart] ?? '').trim(),
+    end:   (r[colEnd]   ?? '').trim(),
+    status: (r[colStatus] ?? '').trim(),
+  }));
+  console.log('[TimelineFormat] Muestra de fechas del CSV (primeras 3 filas):', sampleDates);
 
   // Group by agent and accumulate time by status
   const agentMap = new Map<string, {
@@ -181,7 +200,7 @@ function parseTimelineFormat(
       continue;
     }
 
-    // Skip "Desconectado" status
+    // Skip "Desconectado" status — not stored per schema design
     if (status === 'Desconectado') {
       skippedDesconectado++;
       continue;
@@ -190,14 +209,17 @@ function parseTimelineFormat(
     const startTime = parseTimelineDateTime(startStr);
     const endTime = parseTimelineDateTime(endStr);
 
-    if (!startTime || !endTime) {
+    const startInvalid = !startTime || isNaN(startTime.getTime());
+    const endInvalid   = !endTime   || isNaN(endTime.getTime());
+
+    if (startInvalid || endInvalid) {
       skippedInvalidDates++;
       if (i < 5) {
         console.log(`[TimelineFormat] Fila ${i} - Fechas inválidas:`, {
           startStr,
           endStr,
-          startTimeParsed: startTime ? startTime.toISOString() : 'null',
-          endTimeParsed: endTime ? endTime.toISOString() : 'null',
+          startTimeParsed: startTime && !isNaN(startTime.getTime()) ? startTime.toISOString() : 'invalid',
+          endTimeParsed:   endTime   && !isNaN(endTime.getTime())   ? endTime.toISOString()   : 'invalid',
           note: 'Verifica que el formato sea: DD-MM-YYYY HH:MM o M/DD/YY HH:MM:SS'
         });
       }
@@ -213,17 +235,24 @@ function parseTimelineFormat(
       continue;
     }
 
-    // HARD CUT: Apply business hours filter during import
-    // Only count time that falls within operational window
+    // Collect raw event with full timestamps (no BH filter) for Gantt / adherence charts
+    rawEvents.push({
+      agentId,
+      agentName,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      status,
+      durationRaw: totalDurationSeconds,
+    });
+
+    // HARD CUT: Apply business hours filter for aggregated totals only
     const overlap = getBusinessHoursOverlap(startTime, endTime);
     if (!overlap) {
-      // Time completely outside business hours
       if (i < 3) {
-        console.log(`[TimelineFormat] Fila ${i} - Fuera de horario operativo:`, {
+        console.log(`[TimelineFormat] Fila ${i} - Fuera de horario operativo (no cuenta en totales):`, {
           agentName,
           startStr: startTime.toISOString(),
           endStr: endTime.toISOString(),
-          reason: 'Hard cut applied',
         });
       }
       continue;
@@ -281,6 +310,7 @@ function parseTimelineFormat(
     skippedInvalidDates,
     skippedZeroDuration,
     uniqueAgents: agentMap.size,
+    rawEventsCaptured: rawEvents.length,
   });
 
   for (const agent of agentMap.values()) {
@@ -302,14 +332,14 @@ function parseTimelineFormat(
     totalConnectedSeconds: result.reduce((sum, a) => sum + a.connectedSeconds, 0),
   });
 
-  if (result.length === 0) {
+  if (result.length === 0 && rawEvents.length === 0) {
     return {
       rows: [],
       errors: ['No se encontraron agentes con tiempo de presencia en el reporte de timeline.'],
     };
   }
 
-  return { rows: result, errors: [] };
+  return { rows: result, errors: [], rawEvents };
 }
 
 // Parse timeline datetime format - supports multiple formats:
@@ -327,14 +357,15 @@ function parseTimelineDateTime(dateStr: string): Date | null {
     const [, day, month, year, hour, minute, second] = match;
     const paddedHour = String(parseInt(hour, 10)).padStart(2, '0');
     const paddedMinute = String(parseInt(minute, 10)).padStart(2, '0');
-    return new Date(`${year}-${month}-${day}T${paddedHour}:${paddedMinute}:${second || '00'}`);
+    const d = new Date(`${year}-${month}-${day}T${paddedHour}:${paddedMinute}:${second || '00'}`);
+    return isNaN(d.getTime()) ? null : d;
   }
 
-  // Try M/DD/YY HH:MM:SS format (Genesys US format: Month/Day/Year)
-  // Example: "6/04/26 08:02:29" = June 4th, 2026
+  // Try D/MM/YY HH:MM:SS format (Genesys Latin American format: Day/Month/Year)
+  // Example: "6/04/26 08:02:29" = April 6th, 2026
   match = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})\s+(\d{1,2}):(\d{1,2}):(\d{2})?/);
   if (match) {
-    const [, month, day, year, hour, minute, second] = match;
+    const [, day, month, year, hour, minute, second] = match;
     // Convert 2-digit year to 4-digit: 26 → 2026, 99 → 1999
     const fullYear = parseInt(year) <= 50 ? 2000 + parseInt(year) : 1900 + parseInt(year);
     const paddedMonth = String(parseInt(month, 10)).padStart(2, '0');
@@ -342,7 +373,8 @@ function parseTimelineDateTime(dateStr: string): Date | null {
     const paddedHour = String(parseInt(hour, 10)).padStart(2, '0');
     const paddedMinute = String(parseInt(minute, 10)).padStart(2, '0');
     const paddedSecond = second ? String(parseInt(second, 10)).padStart(2, '0') : '00';
-    return new Date(`${fullYear}-${paddedMonth}-${paddedDay}T${paddedHour}:${paddedMinute}:${paddedSecond}`);
+    const d = new Date(`${fullYear}-${paddedMonth}-${paddedDay}T${paddedHour}:${paddedMinute}:${paddedSecond}`);
+    return isNaN(d.getTime()) ? null : d;
   }
 
   // Try HH:MM:SS format (assume today)
@@ -350,8 +382,9 @@ function parseTimelineDateTime(dateStr: string): Date | null {
   if (match) {
     const [, hour, minute, second] = match;
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate(),
-                    parseInt(hour), parseInt(minute), parseInt(second || '0'));
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(),
+                       parseInt(hour), parseInt(minute), parseInt(second || '0'));
+    return isNaN(d.getTime()) ? null : d;
   }
 
   return null;

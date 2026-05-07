@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert, CallUpload, DeduplicationStats } from './supabase';
 import type { ParsedCallRecord } from './csvParser';
-import type { AgentStatusRow } from './agentStatusParser';
+import type { AgentStatusRow, AgentConnectivityRawRow } from './agentStatusParser';
 import { hashPhone, maskPhone, filterOverlappingCalls } from './csvParser';
 
 const BATCH_SIZE = 500;
@@ -287,6 +287,106 @@ export async function getAllAgentStatusUploads(): Promise<Array<{ upload: AgentS
  * @param uploads - Multiple uploads to combine
  * @returns Combined AgentStatusRecord array (deduplicated)
  */
+/**
+ * Save raw timeline events to agent_connectivity_uploads + agent_connectivity_raw.
+ * Before inserting, deletes existing records for the same agents in the same date
+ * range so re-importing a period replaces rather than duplicates data.
+ */
+export async function saveAgentConnectivityUpload(
+  filename: string,
+  rawEvents: AgentConnectivityRawRow[]
+): Promise<{ upload: AgentConnectivityUpload; savedCount: number }> {
+  if (rawEvents.length === 0) {
+    throw new Error('No hay eventos de conectividad para guardar.');
+  }
+
+  const startTimes = rawEvents.map(e => e.startTime).sort();
+  const endTimes   = rawEvents.map(e => e.endTime).sort();
+  const dateRangeStart = startTimes[0].split('T')[0];
+  const dateRangeEnd   = endTimes[endTimes.length - 1].split('T')[0];
+
+  const { data: uploadData, error: uploadError } = await supabase
+    .from('agent_connectivity_uploads')
+    .insert({ filename, record_count: rawEvents.length, date_range_start: dateRangeStart, date_range_end: dateRangeEnd })
+    .select()
+    .single();
+
+  if (uploadError || !uploadData) {
+    throw new Error(`Error al guardar upload de conectividad: ${uploadError?.message}`);
+  }
+
+  const upload = uploadData as AgentConnectivityUpload;
+
+  // Delete previous records for same agents overlapping this date range
+  const agentIds = [...new Set(rawEvents.map(e => e.agentId))];
+  const { error: deleteError } = await supabase
+    .from('agent_connectivity_raw')
+    .delete()
+    .in('agent_id', agentIds)
+    .gte('start_time', `${dateRangeStart}T00:00:00`)
+    .lte('start_time', `${dateRangeEnd}T23:59:59`);
+
+  if (deleteError) {
+    console.warn('[saveAgentConnectivityUpload] Error al limpiar registros previos:', deleteError.message);
+  }
+
+  const records = rawEvents.map(e => ({
+    upload_id:    upload.id,
+    agent_id:     e.agentId,
+    agent_name:   e.agentName,
+    start_time:   e.startTime,
+    end_time:     e.endTime,
+    status:       e.status,
+    duration_raw: Math.round(e.durationRaw),
+  }));
+
+  let savedCount = 0;
+  for (let i = 0; i < records.length; i += BATCH_SIZE) {
+    const batch = records.slice(i, i + BATCH_SIZE);
+    const { error } = await supabase.from('agent_connectivity_raw').insert(batch);
+    if (error) {
+      throw new Error(`Error al guardar eventos de conectividad (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${error.message}`);
+    }
+    savedCount += batch.length;
+  }
+
+  return { upload, savedCount };
+}
+
+/**
+ * Load raw connectivity events for a given date range.
+ * Pass no arguments to load all records.
+ */
+export async function getAgentConnectivityRaw(
+  startDate?: string,
+  endDate?: string
+): Promise<AgentConnectivityRaw[]> {
+  const PAGE_SIZE = 1000;
+  const allRecords: AgentConnectivityRaw[] = [];
+  let from = 0;
+
+  while (true) {
+    let query = supabase
+      .from('agent_connectivity_raw')
+      .select('*')
+      .order('start_time', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (startDate) query = query.gte('start_time', `${startDate}T00:00:00`);
+    if (endDate)   query = query.lte('start_time', `${endDate}T23:59:59`);
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Error al cargar conectividad raw: ${error.message}`);
+    if (!data || data.length === 0) break;
+
+    allRecords.push(...(data as AgentConnectivityRaw[]));
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return allRecords;
+}
+
 export function combineAgentStatusRecords(
   uploads: Array<{ upload: AgentStatusUpload; records: AgentStatusRecord[] }>
 ): AgentStatusRecord[] {
