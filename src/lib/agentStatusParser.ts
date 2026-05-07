@@ -160,6 +160,14 @@ function parseTimelineFormat(
     totalRows: rows.length,
   });
 
+  // Log first few raw date strings so we can diagnose format issues
+  const sampleDates = rows.slice(0, 3).map(r => ({
+    start: (r[colStart] ?? '').trim(),
+    end:   (r[colEnd]   ?? '').trim(),
+    status: (r[colStatus] ?? '').trim(),
+  }));
+  console.log('[TimelineFormat] Muestra de fechas del CSV (primeras 3 filas):', sampleDates);
+
   // Group by agent and accumulate time by status
   const agentMap = new Map<string, {
     name: string;
@@ -201,14 +209,17 @@ function parseTimelineFormat(
     const startTime = parseTimelineDateTime(startStr);
     const endTime = parseTimelineDateTime(endStr);
 
-    if (!startTime || !endTime) {
+    const startInvalid = !startTime || isNaN(startTime.getTime());
+    const endInvalid   = !endTime   || isNaN(endTime.getTime());
+
+    if (startInvalid || endInvalid) {
       skippedInvalidDates++;
       if (i < 5) {
         console.log(`[TimelineFormat] Fila ${i} - Fechas inválidas:`, {
           startStr,
           endStr,
-          startTimeParsed: startTime ? startTime.toISOString() : 'null',
-          endTimeParsed: endTime ? endTime.toISOString() : 'null',
+          startTimeParsed: startTime && !isNaN(startTime.getTime()) ? startTime.toISOString() : 'invalid',
+          endTimeParsed:   endTime   && !isNaN(endTime.getTime())   ? endTime.toISOString()   : 'invalid',
           note: 'Verifica que el formato sea: DD-MM-YYYY HH:MM o M/DD/YY HH:MM:SS'
         });
       }
@@ -346,7 +357,8 @@ function parseTimelineDateTime(dateStr: string): Date | null {
     const [, day, month, year, hour, minute, second] = match;
     const paddedHour = String(parseInt(hour, 10)).padStart(2, '0');
     const paddedMinute = String(parseInt(minute, 10)).padStart(2, '0');
-    return new Date(`${year}-${month}-${day}T${paddedHour}:${paddedMinute}:${second || '00'}`);
+    const d = new Date(`${year}-${month}-${day}T${paddedHour}:${paddedMinute}:${second || '00'}`);
+    return isNaN(d.getTime()) ? null : d;
   }
 
   // Try M/DD/YY HH:MM:SS format (Genesys US format: Month/Day/Year)
@@ -361,7 +373,8 @@ function parseTimelineDateTime(dateStr: string): Date | null {
     const paddedHour = String(parseInt(hour, 10)).padStart(2, '0');
     const paddedMinute = String(parseInt(minute, 10)).padStart(2, '0');
     const paddedSecond = second ? String(parseInt(second, 10)).padStart(2, '0') : '00';
-    return new Date(`${fullYear}-${paddedMonth}-${paddedDay}T${paddedHour}:${paddedMinute}:${paddedSecond}`);
+    const d = new Date(`${fullYear}-${paddedMonth}-${paddedDay}T${paddedHour}:${paddedMinute}:${paddedSecond}`);
+    return isNaN(d.getTime()) ? null : d;
   }
 
   // Try HH:MM:SS format (assume today)
@@ -369,8 +382,9 @@ function parseTimelineDateTime(dateStr: string): Date | null {
   if (match) {
     const [, hour, minute, second] = match;
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate(),
-                    parseInt(hour), parseInt(minute), parseInt(second || '0'));
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(),
+                       parseInt(hour), parseInt(minute), parseInt(second || '0'));
+    return isNaN(d.getTime()) ? null : d;
   }
 
   return null;
