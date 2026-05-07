@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import type { CallRecord, AgentConnectivityHourly } from '../lib/supabase';
+import type { CallRecord, AgentConnectivityHourly, AgentStatusRecord } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
 import { SectionHeader } from './SectionHeader';
 import { BarChart3 } from 'lucide-react';
@@ -38,6 +38,7 @@ type Props = {
   records: CallRecord[];
   allRecords: CallRecord[];
   connectivityData: AgentConnectivityHourly[];
+  agentStatusRecords: AgentStatusRecord[];
 };
 
 // Maps Genesys Cloud status strings to Gantt status categories
@@ -66,7 +67,8 @@ function formatHHMM(totalSeconds: number): { hours: number; minutes: number } {
 function calculateOccupancyMetrics(
   records: CallRecord[],
   allRecords: CallRecord[],
-  connectivity: AgentConnectivityHourly[]
+  connectivity: AgentConnectivityHourly[],
+  agentStatusRecords: AgentStatusRecord[]
 ) {
   // records are already filtered by the global FilterBar
   const filteredRecords = records;
@@ -152,37 +154,34 @@ function calculateOccupancyMetrics(
     ? attendedRecords.filter((r) => r.executive && keyAgentNames.has(r.executive))
     : attendedRecords;
 
-  // ----- KPI 1: Ocupación Efectiva -----
-  // (Conversación + ACW) / Tiempo conectado · solo agentes con ≥10 alertas inbound
-  const totalTalkACWSeconds = keyAttendedRecords.reduce(
-    (sum, r) => sum + (r.duration_seconds || 0) + (r.acw_seconds || 0),
-    0
+  // ----- KPI 1 & 2: Ocupación Efectiva y Shrinkage -----
+  // Denominador: connected_seconds de agentStatusRecords, filtrado a agentes clave (>50 alarmas últimos 30d).
+  // Si no hay match por nombre, se usan todos los status records disponibles como fallback.
+  const keyAgentNamesNorm = new Set(Array.from(keyAgentNames).map(n => n.toLowerCase().trim()));
+
+  const keyStatusRecords = agentStatusRecords.filter(
+    r => keyAgentNamesNorm.has((r.agent_name || '').toLowerCase().trim())
   );
-  const totalConnectedSeconds = keyConnectivity.reduce(
-    (sum, c) => sum + (c.seconds_in_bucket || 0),
-    0
-  );
+  const statusSource = keyStatusRecords.length > 0 ? keyStatusRecords : agentStatusRecords;
+
+  const totalConnectedSeconds = statusSource.reduce((s, r) => s + (r.connected_seconds || 0), 0);
+  const totalOutQueueSeconds  = statusSource.reduce((s, r) => s + (r.out_of_queue_seconds || 0), 0);
+
+  // Numerador de ocupación: talk + ACW de los agentes clave en los registros filtrados
+  const keyExecNamesNorm = keyAgentNamesNorm.size > 0 ? keyAgentNamesNorm : null;
+  const totalTalkACWSeconds = attendedRecords
+    .filter(r => !keyExecNamesNorm || keyExecNamesNorm.has((r.executive || '').toLowerCase().trim()))
+    .reduce((sum, r) => sum + (r.duration_seconds || 0) + (r.acw_seconds || 0), 0);
+
   const effectiveOccupancy =
     totalConnectedSeconds > 0
       ? Math.min(100, Math.round((totalTalkACWSeconds / totalConnectedSeconds) * 100))
       : 0;
 
-  // ----- KPI 2: Shrinkage -----
-  // Time NOT in queue/available vs total connected · solo agentes con ≥10 alertas inbound
-  const pauseSeconds = keyConnectivity
-    .filter((c) => {
-      const s = (c.status || '').toLowerCase();
-      return (
-        !s.includes('cola') &&
-        !s.includes('disponible') &&
-        !s.includes('queue') &&
-        !s.includes('available')
-      );
-    })
-    .reduce((sum, c) => sum + (c.seconds_in_bucket || 0), 0);
+  // Shrinkage = tiempo fuera de cola / tiempo conectado total
   const shrinkagePercent =
     totalConnectedSeconds > 0
-      ? Math.min(100, Math.round((pauseSeconds / totalConnectedSeconds) * 100))
+      ? Math.min(100, Math.round((totalOutQueueSeconds / totalConnectedSeconds) * 100))
       : 0;
 
   // ----- KPI 3: Evasión ('No Responde') — inbound only -----
@@ -470,7 +469,7 @@ function calculateOccupancyMetrics(
   };
 }
 
-export function OccupationDashboard({ records, allRecords, connectivityData }: Props) {
+export function OccupationDashboard({ records, allRecords, connectivityData, agentStatusRecords }: Props) {
 
   const [connectivity, setConnectivity] = useState<AgentConnectivityHourly[]>(connectivityData || []);
   const [loading, setLoading] = useState(false);
@@ -500,8 +499,8 @@ export function OccupationDashboard({ records, allRecords, connectivityData }: P
     cascadeDepth,
     availabilityData,
   } = useMemo(
-    () => calculateOccupancyMetrics(records, allRecords, connectivity),
-    [records, allRecords, connectivity]
+    () => calculateOccupancyMetrics(records, allRecords, connectivity, agentStatusRecords),
+    [records, allRecords, connectivity, agentStatusRecords]
   );
 
   const hasData = records.length > 0 || connectivity.length > 0;
