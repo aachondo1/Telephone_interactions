@@ -269,3 +269,4 @@ Los scripts de auditoría se encuentran en el directorio `scripts/`:
 ## 📄 Licencia
 
 Proyecto privado — Uso interno.
+
