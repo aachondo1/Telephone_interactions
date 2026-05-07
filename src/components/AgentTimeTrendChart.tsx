@@ -145,8 +145,11 @@ export function AgentTimeTrendChart({ connectivityData, granularity, onGranulari
 
   if (connectivityData.length === 0) {
     return (
-      <div className="bg-white border border-slate-200 rounded-lg p-6 text-center text-slate-400 text-sm">
-        Sin datos de conectividad horaria para mostrar la tendencia temporal.
+      <div className="bg-white border border-slate-200 rounded-lg p-6 text-center space-y-2">
+        <p className="text-slate-500 font-medium text-sm">Sin datos de conectividad horaria</p>
+        <p className="text-slate-400 text-xs max-w-md mx-auto">
+          Para ver esta gráfica, carga el reporte de <strong>Estado de Agentes</strong> (CSV de conectividad de Genesys Cloud) desde el panel de carga de datos.
+        </p>
       </div>
     );
   }

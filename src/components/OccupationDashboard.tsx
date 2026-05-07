@@ -458,6 +458,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
 
   const [connectivity, setConnectivity] = useState<AgentConnectivityHourly[]>(connectivityData || []);
   const [loading, setLoading] = useState(false);
+  const [connectivityError, setConnectivityError] = useState<string | null>(null);
   const [trendGranularity, setTrendGranularity] = useState<'hour' | 'day' | 'week' | 'month'>('day');
 
   // Derive date bounds from the filtered records (already date-filtered by global FilterBar)
@@ -474,16 +475,27 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
   useEffect(() => {
     if (!connectivityData || connectivityData.length === 0) {
       setLoading(true);
-      // Increase limit to handle larger date ranges (50 agents × 30d × 24h = ~36k rows)
+      setConnectivityError(null);
       let query = supabase.from('agent_connectivity_hourly').select('*');
       if (dateMin) query = query.gte('date', dateMin);
       if (dateMax) query = query.lte('date', dateMax);
       query
         .limit(50000)
-        .then(({ data }) => {
-          setConnectivity(data || []);
+        .then(({ data, error }) => {
+          if (error) {
+            console.error('[connectivity] Supabase error:', error);
+            setConnectivityError(error.message);
+            setConnectivity([]);
+          } else {
+            setConnectivity(data || []);
+          }
         })
-        .catch(() => setConnectivity([]))
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error('[connectivity] Network error:', msg);
+          setConnectivityError(msg);
+          setConnectivity([]);
+        })
         .finally(() => setLoading(false));
     }
   }, [connectivityData, dateMin, dateMax]);
@@ -516,6 +528,12 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
       {loading && (
         <div className="bg-sky-50 border border-sky-100 rounded-lg px-6 py-4 text-sm text-sky-700">
           Cargando datos de conectividad…
+        </div>
+      )}
+
+      {connectivityError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-6 py-4 text-sm text-amber-700">
+          Error al cargar conectividad: {connectivityError}
         </div>
       )}
 
