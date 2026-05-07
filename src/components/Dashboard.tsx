@@ -594,7 +594,11 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       )}
 
       {activeSection === 'ocupacion-agentes' && (
-        <OccupationDashboard records={records} agentStatusRecords={agentStatusRecords} />
+        <OccupationDashboard
+          records={filteredRecords}
+          agentStatusRecords={agentStatusRecords}
+          dateRange={{ start: filters.dateStart, end: filters.dateEnd }}
+        />
       )}
 
       {activeSection === 'planificacion' && (

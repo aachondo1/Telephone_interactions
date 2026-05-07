@@ -11,12 +11,28 @@ import { AgentAuditTable, type AuditTableRow } from './AgentAuditTable';
 type Props = {
   records: CallRecord[];
   agentStatusRecords: AgentStatusRecord[];
+  dateRange?: { start: string; end: string };
 };
 
 function formatHHMM(totalSeconds: number): { hours: number; minutes: number } {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   return { hours, minutes };
+}
+
+function getDateRangeFromRecords(records: CallRecord[]): { minDate: string | null; maxDate: string | null } {
+  const dates = records.map(r => r.call_date).filter((d): d is string => d !== null);
+  if (dates.length === 0) return { minDate: null, maxDate: null };
+  const sorted = dates.sort();
+  return { minDate: sorted[0], maxDate: sorted[sorted.length - 1] };
+}
+
+function formatDateSpan(start: string | null, end: string | null): string {
+  if (!start && !end) return 'Sin datos de fecha';
+  const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' });
+  if (start && end && start === end) return `${fmt(start)}`;
+  if (start && end) return `${fmt(start)} → ${fmt(end)}`;
+  return fmt(start || end || '');
 }
 
 function calculateOccupancyMetrics(
@@ -211,13 +227,15 @@ export function OccupationDashboard({ records, agentStatusRecords }: Props) {
   );
 
   const hasData = records.length > 0 || agentStatus.length > 0;
+  const { minDate, maxDate } = getDateRangeFromRecords(records);
+  const dateSpan = formatDateSpan(minDate, maxDate);
 
   return (
     <div className="space-y-6">
       <SectionHeader
         icon={BarChart3}
         title="Ocupación de Agentes"
-        description="Panel completo de ocupación, conectividad y auditoría forense"
+        description={`Panel completo de ocupación, conectividad y auditoría forense — Período: ${dateSpan}`}
       />
 
       {loading && (
