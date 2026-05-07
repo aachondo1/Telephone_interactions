@@ -1,4 +1,4 @@
-import { TrendingUp, AlertCircle, Clock, AlertTriangle } from 'lucide-react';
+import { TrendingUp, AlertCircle, Clock, AlertTriangle, PhoneCall } from 'lucide-react';
 
 export type OccupationKPIData = {
   effectiveOccupancy: number;
@@ -9,6 +9,8 @@ export type OccupationKPIData = {
   evasionCalls: number;
   ghostHours: { hours: number; minutes: number };
   ghostImpact: number;
+  cascadeResponseRate: number;
+  totalAlerted: number;
 };
 
 type Props = {
@@ -26,6 +28,18 @@ export function OccupationKPICards({ data }: Props) {
     if (shrinkage > 20) return 'border-red-100';
     if (shrinkage > 15) return 'border-orange-100';
     return 'border-emerald-100';
+  };
+
+  const getCascadeColor = (rate: number) => {
+    if (rate >= 80) return 'text-emerald-600 bg-emerald-50';
+    if (rate >= 50) return 'text-orange-600 bg-orange-50';
+    return 'text-red-600 bg-red-50';
+  };
+
+  const getCascadeBorder = (rate: number) => {
+    if (rate >= 80) return 'border-emerald-100';
+    if (rate >= 50) return 'border-orange-100';
+    return 'border-red-100';
   };
 
   const cards = [
@@ -65,10 +79,19 @@ export function OccupationKPICards({ data }: Props) {
       border: 'border-violet-100',
       tooltip: 'Horas "Fantasma" detectadas',
     },
+    {
+      label: 'Tasa Respuesta Cascada',
+      value: `${data.cascadeResponseRate}%`,
+      subValue: `Sobre ${data.totalAlerted} alertas totales`,
+      icon: PhoneCall,
+      color: getCascadeColor(data.cascadeResponseRate),
+      border: getCascadeBorder(data.cascadeResponseRate),
+      tooltip: 'Alertas recibidas respondidas / Total alertas del equipo',
+    },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       {cards.map((card) => {
         const Icon = card.icon;
         return (

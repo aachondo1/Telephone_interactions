@@ -11,6 +11,22 @@ import { OccupationKPICards, type OccupationKPIData } from './OccupationKPICards
 import { AgentGanttChart, type AgentGanttData, type DemandPoint } from './AgentGanttChart';
 import { AgentPerformanceMatrix, type PerformancePoint } from './AgentPerformanceMatrix';
 import { AgentAuditTable, type AuditTableRow } from './AgentAuditTable';
+import { CascadeAgentChart } from './CascadeAgentChart';
+
+export type AgentCascadeStat = {
+  agent: string;
+  timesAlerted: number;
+  timesAnswered: number;
+  timesEvaded: number;
+  responseRate: number;
+};
+
+export type CascadeDepthPoint = {
+  label: string;
+  value: number;
+  percent: number;
+  color: string;
+};
 
 type Props = {
   records: CallRecord[];
@@ -279,13 +295,94 @@ function calculateOccupancyMetrics(
     }
   );
 
+  // ----- Cascade stats per agent -----
+  const agentCascadeMap = new Map<string, { alerted: number; answered: number; evaded: number }>();
+
+  for (const r of filteredRecords) {
+    const alertedList = r.alerted_users
+      ? r.alerted_users.split(';').map((u) => u.trim()).filter(Boolean)
+      : [];
+    for (const agent of alertedList) {
+      if (!agentCascadeMap.has(agent)) agentCascadeMap.set(agent, { alerted: 0, answered: 0, evaded: 0 });
+      agentCascadeMap.get(agent)!.alerted++;
+    }
+    if (r.attended && r.executive && r.executive !== 'SIN ATENDER') {
+      if (!agentCascadeMap.has(r.executive)) agentCascadeMap.set(r.executive, { alerted: 0, answered: 0, evaded: 0 });
+      agentCascadeMap.get(r.executive)!.answered++;
+    }
+    if (r.users_not_respond) {
+      for (const agent of r.users_not_respond.split(';').map((u) => u.trim()).filter(Boolean)) {
+        if (!agentCascadeMap.has(agent)) agentCascadeMap.set(agent, { alerted: 0, answered: 0, evaded: 0 });
+        agentCascadeMap.get(agent)!.evaded++;
+      }
+    }
+  }
+
+  const totalAlertedTeam = Array.from(agentCascadeMap.values()).reduce((s, v) => s + v.alerted, 0);
+  const totalAnsweredTeam = Array.from(agentCascadeMap.values()).reduce((s, v) => s + v.answered, 0);
+  const cascadeResponseRate = totalAlertedTeam > 0
+    ? Math.round((totalAnsweredTeam / totalAlertedTeam) * 100)
+    : 0;
+
+  const cascadeStats: AgentCascadeStat[] = Array.from(agentCascadeMap.entries())
+    .map(([agent, s]) => ({
+      agent,
+      timesAlerted: s.alerted,
+      timesAnswered: s.answered,
+      timesEvaded: s.evaded,
+      responseRate: s.alerted > 0 ? Math.round((s.answered / s.alerted) * 100) : 0,
+    }))
+    .sort((a, b) => b.timesEvaded - a.timesEvaded);
+
+  // ----- Cascade depth distribution -----
+  let hop1 = 0, hop2 = 0, hop3plus = 0, noAnswer = 0;
+  for (const r of filteredRecords) {
+    if (!r.attended || r.executive === 'SIN ATENDER') {
+      noAnswer++;
+    } else if ((r.alert_segments ?? 0) <= 1) {
+      hop1++;
+    } else if (r.alert_segments === 2) {
+      hop2++;
+    } else {
+      hop3plus++;
+    }
+  }
+  const depthTotal = filteredRecords.length;
+  const pct = (n: number) => depthTotal > 0 ? Math.round((n / depthTotal) * 100) : 0;
+  const cascadeDepth: CascadeDepthPoint[] = [
+    { label: '1er salto',   value: hop1,     percent: pct(hop1),     color: '#00ABC8' },
+    { label: '2do salto',   value: hop2,     percent: pct(hop2),     color: '#5BCEE5' },
+    { label: '3er+ salto',  value: hop3plus, percent: pct(hop3plus), color: '#A8E4F0' },
+    { label: 'Sin atender', value: noAnswer, percent: pct(noAnswer), color: '#ef4444' },
+  ];
+
+  // ----- Merge cascade into auditData -----
+  const enrichedAuditData: AuditTableRow[] = auditData.map((row) => {
+    const cs = agentCascadeMap.get(row.agent) ?? { alerted: 0, answered: 0, evaded: 0 };
+    return {
+      ...row,
+      timesAlerted: cs.alerted,
+      timesAnswered: cs.answered,
+      cascadeResponseRate: cs.alerted > 0 ? Math.round((cs.answered / cs.alerted) * 100) : 0,
+    };
+  });
+
+  // Update kpiData with cascade rate
+  const enrichedKpiData: OccupationKPIData = {
+    ...kpiData,
+    cascadeResponseRate,
+    totalAlerted: totalAlertedTeam,
+  };
+
   return {
-    kpiData,
+    kpiData: enrichedKpiData,
     ganttData: displayedGantt,
     demandData,
     performanceData,
-    auditData,
+    auditData: enrichedAuditData,
     uniqueQueues,
+    cascadeStats,
+    cascadeDepth,
   };
 }
 
@@ -321,6 +418,8 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
     performanceData,
     auditData,
     uniqueQueues,
+    cascadeStats,
+    cascadeDepth,
   } = useMemo(
     () => calculateOccupancyMetrics(records, connectivity, filters),
     [records, connectivity, filters]
@@ -372,9 +471,10 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
       ) : (
         <>
           <OccupationKPICards data={kpiData} />
+          <CascadeAgentChart data={cascadeStats} depthData={cascadeDepth} />
           <AgentGanttChart agents={ganttData} demandData={demandData} />
           <AgentPerformanceMatrix data={filteredPerformanceData} />
-          <AgentAuditTable rows={filteredAuditData} />
+          <AgentAuditTable rows={filteredAuditData} cascadeStats={cascadeStats} />
         </>
       )}
     </div>
