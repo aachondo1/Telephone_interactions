@@ -3,10 +3,6 @@ import type { CallRecord, AgentConnectivityHourly } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
 import { SectionHeader } from './SectionHeader';
 import { BarChart3 } from 'lucide-react';
-import {
-  OccupationFilterPanel,
-  type OccupationFilters,
-} from './OccupationFilterPanel';
 import { OccupationKPICards, type OccupationKPIData } from './OccupationKPICards';
 import { AgentGanttChart, type AgentGanttData, type DemandPoint } from './AgentGanttChart';
 import { AgentPerformanceMatrix, type PerformancePoint } from './AgentPerformanceMatrix';
@@ -58,15 +54,10 @@ function formatHHMM(totalSeconds: number): { hours: number; minutes: number } {
 
 function calculateOccupancyMetrics(
   records: CallRecord[],
-  connectivity: AgentConnectivityHourly[],
-  filters: OccupationFilters
+  connectivity: AgentConnectivityHourly[]
 ) {
-  const uniqueQueues = Array.from(new Set(records.map((r) => r.queue).filter(Boolean)));
-
-  // Filter records by selected queue
-  const filteredRecords = filters.group
-    ? records.filter((r) => r.queue === filters.group)
-    : records;
+  // records are already filtered by the global FilterBar
+  const filteredRecords = records;
 
   // Attended calls only
   const attendedRecords = filteredRecords.filter((r) => r.attended && r.executive && r.executive !== 'SIN ATENDER');
@@ -380,18 +371,12 @@ function calculateOccupancyMetrics(
     demandData,
     performanceData,
     auditData: enrichedAuditData,
-    uniqueQueues,
     cascadeStats,
     cascadeDepth,
   };
 }
 
 export function OccupationDashboard({ records, connectivityData }: Props) {
-  const [filters, setFilters] = useState<OccupationFilters>({
-    dateRange: 'thisWeek',
-    anomaliesOnly: false,
-    group: '',
-  });
 
   const [connectivity, setConnectivity] = useState<AgentConnectivityHourly[]>(connectivityData || []);
   const [loading, setLoading] = useState(false);
@@ -417,26 +402,12 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
     demandData,
     performanceData,
     auditData,
-    uniqueQueues,
     cascadeStats,
     cascadeDepth,
   } = useMemo(
-    () => calculateOccupancyMetrics(records, connectivity, filters),
-    [records, connectivity, filters]
+    () => calculateOccupancyMetrics(records, connectivity),
+    [records, connectivity]
   );
-
-  const filteredAuditData = filters.anomaliesOnly
-    ? auditData.filter((row) => row.ghostMinutes > 30 || row.evasionMinutes > 15)
-    : auditData;
-
-  const filteredPerformanceData = filters.anomaliesOnly
-    ? performanceData.filter(
-        (p) =>
-          p.quadrant === 'heroes' ||
-          p.quadrant === 'inflators' ||
-          p.quadrant === 'underperformers'
-      )
-    : performanceData;
 
   const hasData = records.length > 0 || connectivity.length > 0;
 
@@ -446,12 +417,6 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
         icon={BarChart3}
         title="Ocupación de Agentes"
         description="Panel completo de ocupación, conectividad y auditoría forense"
-      />
-
-      <OccupationFilterPanel
-        filters={filters}
-        onFiltersChange={setFilters}
-        availableGroups={uniqueQueues}
       />
 
       {loading && (
@@ -473,8 +438,8 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
           <OccupationKPICards data={kpiData} />
           <CascadeAgentChart data={cascadeStats} depthData={cascadeDepth} />
           <AgentGanttChart agents={ganttData} demandData={demandData} />
-          <AgentPerformanceMatrix data={filteredPerformanceData} />
-          <AgentAuditTable rows={filteredAuditData} cascadeStats={cascadeStats} />
+          <AgentPerformanceMatrix data={performanceData} />
+          <AgentAuditTable rows={auditData} cascadeStats={cascadeStats} />
         </>
       )}
     </div>
