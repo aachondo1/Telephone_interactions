@@ -43,6 +43,7 @@ type Props = {
   connectivityData: AgentConnectivityHourly[];
   agentStatusRecords: AgentStatusRecord[];
   connectivityRefreshKey?: number;
+  executiveFilter?: string[];
 };
 
 // Maps Genesys Cloud status strings to Gantt status categories
@@ -455,7 +456,7 @@ function calculateOccupancyMetrics(
   };
 }
 
-export function OccupationDashboard({ records, allRecords, connectivityData, agentStatusRecords, connectivityRefreshKey }: Props) {
+export function OccupationDashboard({ records, allRecords, connectivityData, agentStatusRecords, connectivityRefreshKey, executiveFilter }: Props) {
 
   const [connectivity, setConnectivity] = useState<AgentConnectivityHourly[]>(connectivityData || []);
   const [loading, setLoading] = useState(false);
@@ -516,6 +517,13 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
     [records, allRecords, connectivity, agentStatusRecords]
   );
 
+  // Apply executive filter to connectivity data for the trend chart
+  const trendConnectivity = useMemo(() => {
+    if (!executiveFilter || executiveFilter.length === 0) return filteredConnectivity;
+    const names = new Set(executiveFilter.map(n => n.toLowerCase().trim()));
+    return filteredConnectivity.filter(c => c.agent_name && names.has(c.agent_name.toLowerCase().trim()));
+  }, [filteredConnectivity, executiveFilter]);
+
   const hasData = records.length > 0 || connectivity.length > 0;
 
   return (
@@ -551,7 +559,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
           <OccupationKPICards data={kpiData} />
           <AgentTimeDistributionChart agentStatusRecords={agentStatusRecords} />
           <AgentTimeTrendChart
-            connectivityData={filteredConnectivity}
+            connectivityData={trendConnectivity}
             granularity={trendGranularity}
             onGranularityChange={setTrendGranularity}
           />
