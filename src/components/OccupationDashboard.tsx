@@ -36,6 +36,7 @@ export type AgentAvailabilityEntry = {
 
 type Props = {
   records: CallRecord[];
+  allRecords: CallRecord[];
   connectivityData: AgentConnectivityHourly[];
 };
 
@@ -64,6 +65,7 @@ function formatHHMM(totalSeconds: number): { hours: number; minutes: number } {
 
 function calculateOccupancyMetrics(
   records: CallRecord[],
+  allRecords: CallRecord[],
   connectivity: AgentConnectivityHourly[]
 ) {
   // records are already filtered by the global FilterBar
@@ -71,7 +73,7 @@ function calculateOccupancyMetrics(
 
   // ----- Step 1: Cascade stats per agent (inbound only) — moved to TOP for key-agent derivation -----
   const MIN_ALERTS = 5;
-  const KEY_ALERTS = 10; // min alerts to be included in KPI denominators
+  const KEY_ALARMS_30D = 50; // min alarms in last 30 days to be included in KPI denominators
   const inboundRecords = filteredRecords.filter((r) =>
     ['inbound', 'entrante'].includes((r.call_direction || '').toLowerCase())
   );
@@ -97,10 +99,36 @@ function calculateOccupancyMetrics(
     }
   }
 
-  // ----- Step 2: Key agents = ≥10 inbound alerts (for KPI denominators) -----
+  // ----- Step 2: Key agents = >50 inbound alarms in last 30 days (for KPI denominators) -----
+  // Use allRecords (unfiltered) to compute 30-day window from the latest available date
+  const allInbound = allRecords.filter((r) =>
+    ['inbound', 'entrante'].includes((r.call_direction || '').toLowerCase())
+  );
+  const allDates = allInbound.map((r) => r.call_date).filter(Boolean) as string[];
+  const maxDate = allDates.length ? allDates.reduce((a, b) => (a > b ? a : b)) : '';
+  const cutoff30d = maxDate
+    ? new Date(new Date(maxDate + 'T12:00:00').getTime() - 30 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10)
+    : '';
+
+  const inbound30d = cutoff30d
+    ? allInbound.filter((r) => r.call_date && r.call_date >= cutoff30d)
+    : allInbound;
+
+  const alarmCount30d = new Map<string, number>();
+  for (const r of inbound30d) {
+    const alertedList = r.alerted_users
+      ? r.alerted_users.split(';').map((u) => u.trim()).filter(Boolean)
+      : [];
+    for (const agent of alertedList) {
+      alarmCount30d.set(agent, (alarmCount30d.get(agent) || 0) + 1);
+    }
+  }
+
   const keyAgentNames = new Set<string>(
-    Array.from(agentCascadeMap.entries())
-      .filter(([, v]) => v.alerted >= KEY_ALERTS)
+    Array.from(alarmCount30d.entries())
+      .filter(([, count]) => count > KEY_ALARMS_30D)
       .map(([name]) => name)
   );
 
@@ -442,7 +470,7 @@ function calculateOccupancyMetrics(
   };
 }
 
-export function OccupationDashboard({ records, connectivityData }: Props) {
+export function OccupationDashboard({ records, allRecords, connectivityData }: Props) {
 
   const [connectivity, setConnectivity] = useState<AgentConnectivityHourly[]>(connectivityData || []);
   const [loading, setLoading] = useState(false);
@@ -472,8 +500,8 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
     cascadeDepth,
     availabilityData,
   } = useMemo(
-    () => calculateOccupancyMetrics(records, connectivity),
-    [records, connectivity]
+    () => calculateOccupancyMetrics(records, allRecords, connectivity),
+    [records, allRecords, connectivity]
   );
 
   const hasData = records.length > 0 || connectivity.length > 0;
