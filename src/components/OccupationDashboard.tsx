@@ -8,6 +8,7 @@ import { AgentGanttChart, type AgentGanttData, type DemandPoint } from './AgentG
 import { AgentPerformanceMatrix, type PerformancePoint } from './AgentPerformanceMatrix';
 import { AgentAuditTable, type AuditTableRow } from './AgentAuditTable';
 import { CascadeAgentChart } from './CascadeAgentChart';
+import { AgentAvailabilityChart } from './AgentAvailabilityChart';
 
 export type AgentCascadeStat = {
   agent: string;
@@ -22,6 +23,15 @@ export type CascadeDepthPoint = {
   value: number;
   percent: number;
   color: string;
+};
+
+export type AgentAvailabilityEntry = {
+  agentName: string;
+  inQueueSeconds: number;
+  outQueueSeconds: number;
+  disconnectedSeconds: number;
+  totalExpectedSeconds: number;
+  workingDays: number;
 };
 
 type Props = {
@@ -286,10 +296,14 @@ function calculateOccupancyMetrics(
     }
   );
 
-  // ----- Cascade stats per agent -----
+  // ----- Cascade stats per agent (inbound only) -----
+  const MIN_ALERTS = 5;
+  const inboundRecords = filteredRecords.filter((r) =>
+    ['inbound', 'entrante'].includes((r.call_direction || '').toLowerCase())
+  );
   const agentCascadeMap = new Map<string, { alerted: number; answered: number; evaded: number }>();
 
-  for (const r of filteredRecords) {
+  for (const r of inboundRecords) {
     const alertedList = r.alerted_users
       ? r.alerted_users.split(';').map((u) => u.trim()).filter(Boolean)
       : [];
@@ -325,27 +339,59 @@ function calculateOccupancyMetrics(
     }))
     .sort((a, b) => b.timesEvaded - a.timesEvaded);
 
-  // ----- Cascade depth distribution -----
-  let hop1 = 0, hop2 = 0, hop3plus = 0, noAnswer = 0;
-  for (const r of filteredRecords) {
-    if (!r.attended || r.executive === 'SIN ATENDER') {
-      noAnswer++;
-    } else if ((r.alert_segments ?? 0) <= 1) {
-      hop1++;
-    } else if (r.alert_segments === 2) {
-      hop2++;
-    } else {
-      hop3plus++;
-    }
+  // ----- Cascade depth: only calls that reached cascade (alert_segments >= 1, inbound) -----
+  let hop1 = 0, hop2 = 0, hop3plus = 0;
+  for (const r of inboundRecords) {
+    const segs = r.alert_segments ?? 0;
+    if (segs < 1) continue;
+    if (segs === 1) hop1++;
+    else if (segs === 2) hop2++;
+    else hop3plus++;
   }
-  const depthTotal = filteredRecords.length;
+  const depthTotal = hop1 + hop2 + hop3plus;
   const pct = (n: number) => depthTotal > 0 ? Math.round((n / depthTotal) * 100) : 0;
   const cascadeDepth: CascadeDepthPoint[] = [
-    { label: '1er salto',   value: hop1,     percent: pct(hop1),     color: '#00ABC8' },
-    { label: '2do salto',   value: hop2,     percent: pct(hop2),     color: '#5BCEE5' },
-    { label: '3er+ salto',  value: hop3plus, percent: pct(hop3plus), color: '#A8E4F0' },
-    { label: 'Sin atender', value: noAnswer, percent: pct(noAnswer), color: '#ef4444' },
+    { label: '1er salto',  value: hop1,     percent: pct(hop1),     color: '#00ABC8' },
+    { label: '2do salto',  value: hop2,     percent: pct(hop2),     color: '#5BCEE5' },
+    { label: '3er+ salto', value: hop3plus, percent: pct(hop3plus), color: '#A8E4F0' },
   ];
+
+  // ----- Availability map per agent -----
+  const WORKING_SECONDS_MON_THU = 36000; // 10h (08:00–18:00)
+  const WORKING_SECONDS_FRI = 21600;     // 6h  (08:00–14:00)
+  const isFriday = (dateStr: string) => new Date(dateStr + 'T12:00:00').getDay() === 5;
+
+  const agentDateConn = new Map<string, Map<string, { inQueue: number; outQueue: number }>>();
+  for (const c of connectivity) {
+    if (!c.agent_name || !c.date) continue;
+    if (c.hour < 8 || c.hour >= 18) continue;
+    if (isFriday(c.date) && c.hour >= 14) continue;
+
+    if (!agentDateConn.has(c.agent_name)) agentDateConn.set(c.agent_name, new Map());
+    const dateMap = agentDateConn.get(c.agent_name)!;
+    if (!dateMap.has(c.date)) dateMap.set(c.date, { inQueue: 0, outQueue: 0 });
+    const day = dateMap.get(c.date)!;
+
+    const s = (c.status || '').toLowerCase();
+    const isInQueue = s.includes('cola') || s.includes('queue') || s.includes('disponible') || s.includes('available');
+    if (isInQueue) day.inQueue += c.seconds_in_bucket;
+    else day.outQueue += c.seconds_in_bucket;
+  }
+
+  const availabilityData: AgentAvailabilityEntry[] = Array.from(agentDateConn.entries())
+    .map(([agentName, dateMap]) => {
+      let inQ = 0, outQ = 0, disconn = 0, expected = 0;
+      for (const [date, stats] of dateMap.entries()) {
+        const dayExpected = isFriday(date) ? WORKING_SECONDS_FRI : WORKING_SECONDS_MON_THU;
+        const connected = stats.inQueue + stats.outQueue;
+        inQ += stats.inQueue;
+        outQ += stats.outQueue;
+        disconn += Math.max(0, dayExpected - connected);
+        expected += dayExpected;
+      }
+      return { agentName, inQueueSeconds: inQ, outQueueSeconds: outQ, disconnectedSeconds: disconn, totalExpectedSeconds: expected, workingDays: dateMap.size };
+    })
+    .filter((a) => (agentCascadeMap.get(a.agentName)?.alerted ?? 0) >= MIN_ALERTS);
 
   // ----- Merge cascade into auditData -----
   const enrichedAuditData: AuditTableRow[] = auditData.map((row) => {
@@ -373,6 +419,7 @@ function calculateOccupancyMetrics(
     auditData: enrichedAuditData,
     cascadeStats,
     cascadeDepth,
+    availabilityData,
   };
 }
 
@@ -404,6 +451,7 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
     auditData,
     cascadeStats,
     cascadeDepth,
+    availabilityData,
   } = useMemo(
     () => calculateOccupancyMetrics(records, connectivity),
     [records, connectivity]
@@ -438,6 +486,7 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
           <OccupationKPICards data={kpiData} />
           <CascadeAgentChart data={cascadeStats} depthData={cascadeDepth} />
           <AgentGanttChart agents={ganttData} demandData={demandData} />
+          <AgentAvailabilityChart data={availabilityData} />
           <AgentPerformanceMatrix data={performanceData} />
           <AgentAuditTable rows={auditData} cascadeStats={cascadeStats} />
         </>
