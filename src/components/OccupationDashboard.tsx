@@ -42,6 +42,7 @@ type Props = {
   allRecords: CallRecord[];
   connectivityData: AgentConnectivityHourly[];
   agentStatusRecords: AgentStatusRecord[];
+  connectivityRefreshKey?: number;
 };
 
 // Maps Genesys Cloud status strings to Gantt status categories
@@ -454,7 +455,7 @@ function calculateOccupancyMetrics(
   };
 }
 
-export function OccupationDashboard({ records, allRecords, connectivityData, agentStatusRecords }: Props) {
+export function OccupationDashboard({ records, allRecords, connectivityData, agentStatusRecords, connectivityRefreshKey }: Props) {
 
   const [connectivity, setConnectivity] = useState<AgentConnectivityHourly[]>(connectivityData || []);
   const [loading, setLoading] = useState(false);
@@ -498,7 +499,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
         })
         .finally(() => setLoading(false));
     }
-  }, [connectivityData, dateMin, dateMax]);
+  }, [connectivityData, dateMin, dateMax, connectivityRefreshKey]);
 
   const {
     kpiData,

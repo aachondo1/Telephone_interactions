@@ -26,6 +26,7 @@ export default function App() {
 
   // Agent status state
   const [agentStatusRecords, setAgentStatusRecords] = useState<AgentStatusRecord[]>([]);
+  const [connectivityRefreshKey, setConnectivityRefreshKey] = useState(0);
   const [agentStatusModalOpen, setAgentStatusModalOpen] = useState(false);
   const [agentStatusProcessing, setAgentStatusProcessing] = useState(false);
   const [agentStatusError, setAgentStatusError] = useState<string | null>(null);
@@ -163,6 +164,7 @@ export default function App() {
         setAgentStatusProgress(`Guardando ${rawEvents.length} eventos de timeline...`);
         try {
           await saveAgentConnectivityUpload(file.name, rawEvents);
+          setConnectivityRefreshKey(k => k + 1);
         } catch (connErr) {
           console.warn('[App] Error guardando conectividad raw (no crítico):', connErr);
         }
@@ -284,6 +286,7 @@ export default function App() {
               activeSection={activeSection}
               onUploadAgentStatus={openAgentStatusModal}
               dataQuality={dataQuality}
+              connectivityRefreshKey={connectivityRefreshKey}
             />
           )}
         </main>

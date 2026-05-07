@@ -46,6 +46,7 @@ type Props = {
   activeSection: Section;
   onUploadAgentStatus: () => void;
   dataQuality: DataQualityReport | null;
+  connectivityRefreshKey?: number;
 };
 
 function formatDateRange(start: string | null, end: string | null): string {
@@ -355,7 +356,7 @@ function DataQualityIndicator({ quality }: { quality: DataQualityReport | null }
   );
 }
 
-export function Dashboard({ records, upload, agentStatusRecords, activeSection, onUploadAgentStatus, dataQuality }: Props) {
+export function Dashboard({ records, upload, agentStatusRecords, activeSection, onUploadAgentStatus, dataQuality, connectivityRefreshKey }: Props) {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [kpis, setKpis] = useState(() => getEmptyKPISummary());
   const [isLoadingKpis, setIsLoadingKpis] = useState(false);
@@ -613,7 +614,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       )}
 
       {activeSection === 'ocupacion-agentes' && (
-        <OccupationDashboard records={filteredRecords} allRecords={records} connectivityData={[]} agentStatusRecords={filteredAgentStatusRecords} />
+        <OccupationDashboard records={filteredRecords} allRecords={records} connectivityData={[]} agentStatusRecords={filteredAgentStatusRecords} connectivityRefreshKey={connectivityRefreshKey} />
       )}
 
       {activeSection === 'planificacion' && (
