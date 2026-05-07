@@ -360,6 +360,25 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
   const [kpis, setKpis] = useState(() => getEmptyKPISummary());
   const [isLoadingKpis, setIsLoadingKpis] = useState(false);
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
+
+  // Filter agentStatusRecords by overlap with the global date range.
+  // AgentStatusRecord is aggregated per upload (no daily granularity), so we include
+  // a record if its period overlaps with the selected range at all.
+  const filteredAgentStatusRecords = useMemo(() => {
+    const { dateStart, dateEnd } = filters;
+    if (!dateStart && !dateEnd) return agentStatusRecords;
+    return agentStatusRecords.filter(r => {
+      const rStart = (r.date_range_start ?? '').slice(0, 10);
+      const rEnd   = (r.date_range_end   ?? '').slice(0, 10);
+      if (!rStart && !rEnd) return true;
+      const filterStart = dateStart ? dateStart.slice(0, 10) : '';
+      const filterEnd   = dateEnd   ? dateEnd.slice(0, 10)   : '';
+      const overlapEnd   = !filterStart || !rEnd   || rEnd   >= filterStart;
+      const overlapStart = !filterEnd   || !rStart || rStart <= filterEnd;
+      return overlapEnd && overlapStart;
+    });
+  }, [agentStatusRecords, filters.dateStart, filters.dateEnd]);
+
   const agentAuditFlags = useMemo(() => calculateAgentAuditFlags(agentStatusRecords), [agentStatusRecords]);
 
   useEffect(() => {
@@ -594,7 +613,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       )}
 
       {activeSection === 'ocupacion-agentes' && (
-        <OccupationDashboard records={filteredRecords} allRecords={records} connectivityData={[]} agentStatusRecords={agentStatusRecords} />
+        <OccupationDashboard records={filteredRecords} allRecords={records} connectivityData={[]} agentStatusRecords={filteredAgentStatusRecords} />
       )}
 
       {activeSection === 'planificacion' && (

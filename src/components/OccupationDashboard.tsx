@@ -450,6 +450,7 @@ function calculateOccupancyMetrics(
     cascadeStats,
     cascadeDepth,
     availabilityData,
+    filteredConnectivity,
   };
 }
 
@@ -459,20 +460,33 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
   const [loading, setLoading] = useState(false);
   const [trendGranularity, setTrendGranularity] = useState<'hour' | 'day' | 'week' | 'month'>('day');
 
+  // Derive date bounds from the filtered records (already date-filtered by global FilterBar)
+  const dateMin = useMemo(() => {
+    const dates = records.map(r => r.call_date).filter(Boolean) as string[];
+    return dates.length ? dates.reduce((a, b) => (a < b ? a : b)).slice(0, 10) : '';
+  }, [records]);
+
+  const dateMax = useMemo(() => {
+    const dates = records.map(r => r.call_date).filter(Boolean) as string[];
+    return dates.length ? dates.reduce((a, b) => (a > b ? a : b)).slice(0, 10) : '';
+  }, [records]);
+
   useEffect(() => {
     if (!connectivityData || connectivityData.length === 0) {
       setLoading(true);
-      supabase
-        .from('agent_connectivity_hourly')
-        .select('*')
-        .limit(5000)
+      // Increase limit to handle larger date ranges (50 agents × 30d × 24h = ~36k rows)
+      let query = supabase.from('agent_connectivity_hourly').select('*');
+      if (dateMin) query = query.gte('date', dateMin);
+      if (dateMax) query = query.lte('date', dateMax);
+      query
+        .limit(50000)
         .then(({ data }) => {
           setConnectivity(data || []);
         })
         .catch(() => setConnectivity([]))
         .finally(() => setLoading(false));
     }
-  }, [connectivityData]);
+  }, [connectivityData, dateMin, dateMax]);
 
   const {
     kpiData,
@@ -483,6 +497,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
     cascadeStats,
     cascadeDepth,
     availabilityData,
+    filteredConnectivity,
   } = useMemo(
     () => calculateOccupancyMetrics(records, allRecords, connectivity, agentStatusRecords),
     [records, allRecords, connectivity, agentStatusRecords]
@@ -517,7 +532,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
           <OccupationKPICards data={kpiData} />
           <AgentTimeDistributionChart agentStatusRecords={agentStatusRecords} />
           <AgentTimeTrendChart
-            connectivityData={connectivity}
+            connectivityData={filteredConnectivity}
             granularity={trendGranularity}
             onGranularityChange={setTrendGranularity}
           />
