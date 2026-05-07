@@ -10,6 +10,8 @@ import { AgentPerformanceMatrix, type PerformancePoint } from './AgentPerformanc
 import { AgentAuditTable, type AuditTableRow } from './AgentAuditTable';
 import { CascadeAgentChart } from './CascadeAgentChart';
 import { AgentAvailabilityChart } from './AgentAvailabilityChart';
+import { AgentTimeDistributionChart } from './AgentTimeDistributionChart';
+import { AgentTimeTrendChart } from './AgentTimeTrendChart';
 
 export type AgentCascadeStat = {
   agent: string;
@@ -455,6 +457,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
 
   const [connectivity, setConnectivity] = useState<AgentConnectivityHourly[]>(connectivityData || []);
   const [loading, setLoading] = useState(false);
+  const [trendGranularity, setTrendGranularity] = useState<'hour' | 'day' | 'week' | 'month'>('day');
 
   useEffect(() => {
     if (!connectivityData || connectivityData.length === 0) {
@@ -512,6 +515,12 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
       ) : (
         <>
           <OccupationKPICards data={kpiData} />
+          <AgentTimeDistributionChart agentStatusRecords={agentStatusRecords} />
+          <AgentTimeTrendChart
+            connectivityData={connectivity}
+            granularity={trendGranularity}
+            onGranularityChange={setTrendGranularity}
+          />
           <CascadeAgentChart data={cascadeStats} depthData={cascadeDepth} />
           <AgentGanttChart agents={ganttData} demandData={demandData} />
           <AgentAvailabilityChart data={availabilityData} />
