@@ -200,12 +200,6 @@ function parseTimelineFormat(
       continue;
     }
 
-    // Skip "Desconectado" status — not stored per schema design
-    if (status === 'Desconectado') {
-      skippedDesconectado++;
-      continue;
-    }
-
     const startTime = parseTimelineDateTime(startStr);
     const endTime = parseTimelineDateTime(endStr);
 
@@ -292,12 +286,12 @@ function parseTimelineFormat(
     if (!agent.maxDate || endDate > agent.maxDate) agent.maxDate = endDate;
 
     // Count time in "En la cola" or "En queue" as inQueue, rest as connected
+    // Desconectado counts toward nothing in the aggregated totals (but IS stored in rawEvents)
+    const isDisconnected = status.toLowerCase().includes('desconectado') || status.toLowerCase().includes('offline');
     if (status.toLowerCase().includes('cola') || status.toLowerCase().includes('queue')) {
       agent.inQueueSeconds += durationSeconds;
-    } else if (status.toLowerCase().includes('disponible')) {
-      agent.connectedSeconds += durationSeconds;
-    } else {
-      // Other statuses (Comida, etc) count as connected but not in queue
+    } else if (!isDisconnected) {
+      // disponible, pausas, comida, etc. — connected but not in queue
       agent.connectedSeconds += durationSeconds;
     }
   }
