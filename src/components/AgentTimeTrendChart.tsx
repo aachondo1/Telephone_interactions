@@ -35,6 +35,14 @@ function fmtHM(seconds: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+function isBusinessHour(date: string, hour: number): boolean {
+  const d = new Date(date + 'T12:00:00');
+  const dow = d.getDay(); // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
+  if (dow === 0 || dow === 6) return false;
+  if (dow === 5) return hour >= 8 && hour < 14; // Fri 08:00–13:59
+  return hour >= 8 && hour < 18; // Mon–Thu 08:00–17:59
+}
+
 function isInQueueStatus(status: string): boolean {
   const s = status.toLowerCase();
   return s.includes('cola') || s.includes('queue') || s.includes('disponible') || s.includes('available');
@@ -55,8 +63,12 @@ function getBucketKey(date: string, hour: number, gran: Granularity): string {
 
 function getBucketLabel(bucketKey: string, gran: Granularity): string {
   if (gran === 'hour') {
+    // bucketKey = "YYYY-MM-DD HH:00" — show "DD Mon HH:00" to disambiguate across days
     const parts = bucketKey.split(' ');
-    return parts[1] ?? bucketKey;
+    const dateStr = parts[0];
+    const timeStr = parts[1] ?? '';
+    const d = new Date(dateStr + 'T12:00:00');
+    return `${d.getDate()} ${MONTH_LABELS[d.getMonth()]} ${timeStr}`;
   }
   if (gran === 'day') {
     const d = new Date(bucketKey + 'T12:00:00');
@@ -119,6 +131,7 @@ export function AgentTimeTrendChart({ connectivityData, granularity, onGranulari
 
     for (const row of connectivityData) {
       if (!row.date || row.hour == null) continue;
+      if (granularity === 'hour' && !isBusinessHour(row.date, row.hour)) continue;
       const status = row.status || '';
       if (isOfflineStatus(status)) continue;
 
