@@ -6,7 +6,7 @@ import type { Section } from './components/Sidebar';
 import { UploadModal } from './components/UploadModal';
 import { parseCSVText, detectColumns, validateColumns, transformRows, calculateDateRangeFromRecords } from './lib/csvParser';
 import { parseAgentStatusCSV } from './lib/agentStatusParser';
-import { saveUpload, getAllUploads, getAllCallRecords, saveAgentStatusUpload, getAllAgentStatusUploads, combineAgentStatusRecords } from './lib/supabaseService';
+import { saveUpload, getAllUploads, getAllCallRecords, saveAgentStatusUpload, saveAgentConnectivityUpload, getAllAgentStatusUploads, combineAgentStatusRecords } from './lib/supabaseService';
 import { getDataQualityReport } from './lib/kpi';
 import type { CallRecord, CallUpload, AgentStatusRecord } from './lib/supabase';
 import type { DataQualityReport } from './lib/kpi';
@@ -149,7 +149,7 @@ export default function App() {
     try {
       const text = await file.text();
       setAgentStatusProgress('Procesando agentes...');
-      const { rows, errors } = parseAgentStatusCSV(text);
+      const { rows, errors, rawEvents } = parseAgentStatusCSV(text);
       if (errors.length > 0 && rows.length === 0) {
         setAgentStatusError(errors[0]);
         setAgentStatusProcessing(false);
@@ -157,6 +157,16 @@ export default function App() {
       }
       setAgentStatusProgress(`Guardando ${rows.length} agentes...`);
       await saveAgentStatusUpload(file.name, rows);
+
+      // If the file was timeline format, also persist raw events for Gantt / adherence charts
+      if (rawEvents && rawEvents.length > 0) {
+        setAgentStatusProgress(`Guardando ${rawEvents.length} eventos de timeline...`);
+        try {
+          await saveAgentConnectivityUpload(file.name, rawEvents);
+        } catch (connErr) {
+          console.warn('[App] Error guardando conectividad raw (no crítico):', connErr);
+        }
+      }
 
       // Reload ALL agent status uploads (cumulative across multiple files)
       setAgentStatusProgress('Reloading all agent data...');

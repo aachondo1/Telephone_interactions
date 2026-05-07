@@ -50,9 +50,19 @@ function findCol(headers: string[], candidates: string[]): string | null {
   return null;
 }
 
+export type AgentConnectivityRawRow = {
+  agentId: string;
+  agentName: string;
+  startTime: string; // ISO timestamp string
+  endTime: string;   // ISO timestamp string
+  status: string;
+  durationRaw: number; // seconds (unclipped, no BH filter)
+};
+
 export type AgentStatusParseResult = {
   rows: AgentStatusRow[];
   errors: string[];
+  rawEvents?: AgentConnectivityRawRow[];
 };
 
 export function parseAgentStatusCSV(text: string): AgentStatusParseResult {
@@ -139,6 +149,7 @@ function parseTimelineFormat(
   colStatus: string
 ): AgentStatusParseResult {
   const result: AgentStatusRow[] = [];
+  const rawEvents: AgentConnectivityRawRow[] = [];
 
   console.log('[TimelineFormat] Detectadas columnas:', {
     colAgentId,
@@ -181,7 +192,7 @@ function parseTimelineFormat(
       continue;
     }
 
-    // Skip "Desconectado" status
+    // Skip "Desconectado" status — not stored per schema design
     if (status === 'Desconectado') {
       skippedDesconectado++;
       continue;
@@ -213,17 +224,24 @@ function parseTimelineFormat(
       continue;
     }
 
-    // HARD CUT: Apply business hours filter during import
-    // Only count time that falls within operational window
+    // Collect raw event with full timestamps (no BH filter) for Gantt / adherence charts
+    rawEvents.push({
+      agentId,
+      agentName,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      status,
+      durationRaw: totalDurationSeconds,
+    });
+
+    // HARD CUT: Apply business hours filter for aggregated totals only
     const overlap = getBusinessHoursOverlap(startTime, endTime);
     if (!overlap) {
-      // Time completely outside business hours
       if (i < 3) {
-        console.log(`[TimelineFormat] Fila ${i} - Fuera de horario operativo:`, {
+        console.log(`[TimelineFormat] Fila ${i} - Fuera de horario operativo (no cuenta en totales):`, {
           agentName,
           startStr: startTime.toISOString(),
           endStr: endTime.toISOString(),
-          reason: 'Hard cut applied',
         });
       }
       continue;
@@ -281,6 +299,7 @@ function parseTimelineFormat(
     skippedInvalidDates,
     skippedZeroDuration,
     uniqueAgents: agentMap.size,
+    rawEventsCaptured: rawEvents.length,
   });
 
   for (const agent of agentMap.values()) {
@@ -302,14 +321,14 @@ function parseTimelineFormat(
     totalConnectedSeconds: result.reduce((sum, a) => sum + a.connectedSeconds, 0),
   });
 
-  if (result.length === 0) {
+  if (result.length === 0 && rawEvents.length === 0) {
     return {
       rows: [],
       errors: ['No se encontraron agentes con tiempo de presencia en el reporte de timeline.'],
     };
   }
 
-  return { rows: result, errors: [] };
+  return { rows: result, errors: [], rawEvents };
 }
 
 // Parse timeline datetime format - supports multiple formats:
