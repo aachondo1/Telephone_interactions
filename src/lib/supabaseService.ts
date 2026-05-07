@@ -292,6 +292,59 @@ export async function getAllAgentStatusUploads(): Promise<Array<{ upload: AgentS
  * Before inserting, deletes existing records for the same agents in the same date
  * range so re-importing a period replaces rather than duplicates data.
  */
+
+function aggregateRawToHourly(
+  uploadId: string,
+  rawEvents: AgentConnectivityRawRow[]
+): Array<{
+  upload_id: string; agent_id: string; agent_name: string;
+  date: string; hour: number; status: string; seconds_in_bucket: number;
+}> {
+  const buckets = new Map<string, { agentId: string; agentName: string; date: string; hour: number; status: string; seconds: number }>();
+
+  for (const event of rawEvents) {
+    if (!event.startTime || !event.endTime) continue;
+    const start = new Date(event.startTime);
+    const end   = new Date(event.endTime);
+    if (end <= start) continue;
+
+    const cur = new Date(start);
+    cur.setMinutes(0, 0, 0, 0);
+
+    while (cur < end) {
+      const nextHour = new Date(cur);
+      nextHour.setHours(nextHour.getHours() + 1);
+
+      const segStart = Math.max(cur.getTime(), start.getTime());
+      const segEnd   = Math.min(nextHour.getTime(), end.getTime());
+      const secs = Math.round((segEnd - segStart) / 1000);
+
+      if (secs > 0) {
+        const dateStr = cur.toISOString().split('T')[0];
+        const hr = cur.getHours();
+        const key = `${event.agentId}@@${dateStr}@@${hr}@@${event.status}`;
+        const existing = buckets.get(key);
+        if (existing) {
+          existing.seconds += secs;
+        } else {
+          buckets.set(key, { agentId: event.agentId, agentName: event.agentName, date: dateStr, hour: hr, status: event.status, seconds: secs });
+        }
+      }
+      cur.setTime(nextHour.getTime());
+    }
+  }
+
+  return Array.from(buckets.values()).map(b => ({
+    upload_id:        uploadId,
+    agent_id:         b.agentId,
+    agent_name:       b.agentName,
+    date:             b.date,
+    hour:             b.hour,
+    status:           b.status,
+    seconds_in_bucket: b.seconds,
+  }));
+}
+
 export async function saveAgentConnectivityUpload(
   filename: string,
   rawEvents: AgentConnectivityRawRow[]
@@ -348,6 +401,26 @@ export async function saveAgentConnectivityUpload(
       throw new Error(`Error al guardar eventos de conectividad (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${error.message}`);
     }
     savedCount += batch.length;
+  }
+
+  // Clean previous hourly aggregations for same agents/date range
+  const { error: deleteHourlyError } = await supabase
+    .from('agent_connectivity_hourly')
+    .delete()
+    .in('agent_id', agentIds)
+    .gte('date', dateRangeStart)
+    .lte('date', dateRangeEnd);
+
+  if (deleteHourlyError) {
+    console.warn('[saveAgentConnectivityUpload] Error al limpiar registros horarios previos:', deleteHourlyError.message);
+  }
+
+  // Insert hourly aggregations
+  const hourlyRows = aggregateRawToHourly(upload.id, rawEvents);
+  for (let i = 0; i < hourlyRows.length; i += BATCH_SIZE) {
+    const batch = hourlyRows.slice(i, i + BATCH_SIZE);
+    const { error } = await supabase.from('agent_connectivity_hourly').insert(batch);
+    if (error) throw new Error(`Error al guardar datos horarios: ${error.message}`);
   }
 
   return { upload, savedCount };

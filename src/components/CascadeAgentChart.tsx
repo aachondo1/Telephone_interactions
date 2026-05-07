@@ -56,7 +56,7 @@ export function CascadeAgentChart({ data, depthData }: Props) {
       <div>
         <h3 className="text-lg font-semibold text-slate-900">Respuesta en Cascada por Agente</h3>
         <p className="text-xs text-slate-400 mt-0.5">
-          Verde = alertas respondidas · Rojo = evasiones · Solo agentes con ≥{MIN_ALERTS} alertas
+          Solo llamadas entrantes (inbound) · Verde = respondidas · Rojo = evasiones · Solo agentes con ≥{MIN_ALERTS} alertas
         </p>
       </div>
 

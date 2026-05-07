@@ -50,7 +50,7 @@ export function OccupationKPICards({ data }: Props) {
       icon: TrendingUp,
       color: 'bg-sky-50 text-sky-600',
       border: 'border-sky-100',
-      tooltip: '(Tiempo Conversación + ACW) / Tiempo Disponible real',
+      tooltip: '(Conversación + ACW) / Tiempo conectado · Solo agentes con ≥10 alertas inbound para evitar distorsión por agentes de paso',
     },
     {
       label: 'Pérdida por Shrinkage',
@@ -59,7 +59,7 @@ export function OccupationKPICards({ data }: Props) {
       icon: AlertTriangle,
       color: getShrinkageColor(data.shrinkagePercent),
       border: getShrinkageBorder(data.shrinkagePercent),
-      tooltip: 'Tiempo en Pausa, Comida o Reunión',
+      tooltip: 'Tiempo en Pausa / Comida / Reunión / Capacitación vs. total conectado · Solo agentes con ≥10 alertas inbound',
     },
     {
       label: 'Fugas por Evasión',
@@ -68,7 +68,7 @@ export function OccupationKPICards({ data }: Props) {
       icon: AlertCircle,
       color: 'bg-red-50 text-red-600',
       border: 'border-red-100',
-      tooltip: 'Total de tiempo No Responde',
+      tooltip: 'Suma de alert_time_seconds en llamadas entrantes donde al menos un agente no respondió (users_not_respond ≠ vacío)',
     },
     {
       label: 'Inflación de Horas',
@@ -77,7 +77,7 @@ export function OccupationKPICards({ data }: Props) {
       icon: Clock,
       color: 'bg-violet-50 text-violet-600',
       border: 'border-violet-100',
-      tooltip: 'Horas "Fantasma" detectadas',
+      tooltip: 'Segundos conectados fuera del horario laboral (antes de 08:00 o después de 18:00) · Solo agentes con ≥10 alertas inbound',
     },
     {
       label: 'Tasa Respuesta Cascada',
@@ -86,7 +86,7 @@ export function OccupationKPICards({ data }: Props) {
       icon: PhoneCall,
       color: getCascadeColor(data.cascadeResponseRate),
       border: getCascadeBorder(data.cascadeResponseRate),
-      tooltip: 'Alertas recibidas respondidas / Total alertas del equipo',
+      tooltip: 'Solo llamadas entrantes · Veces alertado y respondido / Total veces alertado en el equipo',
     },
   ];
 
@@ -110,7 +110,7 @@ export function OccupationKPICards({ data }: Props) {
             </div>
 
             {/* Tooltip */}
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-slate-900 text-white text-xs rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 text-white text-xs rounded max-w-xs whitespace-normal text-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10">
               {card.tooltip}
               <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
             </div>
