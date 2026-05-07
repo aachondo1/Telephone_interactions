@@ -267,8 +267,8 @@ export function OccupationDashboard({ records, agentStatusRecords, allRecords, a
   }, [agentStatusRecords]);
 
   const { kpiData, ganttData, demandData, performanceData, auditData } = useMemo(
-    () => calculateOccupancyMetrics(records, agentStatus),
-    [records, agentStatus]
+    () => calculateOccupancyMetrics(records, agentStatus, allRecords, allAgentStatus),
+    [records, agentStatus, allRecords, allAgentStatus]
   );
 
   const hasData = records.length > 0 || agentStatus.length > 0;

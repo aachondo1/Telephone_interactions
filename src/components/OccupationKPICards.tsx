@@ -64,7 +64,7 @@ export function OccupationKPICards({ data }: Props) {
     {
       label: 'Ocupación Efectiva',
       value: `${data.effectiveOccupancy}%`,
-      subValue: `${data.occupancyTrend > 0 ? '+' : ''}${data.occupancyTrend}% vs semana anterior`,
+      subValue: `${data.occupancyTrend > 0 ? '+' : ''}${data.occupancyTrend}% vs período anterior`,
       interpretation: occupancyInterp.text,
       interpretationColor: occupancyInterp.color,
       icon: TrendingUp,
@@ -75,7 +75,7 @@ export function OccupationKPICards({ data }: Props) {
     {
       label: 'Pérdida por Shrinkage',
       value: `${data.shrinkagePercent}%`,
-      subValue: `Límite aceptable: 15%`,
+      subValue: `${data.shrinkageTrend > 0 ? '+' : ''}${data.shrinkageTrend}% vs período anterior`,
       interpretation: getShrinkageInterpretation(data.shrinkagePercent),
       interpretationColor: data.shrinkagePercent > 20 ? 'text-red-600' : data.shrinkagePercent > 15 ? 'text-orange-600' : 'text-emerald-600',
       icon: AlertTriangle,
