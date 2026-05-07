@@ -7,6 +7,7 @@ import { OccupationKPICards, type OccupationKPIData } from './OccupationKPICards
 import { AgentGanttChart, type AgentGanttData, type DemandPoint } from './AgentGanttChart';
 import { AgentPerformanceMatrix, type PerformancePoint } from './AgentPerformanceMatrix';
 import { AgentAuditTable, type AuditTableRow } from './AgentAuditTable';
+import { AgentAdherenceProfile, type AdherenceEvent } from './AgentAdherenceProfile';
 
 type Props = {
   records: CallRecord[];
@@ -238,6 +239,60 @@ function calculateOccupancyMetrics(
   return { kpiData, ganttData, demandData, performanceData, auditData };
 }
 
+const OPERATIVE_START_HOUR = 8;
+const OPERATIVE_END_HOUR = 18;
+
+function buildAgentAdherenceEvents(agentName: string, records: CallRecord[]): AdherenceEvent[] {
+  const agentCalls = records.filter(
+    (r) => r.executive === agentName && r.attended && r.call_date && r.call_time
+  );
+
+  const byDate = new Map<string, CallRecord[]>();
+  for (const r of agentCalls) {
+    const key = r.call_date!;
+    if (!byDate.has(key)) byDate.set(key, []);
+    byDate.get(key)!.push(r);
+  }
+
+  const events: AdherenceEvent[] = [];
+
+  for (const [date, calls] of byDate) {
+    const sorted = [...calls].sort((a, b) =>
+      (a.call_time ?? '').localeCompare(b.call_time ?? '')
+    );
+
+    const dayStart = new Date(`${date}T${String(OPERATIVE_START_HOUR).padStart(2, '0')}:00:00`).getTime();
+    const dayEnd = new Date(`${date}T${String(OPERATIVE_END_HOUR).padStart(2, '0')}:00:00`).getTime();
+
+    let cursor = dayStart;
+
+    for (const call of sorted) {
+      const callStart = new Date(`${date}T${call.call_time}`).getTime();
+      const durMs = ((call.duration_seconds || 0) + (call.acw_seconds || 0)) * 1000;
+      const callEnd = Math.min(callStart + durMs, dayEnd);
+
+      if (callStart < dayStart || callStart >= dayEnd) continue;
+
+      // Gap before this call = available/offQueue
+      if (callStart > cursor) {
+        events.push({ start_time: new Date(cursor), end_time: new Date(callStart), status: 'Disponible' });
+      }
+
+      // The call itself = onQueue
+      events.push({ start_time: new Date(Math.max(callStart, cursor)), end_time: new Date(callEnd), status: 'Interactuando' });
+
+      cursor = Math.max(cursor, callEnd);
+    }
+
+    // Remaining time after last call = available/offQueue
+    if (cursor < dayEnd) {
+      events.push({ start_time: new Date(cursor), end_time: new Date(dayEnd), status: 'Disponible' });
+    }
+  }
+
+  return events;
+}
+
 export function OccupationDashboard({ records, agentStatusRecords, allRecords, allAgentStatus }: Props) {
   const [agentStatus, setAgentStatus] = useState<AgentStatusRecord[]>(agentStatusRecords || []);
   const [loading, setLoading] = useState(false);
@@ -266,9 +321,25 @@ export function OccupationDashboard({ records, agentStatusRecords, allRecords, a
     }
   }, [agentStatusRecords]);
 
+  const [selectedAgent, setSelectedAgent] = useState<string>('');
+
   const { kpiData, ganttData, demandData, performanceData, auditData } = useMemo(
     () => calculateOccupancyMetrics(records, agentStatus, allRecords, allAgentStatus),
     [records, agentStatus, allRecords, allAgentStatus]
+  );
+
+  const agentNames = useMemo(() => {
+    const names = Array.from(
+      new Set(records.filter((r) => r.executive && r.executive !== 'SIN ATENDER').map((r) => r.executive))
+    ).sort() as string[];
+    return names;
+  }, [records]);
+
+  const activeAgent = selectedAgent || agentNames[0] || '';
+
+  const adherenceEvents = useMemo(
+    () => (activeAgent ? buildAgentAdherenceEvents(activeAgent, records) : []),
+    [activeAgent, records]
   );
 
   const hasData = records.length > 0 || agentStatus.length > 0;
@@ -303,6 +374,26 @@ export function OccupationDashboard({ records, agentStatusRecords, allRecords, a
           <AgentGanttChart agents={ganttData} demandData={demandData} />
           <AgentPerformanceMatrix data={performanceData} />
           <AgentAuditTable rows={auditData} />
+
+          {agentNames.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">
+                  Perfil de Adherencia:
+                </label>
+                <select
+                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-sky-300"
+                  value={activeAgent}
+                  onChange={(e) => setSelectedAgent(e.target.value)}
+                >
+                  {agentNames.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
+              <AgentAdherenceProfile agentName={activeAgent} events={adherenceEvents} />
+            </div>
+          )}
         </>
       )}
     </div>
