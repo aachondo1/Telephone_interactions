@@ -597,6 +597,8 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
         <OccupationDashboard
           records={filteredRecords}
           agentStatusRecords={agentStatusRecords}
+          allRecords={records}
+          allAgentStatus={agentStatusRecords}
           dateRange={{ start: filters.dateStart, end: filters.dateEnd }}
         />
       )}

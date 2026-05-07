@@ -11,6 +11,8 @@ import { AgentAuditTable, type AuditTableRow } from './AgentAuditTable';
 type Props = {
   records: CallRecord[];
   agentStatusRecords: AgentStatusRecord[];
+  allRecords?: CallRecord[];
+  allAgentStatus?: AgentStatusRecord[];
   dateRange?: { start: string; end: string };
 };
 
@@ -35,9 +37,26 @@ function formatDateSpan(start: string | null, end: string | null): string {
   return fmt(start || end || '');
 }
 
+function getPreviousPeriod(startDate: string | null, endDate: string | null): { start: string | null; end: string | null } {
+  if (!startDate || !endDate) return { start: null, end: null };
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  const duration = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+  const prevEnd = new Date(start);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+  const prevStart = new Date(prevEnd);
+  prevStart.setDate(prevStart.getDate() - duration + 1);
+
+  const fmt = (d: Date) => d.toISOString().split('T')[0];
+  return { start: fmt(prevStart), end: fmt(prevEnd) };
+}
+
 function calculateOccupancyMetrics(
   records: CallRecord[],
-  agentStatus: AgentStatusRecord[]
+  agentStatus: AgentStatusRecord[],
+  allRecords?: CallRecord[],
+  allAgentStatus?: AgentStatusRecord[]
 ) {
   const attendedRecords = records.filter(
     (r) => r.attended && r.executive && r.executive !== 'SIN ATENDER'
@@ -82,11 +101,37 @@ function calculateOccupancyMetrics(
       : 0;
   const ghostTime = formatHHMM(ghostSeconds);
 
+  // Calculate trends if we have full dataset
+  let occupancyTrend = 0;
+  let shrinkageTrend = 0;
+  if (allRecords && allRecords.length > 0 && allAgentStatus && allAgentStatus.length > 0) {
+    const currentPeriodDates = getDateRangeFromRecords(records);
+    const { start: prevStart, end: prevEnd } = getPreviousPeriod(currentPeriodDates.minDate, currentPeriodDates.maxDate);
+
+    if (prevStart && prevEnd) {
+      const prevRecords = allRecords.filter(
+        (r) => r.call_date && r.call_date >= prevStart && r.call_date <= prevEnd
+      );
+      const prevAttended = prevRecords.filter(
+        (r) => r.attended && r.executive && r.executive !== 'SIN ATENDER'
+      );
+      const prevTalkACW = prevAttended.reduce((sum, r) => sum + (r.duration_seconds || 0) + (r.acw_seconds || 0), 0);
+      const prevConnected = allAgentStatus.reduce((sum, a) => sum + (a.connected_seconds || 0), 0);
+      const prevOccupancy = prevConnected > 0 ? Math.min(100, Math.round((prevTalkACW / prevConnected) * 100)) : 0;
+
+      occupancyTrend = effectiveOccupancy - prevOccupancy;
+
+      const prevOutOfQueue = allAgentStatus.reduce((sum, a) => sum + (a.out_of_queue_seconds || 0), 0);
+      const prevShrinkage = prevConnected > 0 ? Math.min(100, Math.round((prevOutOfQueue / prevConnected) * 100)) : 0;
+      shrinkageTrend = shrinkagePercent - prevShrinkage;
+    }
+  }
+
   const kpiData: OccupationKPIData = {
     effectiveOccupancy,
-    occupancyTrend: 0,
+    occupancyTrend,
     shrinkagePercent,
-    shrinkageTrend: 0,
+    shrinkageTrend,
     evasionTime,
     evasionCalls,
     ghostHours: ghostTime,
@@ -193,7 +238,7 @@ function calculateOccupancyMetrics(
   return { kpiData, ganttData, demandData, performanceData, auditData };
 }
 
-export function OccupationDashboard({ records, agentStatusRecords }: Props) {
+export function OccupationDashboard({ records, agentStatusRecords, allRecords, allAgentStatus }: Props) {
   const [agentStatus, setAgentStatus] = useState<AgentStatusRecord[]>(agentStatusRecords || []);
   const [loading, setLoading] = useState(false);
 
