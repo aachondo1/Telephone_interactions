@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
-import type { CallRecord, AgentConnectivityHourly } from '../lib/supabase';
+import type { CallRecord, AgentConnectivityHourly, AgentStatusRecord } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
+import { identifyChronicOffenders } from '../lib/kpi/chronic-offenders';
 import { SectionHeader } from './SectionHeader';
 import { BarChart3 } from 'lucide-react';
 import { OccupationKPICards, type OccupationKPIData } from './OccupationKPICards';
@@ -9,6 +10,8 @@ import { AgentPerformanceMatrix, type PerformancePoint } from './AgentPerformanc
 import { AgentAuditTable, type AuditTableRow } from './AgentAuditTable';
 import { CascadeAgentChart } from './CascadeAgentChart';
 import { AgentAvailabilityChart } from './AgentAvailabilityChart';
+import { AgentTimeDistributionChart } from './AgentTimeDistributionChart';
+import { AgentTimeTrendChart } from './AgentTimeTrendChart';
 
 export type AgentCascadeStat = {
   agent: string;
@@ -36,7 +39,11 @@ export type AgentAvailabilityEntry = {
 
 type Props = {
   records: CallRecord[];
+  allRecords: CallRecord[];
   connectivityData: AgentConnectivityHourly[];
+  agentStatusRecords: AgentStatusRecord[];
+  connectivityRefreshKey?: number;
+  executiveFilter?: string[];
 };
 
 // Maps Genesys Cloud status strings to Gantt status categories
@@ -64,14 +71,15 @@ function formatHHMM(totalSeconds: number): { hours: number; minutes: number } {
 
 function calculateOccupancyMetrics(
   records: CallRecord[],
-  connectivity: AgentConnectivityHourly[]
+  allRecords: CallRecord[],
+  connectivity: AgentConnectivityHourly[],
+  agentStatusRecords: AgentStatusRecord[]
 ) {
   // records are already filtered by the global FilterBar
   const filteredRecords = records;
 
   // ----- Step 1: Cascade stats per agent (inbound only) — moved to TOP for key-agent derivation -----
   const MIN_ALERTS = 5;
-  const KEY_ALERTS = 10; // min alerts to be included in KPI denominators
   const inboundRecords = filteredRecords.filter((r) =>
     ['inbound', 'entrante'].includes((r.call_direction || '').toLowerCase())
   );
@@ -79,7 +87,7 @@ function calculateOccupancyMetrics(
 
   for (const r of inboundRecords) {
     const alertedList = r.alerted_users
-      ? r.alerted_users.split(';').map((u) => u.trim()).filter(Boolean)
+      ? r.alerted_users.split(/[,;]/).map((u) => u.trim()).filter(Boolean)
       : [];
     for (const agent of alertedList) {
       if (!agentCascadeMap.has(agent)) agentCascadeMap.set(agent, { alerted: 0, answered: 0, evaded: 0 });
@@ -90,19 +98,16 @@ function calculateOccupancyMetrics(
       agentCascadeMap.get(r.executive)!.answered++;
     }
     if (r.users_not_respond) {
-      for (const agent of r.users_not_respond.split(';').map((u) => u.trim()).filter(Boolean)) {
+      for (const agent of r.users_not_respond.split(/[,;]/).map((u) => u.trim()).filter(Boolean)) {
         if (!agentCascadeMap.has(agent)) agentCascadeMap.set(agent, { alerted: 0, answered: 0, evaded: 0 });
         agentCascadeMap.get(agent)!.evaded++;
       }
     }
   }
 
-  // ----- Step 2: Key agents = ≥10 inbound alerts (for KPI denominators) -----
-  const keyAgentNames = new Set<string>(
-    Array.from(agentCascadeMap.entries())
-      .filter(([, v]) => v.alerted >= KEY_ALERTS)
-      .map(([name]) => name)
-  );
+  // ----- Step 2: Identify chronic offenders (agentes con >= 50 alarmas perdidas en últimos 30 días) -----
+  const chronicOffendersNorm = identifyChronicOffenders(allRecords).map(name => name.toLowerCase().trim());
+  const keyAgentNames = new Set<string>(chronicOffendersNorm);
 
   // ----- Step 3: Connectivity filtered to records' date range -----
   const recordDates = filteredRecords.map((r) => r.call_date).filter(Boolean) as string[];
@@ -124,37 +129,45 @@ function calculateOccupancyMetrics(
     ? attendedRecords.filter((r) => r.executive && keyAgentNames.has(r.executive))
     : attendedRecords;
 
-  // ----- KPI 1: Ocupación Efectiva -----
-  // (Conversación + ACW) / Tiempo conectado · solo agentes con ≥10 alertas inbound
-  const totalTalkACWSeconds = keyAttendedRecords.reduce(
-    (sum, r) => sum + (r.duration_seconds || 0) + (r.acw_seconds || 0),
-    0
+  // ----- KPI 1 & 2: Ocupación Efectiva y Shrinkage -----
+  // Denominador: connected_seconds de agentStatusRecords, filtrado a agentes clave (>50 alarmas perdidas en últimos 30d).
+  // keyAgentNames ya contiene nombres normalizados (lowercase) de la cohorte.
+
+  const keyStatusRecords = agentStatusRecords.filter(
+    r => keyAgentNames.has((r.agent_name || '').toLowerCase().trim())
   );
-  const totalConnectedSeconds = keyConnectivity.reduce(
-    (sum, c) => sum + (c.seconds_in_bucket || 0),
-    0
-  );
+
+  // Detectar fallback: si no hay coincidencias de agentStatusRecords, usar todos
+  const hadFallback = keyStatusRecords.length === 0;
+  const statusSource = hadFallback ? agentStatusRecords : keyStatusRecords;
+
+  const totalConnectedSeconds = statusSource.reduce((s, r) => s + (r.connected_seconds || 0), 0);
+  const totalOutQueueSeconds = statusSource.reduce((s, r) => s + (r.out_of_queue_seconds || 0), 0);
+
+  // Numerador de ocupación: talk + ACW, condicional según fallback
+  let totalTalkACWSeconds = 0;
+  if (hadFallback) {
+    // Si hay fallback: sumar tiempo de TODOS los attended records
+    totalTalkACWSeconds = attendedRecords.reduce(
+      (sum, r) => sum + (r.duration_seconds || 0) + (r.acw_seconds || 0),
+      0
+    );
+  } else {
+    // Si no hay fallback: sumar solo records cuyo executive está en la cohorte
+    totalTalkACWSeconds = attendedRecords
+      .filter(r => r.executive && keyAgentNames.has((r.executive || '').toLowerCase().trim()))
+      .reduce((sum, r) => sum + (r.duration_seconds || 0) + (r.acw_seconds || 0), 0);
+  }
+
   const effectiveOccupancy =
     totalConnectedSeconds > 0
       ? Math.min(100, Math.round((totalTalkACWSeconds / totalConnectedSeconds) * 100))
       : 0;
 
-  // ----- KPI 2: Shrinkage -----
-  // Time NOT in queue/available vs total connected · solo agentes con ≥10 alertas inbound
-  const pauseSeconds = keyConnectivity
-    .filter((c) => {
-      const s = (c.status || '').toLowerCase();
-      return (
-        !s.includes('cola') &&
-        !s.includes('disponible') &&
-        !s.includes('queue') &&
-        !s.includes('available')
-      );
-    })
-    .reduce((sum, c) => sum + (c.seconds_in_bucket || 0), 0);
+  // Shrinkage = tiempo fuera de cola / tiempo conectado total
   const shrinkagePercent =
     totalConnectedSeconds > 0
-      ? Math.min(100, Math.round((pauseSeconds / totalConnectedSeconds) * 100))
+      ? Math.min(100, Math.round((totalOutQueueSeconds / totalConnectedSeconds) * 100))
       : 0;
 
   // ----- KPI 3: Evasión ('No Responde') — inbound only -----
@@ -439,28 +452,55 @@ function calculateOccupancyMetrics(
     cascadeStats,
     cascadeDepth,
     availabilityData,
+    filteredConnectivity,
   };
 }
 
-export function OccupationDashboard({ records, connectivityData }: Props) {
+export function OccupationDashboard({ records, allRecords, connectivityData, agentStatusRecords, connectivityRefreshKey, executiveFilter }: Props) {
 
   const [connectivity, setConnectivity] = useState<AgentConnectivityHourly[]>(connectivityData || []);
   const [loading, setLoading] = useState(false);
+  const [connectivityError, setConnectivityError] = useState<string | null>(null);
+  const [trendGranularity, setTrendGranularity] = useState<'hour' | 'day' | 'week' | 'month'>('day');
+
+  // Derive date bounds from the filtered records (already date-filtered by global FilterBar)
+  const dateMin = useMemo(() => {
+    const dates = records.map(r => r.call_date).filter(Boolean) as string[];
+    return dates.length ? dates.reduce((a, b) => (a < b ? a : b)).slice(0, 10) : '';
+  }, [records]);
+
+  const dateMax = useMemo(() => {
+    const dates = records.map(r => r.call_date).filter(Boolean) as string[];
+    return dates.length ? dates.reduce((a, b) => (a > b ? a : b)).slice(0, 10) : '';
+  }, [records]);
 
   useEffect(() => {
     if (!connectivityData || connectivityData.length === 0) {
       setLoading(true);
-      supabase
-        .from('agent_connectivity_hourly')
-        .select('*')
-        .limit(5000)
-        .then(({ data }) => {
-          setConnectivity(data || []);
+      setConnectivityError(null);
+      let query = supabase.from('agent_connectivity_hourly').select('*');
+      if (dateMin) query = query.gte('date', dateMin);
+      if (dateMax) query = query.lte('date', dateMax);
+      query
+        .limit(50000)
+        .then(({ data, error }) => {
+          if (error) {
+            console.error('[connectivity] Supabase error:', error);
+            setConnectivityError(error.message);
+            setConnectivity([]);
+          } else {
+            setConnectivity(data || []);
+          }
         })
-        .catch(() => setConnectivity([]))
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error('[connectivity] Network error:', msg);
+          setConnectivityError(msg);
+          setConnectivity([]);
+        })
         .finally(() => setLoading(false));
     }
-  }, [connectivityData]);
+  }, [connectivityData, dateMin, dateMax, connectivityRefreshKey]);
 
   const {
     kpiData,
@@ -471,10 +511,18 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
     cascadeStats,
     cascadeDepth,
     availabilityData,
+    filteredConnectivity,
   } = useMemo(
-    () => calculateOccupancyMetrics(records, connectivity),
-    [records, connectivity]
+    () => calculateOccupancyMetrics(records, allRecords, connectivity, agentStatusRecords),
+    [records, allRecords, connectivity, agentStatusRecords]
   );
+
+  // Apply executive filter to connectivity data for the trend chart
+  const trendConnectivity = useMemo(() => {
+    if (!executiveFilter || executiveFilter.length === 0) return filteredConnectivity;
+    const names = new Set(executiveFilter.map(n => n.toLowerCase().trim()));
+    return filteredConnectivity.filter(c => c.agent_name && names.has(c.agent_name.toLowerCase().trim()));
+  }, [filteredConnectivity, executiveFilter]);
 
   const hasData = records.length > 0 || connectivity.length > 0;
 
@@ -492,6 +540,12 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
         </div>
       )}
 
+      {connectivityError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-6 py-4 text-sm text-amber-700">
+          Error al cargar conectividad: {connectivityError}
+        </div>
+      )}
+
       {!hasData && !loading ? (
         <div className="bg-white border border-slate-200 rounded-lg p-12 text-center">
           <BarChart3 size={40} className="mx-auto mb-4 text-slate-300" />
@@ -503,6 +557,12 @@ export function OccupationDashboard({ records, connectivityData }: Props) {
       ) : (
         <>
           <OccupationKPICards data={kpiData} />
+          <AgentTimeDistributionChart agentStatusRecords={agentStatusRecords} />
+          <AgentTimeTrendChart
+            connectivityData={trendConnectivity}
+            granularity={trendGranularity}
+            onGranularityChange={setTrendGranularity}
+          />
           <CascadeAgentChart data={cascadeStats} depthData={cascadeDepth} />
           <AgentGanttChart agents={ganttData} demandData={demandData} />
           <AgentAvailabilityChart data={availabilityData} />

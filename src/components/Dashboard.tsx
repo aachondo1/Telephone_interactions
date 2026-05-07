@@ -46,6 +46,7 @@ type Props = {
   activeSection: Section;
   onUploadAgentStatus: () => void;
   dataQuality: DataQualityReport | null;
+  connectivityRefreshKey?: number;
 };
 
 function formatDateRange(start: string | null, end: string | null): string {
@@ -355,11 +356,30 @@ function DataQualityIndicator({ quality }: { quality: DataQualityReport | null }
   );
 }
 
-export function Dashboard({ records, upload, agentStatusRecords, activeSection, onUploadAgentStatus, dataQuality }: Props) {
+export function Dashboard({ records, upload, agentStatusRecords, activeSection, onUploadAgentStatus, dataQuality, connectivityRefreshKey }: Props) {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [kpis, setKpis] = useState(() => getEmptyKPISummary());
   const [isLoadingKpis, setIsLoadingKpis] = useState(false);
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
+
+  // Filter agentStatusRecords by overlap with the global date range.
+  // AgentStatusRecord is aggregated per upload (no daily granularity), so we include
+  // a record if its period overlaps with the selected range at all.
+  const filteredAgentStatusRecords = useMemo(() => {
+    const { dateStart, dateEnd } = filters;
+    if (!dateStart && !dateEnd) return agentStatusRecords;
+    return agentStatusRecords.filter(r => {
+      const rStart = (r.date_range_start ?? '').slice(0, 10);
+      const rEnd   = (r.date_range_end   ?? '').slice(0, 10);
+      if (!rStart && !rEnd) return true;
+      const filterStart = dateStart ? dateStart.slice(0, 10) : '';
+      const filterEnd   = dateEnd   ? dateEnd.slice(0, 10)   : '';
+      const overlapEnd   = !filterStart || !rEnd   || rEnd   >= filterStart;
+      const overlapStart = !filterEnd   || !rStart || rStart <= filterEnd;
+      return overlapEnd && overlapStart;
+    });
+  }, [agentStatusRecords, filters.dateStart, filters.dateEnd]);
+
   const agentAuditFlags = useMemo(() => calculateAgentAuditFlags(agentStatusRecords), [agentStatusRecords]);
 
   useEffect(() => {
@@ -594,7 +614,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       )}
 
       {activeSection === 'ocupacion-agentes' && (
-        <OccupationDashboard records={filteredRecords} connectivityData={[]} />
+        <OccupationDashboard records={filteredRecords} allRecords={records} connectivityData={[]} agentStatusRecords={filteredAgentStatusRecords} connectivityRefreshKey={connectivityRefreshKey} executiveFilter={filters.executives} />
       )}
 
       {activeSection === 'planificacion' && (
