@@ -390,6 +390,7 @@ export async function saveAgentConnectivityUpload(
     start_time:   e.startTime,
     end_time:     e.endTime,
     status:       e.status,
+    status_secondary: e.statusSecondary ?? null,
     duration_raw: Math.round(e.durationRaw),
   }));
 
