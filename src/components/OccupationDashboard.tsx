@@ -541,7 +541,17 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
       .lte('date', dateMax)
       .limit(50000)
       .then(({ data, error }) => {
-        console.log('[Gantt] useEffect fetch completed:', { count: data?.length || 0, error: error?.message });
+        const dates = new Map<string, number>();
+        (data || []).forEach(c => {
+          if (c.date) dates.set(c.date, (dates.get(c.date) || 0) + 1);
+        });
+        console.log('[Gantt] useEffect fetch completed:', {
+          count: data?.length || 0,
+          dateRange: { dateMin, dateMax },
+          datesWithData: Array.from(dates.keys()).sort(),
+          recordsPerDate: Object.fromEntries(dates),
+          error: error?.message
+        });
         if (error) {
           setConnectivityError(error.message);
           setConnectivity([]);
