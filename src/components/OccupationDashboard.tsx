@@ -508,6 +508,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
   const [loading, setLoading] = useState(false);
   const [connectivityError, setConnectivityError] = useState<string | null>(null);
   const [trendGranularity, setTrendGranularity] = useState<'hour' | 'day' | 'week' | 'month'>('day');
+  const [totalConnectivityCount, setTotalConnectivityCount] = useState<number>(0);
 
   // Derive date bounds from the filtered records (already date-filtered by global FilterBar)
   const dateMin = useMemo(() => {
@@ -524,6 +525,19 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
   useEffect(() => {
     console.log('[Gantt] dateMin/dateMax updated:', { dateMin, dateMax, recordsCount: records.length });
   }, [dateMin, dateMax, records.length]);
+
+  // Fetch total count of connectivity records available
+  useEffect(() => {
+    supabase
+      .from('agent_connectivity_hourly')
+      .select('*', { count: 'exact', head: true })
+      .then(({ count }) => {
+        setTotalConnectivityCount(count || 0);
+      })
+      .catch(() => {
+        setTotalConnectivityCount(0);
+      });
+  }, []);
 
   useEffect(() => {
     console.log('[Gantt] useEffect executing with dateMin/dateMax:', { dateMin, dateMax });
@@ -594,11 +608,17 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
 
   return (
     <div className="space-y-6">
-      <SectionHeader
-        icon={BarChart3}
-        title="Ocupación de Agentes"
-        description="Panel completo de ocupación, conectividad y auditoría forense"
-      />
+      <div className="flex items-center justify-between">
+        <SectionHeader
+          icon={BarChart3}
+          title="Ocupación de Agentes"
+          description="Panel completo de ocupación, conectividad y auditoría forense"
+        />
+        <div className="text-sm text-slate-600">
+          <div>📞 Llamadas: {records.length.toLocaleString()} registros</div>
+          <div>📊 Conectividad: {connectivity.length.toLocaleString()} de {totalConnectivityCount.toLocaleString()} registros</div>
+        </div>
+      </div>
 
       {loading && (
         <div className="bg-sky-50 border border-sky-100 rounded-lg px-6 py-4 text-sm text-sky-700">
