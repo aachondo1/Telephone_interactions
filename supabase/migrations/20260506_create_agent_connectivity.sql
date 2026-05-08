@@ -4,7 +4,7 @@
   Stores agent status timeline data from "Resumen de línea de tiempo de estado de agente.csv"
   with hourly slicing to calculate real occupancy metrics.
 
-  Rows where status = 'Desconectado' are filtered out at import time (not stored).
+  All statuses including 'Desconectado' are stored in agent_connectivity_raw.
 */
 
 CREATE TABLE IF NOT EXISTS agent_connectivity_uploads (

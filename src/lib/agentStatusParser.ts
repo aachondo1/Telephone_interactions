@@ -56,6 +56,7 @@ export type AgentConnectivityRawRow = {
   startTime: string; // ISO timestamp string
   endTime: string;   // ISO timestamp string
   status: string;
+  statusSecondary: string | null;
   durationRaw: number; // seconds (unclipped, no BH filter)
 };
 
@@ -84,10 +85,11 @@ export function parseAgentStatusCSV(text: string): AgentStatusParseResult {
   const colTimelineStart  = findCol(headers, ['hora de inicio', 'start time', 'start_time']);
   const colTimelineEnd    = findCol(headers, ['hora de finalización', 'hora finalizacion', 'end time', 'end_time']);
   const colStatus         = findCol(headers, ['estado principal', 'primary status', 'status']);
+  const colStatusSecondary = findCol(headers, ['estado secundario', 'secondary status', 'status_secondary']);
 
   // If timeline format is detected, process it differently
   if (colTimelineStart && colTimelineEnd && colStatus) {
-    return parseTimelineFormat(rows, headers, colAgentId, colAgentName, colTimelineStart, colTimelineEnd, colStatus);
+    return parseTimelineFormat(rows, headers, colAgentId, colAgentName, colTimelineStart, colTimelineEnd, colStatus, colStatusSecondary);
   }
 
   // Otherwise, expect aggregated format
@@ -146,7 +148,8 @@ function parseTimelineFormat(
   colAgentName: string | null,
   colStart: string,
   colEnd: string,
-  colStatus: string
+  colStatus: string,
+  colStatusSecondary: string | null
 ): AgentStatusParseResult {
   const result: AgentStatusRow[] = [];
   const rawEvents: AgentConnectivityRawRow[] = [];
@@ -157,6 +160,7 @@ function parseTimelineFormat(
     colStart,
     colEnd,
     colStatus,
+    colStatusSecondary,
     totalRows: rows.length,
   });
 
@@ -189,6 +193,7 @@ function parseTimelineFormat(
     const agentName = colAgentName ? (row[colAgentName] ?? '').trim() : '';
     const agentId = colAgentId ? (row[colAgentId] ?? '').trim() : agentName;
     const status = (row[colStatus] ?? '').trim();
+    const statusSecondary = colStatusSecondary ? (row[colStatusSecondary] ?? '').trim() : '';
     const startStr = (row[colStart] ?? '').trim();
     const endStr = (row[colEnd] ?? '').trim();
 
@@ -236,6 +241,7 @@ function parseTimelineFormat(
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
       status,
+      statusSecondary: statusSecondary || null,
       durationRaw: totalDurationSeconds,
     });
 

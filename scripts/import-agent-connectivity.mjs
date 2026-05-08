@@ -94,7 +94,7 @@ async function importAgentConnectivity(csvFilePath) {
 
     console.log(`✓ Archivo leído: ${records.length} registros encontrados\n`);
 
-    // Normalize column names (Spanish → English) and filter out "Desconectado" records
+    // Normalize column names (Spanish → English)
     const normalizedRecords = records
       .map((row, idx) => {
         const agentId = row['ID del agente'] || row['ID del agente'] || '';
@@ -124,9 +124,7 @@ async function importAgentConnectivity(csvFilePath) {
       })
       .filter((row) => {
         if (!row) return false;
-        // Filter out "Desconectado" status as per requirements
-        if (row.status === 'Desconectado') return false;
-        // Ensure required fields
+        // Ensure required fields (all statuses including Desconectado are stored)
         if (!row.agent_name || !row.agent_id || !row.start_time || !row.end_time) return false;
         return true;
       });
