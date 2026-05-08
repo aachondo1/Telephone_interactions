@@ -514,32 +514,32 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
   }, [records]);
 
   useEffect(() => {
-    if (!connectivityData || connectivityData.length === 0) {
-      setLoading(true);
-      setConnectivityError(null);
-      let query = supabase.from('agent_connectivity_hourly').select('*');
-      if (dateMin) query = query.gte('date', dateMin);
-      if (dateMax) query = query.lte('date', dateMax);
-      query
-        .limit(50000)
-        .then(({ data, error }) => {
-          if (error) {
-            console.error('[connectivity] Supabase error:', error);
-            setConnectivityError(error.message);
-            setConnectivity([]);
-          } else {
-            setConnectivity(data || []);
-          }
-        })
-        .catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error('[connectivity] Network error:', msg);
-          setConnectivityError(msg);
+    if (!dateMin || !dateMax) return;
+    setLoading(true);
+    setConnectivity([]);
+    setConnectivityError(null);
+    let query = supabase.from('agent_connectivity_hourly').select('*');
+    query = query.gte('date', dateMin);
+    query = query.lte('date', dateMax);
+    query
+      .limit(50000)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('[connectivity] Supabase error:', error);
+          setConnectivityError(error.message);
           setConnectivity([]);
-        })
-        .finally(() => setLoading(false));
-    }
-  }, [connectivityData, dateMin, dateMax, connectivityRefreshKey]);
+        } else {
+          setConnectivity(data || []);
+        }
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('[connectivity] Network error:', msg);
+        setConnectivityError(msg);
+        setConnectivity([]);
+      })
+      .finally(() => setLoading(false));
+  }, [dateMin, dateMax, connectivityRefreshKey]);
 
   const {
     kpiData,
