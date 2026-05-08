@@ -528,9 +528,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
   useEffect(() => {
     console.log('[Gantt] useEffect executing with dateMin/dateMax:', { dateMin, dateMax });
     if (!dateMin || !dateMax) {
-      console.log('[Gantt] Clearing connectivity: dateMin or dateMax is empty');
-      setConnectivity([]);
-      setConnectivityError(null);
+      console.log('[Gantt] Skipping fetch: dateMin or dateMax is empty');
       setLoading(false);
       return;
     }
