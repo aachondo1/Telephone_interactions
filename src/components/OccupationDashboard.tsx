@@ -515,17 +515,17 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
 
   useEffect(() => {
     if (!dateMin || !dateMax) return;
-    setConnectivity([]);
     setLoading(true);
+    setConnectivity([]);
     setConnectivityError(null);
-    let query = supabase.from('agent_connectivity_hourly').select('*');
-    query = query.gte('date', dateMin);
-    query = query.lte('date', dateMax);
-    query
+    supabase
+      .from('agent_connectivity_hourly')
+      .select('*')
+      .gte('date', dateMin)
+      .lte('date', dateMax)
       .limit(50000)
       .then(({ data, error }) => {
         if (error) {
-          console.error('[connectivity] Supabase error:', error);
           setConnectivityError(error.message);
           setConnectivity([]);
         } else {
@@ -533,9 +533,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
         }
       })
       .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error('[connectivity] Network error:', msg);
-        setConnectivityError(msg);
+        setConnectivityError(err instanceof Error ? err.message : String(err));
         setConnectivity([]);
       })
       .finally(() => setLoading(false));
