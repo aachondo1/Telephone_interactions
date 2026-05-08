@@ -515,8 +515,8 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
 
   useEffect(() => {
     if (!dateMin || !dateMax) return;
-    setLoading(true);
     setConnectivity([]);
+    setLoading(true);
     setConnectivityError(null);
     let query = supabase.from('agent_connectivity_hourly').select('*');
     query = query.gte('date', dateMin);
