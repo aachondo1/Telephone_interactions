@@ -482,6 +482,13 @@ function calculateOccupancyMetrics(
     totalAlerted: totalAlertedTeam,
   };
 
+  console.log('[Gantt] calculateOccupancyMetrics ejecutado:', {
+    records: records.length,
+    connectivity: connectivity.length,
+    firstConnDate: connectivity[0]?.date,
+    lastConnDate: connectivity[connectivity.length - 1]?.date,
+  });
+
   return {
     kpiData: enrichedKpiData,
     ganttData: displayedGantt,
