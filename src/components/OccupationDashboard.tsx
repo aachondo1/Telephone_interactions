@@ -548,38 +548,52 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
     }
     setLoading(true);
     setConnectivityError(null);
-    supabase
-      .from('agent_connectivity_hourly')
-      .select('*')
-      .gte('date', dateMin)
-      .lte('date', dateMax)
-      .limit(100000)
-      .then(({ data, error }) => {
-        const dates = new Map<string, number>();
-        (data || []).forEach(c => {
-          if (c.date) dates.set(c.date, (dates.get(c.date) || 0) + 1);
-        });
-        console.log('[Gantt] useEffect fetch completed:', {
-          count: data?.length || 0,
-          dateRange: { dateMin, dateMax },
-          datesWithData: Array.from(dates.keys()).sort(),
-          recordsPerDate: Object.fromEntries(dates),
-          error: error?.message
-        });
+
+    // Fetch all records using pagination (Supabase has 1000 record limit per request)
+    const fetchAllConnectivity = async () => {
+      let allData: AgentConnectivityHourly[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('agent_connectivity_hourly')
+          .select('*')
+          .gte('date', dateMin)
+          .lte('date', dateMax)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
         if (error) {
+          console.log('[Gantt] useEffect fetch error:', error.message);
           setConnectivityError(error.message);
           setConnectivity([]);
-        } else {
-          setConnectivity(data || []);
+          return;
         }
-      })
-      .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.log('[Gantt] useEffect fetch error:', msg);
-        setConnectivityError(msg);
-        setConnectivity([]);
-      })
-      .finally(() => setLoading(false));
+
+        if (!data || data.length === 0) {
+          hasMore = false;
+        } else {
+          allData = allData.concat(data);
+          page++;
+          if (data.length < pageSize) hasMore = false;
+        }
+      }
+
+      const dates = new Map<string, number>();
+      allData.forEach(c => {
+        if (c.date) dates.set(c.date, (dates.get(c.date) || 0) + 1);
+      });
+      console.log('[Gantt] useEffect fetch completed:', {
+        count: allData.length,
+        pages: page,
+        dateRange: { dateMin, dateMax },
+        datesWithData: Array.from(dates.keys()).sort(),
+      });
+      setConnectivity(allData);
+    };
+
+    fetchAllConnectivity().finally(() => setLoading(false));
   }, [dateMin, dateMax, connectivityRefreshKey]);
 
   const {
