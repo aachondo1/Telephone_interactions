@@ -520,8 +520,17 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
     return dates.length ? dates.reduce((a, b) => (a > b ? a : b)).slice(0, 10) : '';
   }, [records]);
 
+  // Diagnostic: log when dateMin/dateMax change
   useEffect(() => {
-    if (!dateMin || !dateMax) return;
+    console.log('[Gantt] dateMin/dateMax updated:', { dateMin, dateMax, recordsCount: records.length });
+  }, [dateMin, dateMax, records.length]);
+
+  useEffect(() => {
+    console.log('[Gantt] useEffect executing with dateMin/dateMax:', { dateMin, dateMax });
+    if (!dateMin || !dateMax) {
+      console.log('[Gantt] Skipping fetch: dateMin or dateMax is empty');
+      return;
+    }
     setLoading(true);
     setConnectivity([]);
     setConnectivityError(null);
@@ -532,6 +541,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
       .lte('date', dateMax)
       .limit(50000)
       .then(({ data, error }) => {
+        console.log('[Gantt] useEffect fetch completed:', { count: data?.length || 0, error: error?.message });
         if (error) {
           setConnectivityError(error.message);
           setConnectivity([]);
@@ -540,7 +550,9 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
         }
       })
       .catch((err: unknown) => {
-        setConnectivityError(err instanceof Error ? err.message : String(err));
+        const msg = err instanceof Error ? err.message : String(err);
+        console.log('[Gantt] useEffect fetch error:', msg);
+        setConnectivityError(msg);
         setConnectivity([]);
       })
       .finally(() => setLoading(false));
