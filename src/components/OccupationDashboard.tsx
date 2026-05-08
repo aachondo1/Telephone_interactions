@@ -523,7 +523,13 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
 
   // Diagnostic: log when dateMin/dateMax change
   useEffect(() => {
-    console.log('[Gantt] dateMin/dateMax updated:', { dateMin, dateMax, recordsCount: records.length });
+    console.log('[Gantt] dateMin/dateMax CHANGED:', {
+      dateMin,
+      dateMax,
+      recordsCount: records.length,
+      firstRecordDate: records[0]?.call_date,
+      lastRecordDate: records[records.length - 1]?.call_date
+    });
   }, [dateMin, dateMax, records.length]);
 
   // Fetch total count of connectivity records available
