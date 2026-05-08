@@ -553,7 +553,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
       .select('*')
       .gte('date', dateMin)
       .lte('date', dateMax)
-      .limit(50000)
+      .limit(100000)
       .then(({ data, error }) => {
         const dates = new Map<string, number>();
         (data || []).forEach(c => {
