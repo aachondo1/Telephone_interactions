@@ -109,13 +109,8 @@ function calculateOccupancyMetrics(
   const chronicOffendersNorm = identifyChronicOffenders(allRecords).map(name => name.toLowerCase().trim());
   const keyAgentNames = new Set<string>(chronicOffendersNorm);
 
-  // ----- Step 3: Connectivity filtered to records' date range -----
-  const recordDates = filteredRecords.map((r) => r.call_date).filter(Boolean) as string[];
-  const dateMin = recordDates.length ? recordDates.reduce((a, b) => (a < b ? a : b)) : '';
-  const dateMax = recordDates.length ? recordDates.reduce((a, b) => (a > b ? a : b)) : '';
-  const filteredConnectivity = dateMin
-    ? connectivity.filter((c) => c.date && c.date >= dateMin && c.date <= dateMax)
-    : connectivity;
+  // ----- Step 3: Connectivity is already filtered by useEffect via dateMin/dateMax -----
+  const filteredConnectivity = connectivity;
 
   // keyConnectivity: only key agents, date-filtered
   const keyConnectivity = keyAgentNames.size > 0
