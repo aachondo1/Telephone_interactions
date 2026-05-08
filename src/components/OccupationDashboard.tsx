@@ -201,19 +201,49 @@ function calculateOccupancyMetrics(
   };
 
   // ----- Gantt: Build agent periods from hourly connectivity -----
-  type AgentHourMap = Map<string, Map<string, Map<number, { status: string; seconds: number }>>>;
+  // New structure: agentName -> hour -> { totalSeconds, inQueueSeconds, dayCount, statuses }
+  type HourData = {
+    totalSeconds: number;
+    inQueueSeconds: number;
+    dayCount: number;
+    statuses: Map<string, number>; // status -> seconds
+  };
+  type AgentHourMap = Map<string, Map<number, HourData>>;
   const agentDateHourMap: AgentHourMap = new Map();
+  const agentDateSet = new Map<string, Set<string>>(); // agentName -> Set<dates>
 
   for (const c of filteredConnectivity) {
     if (!c.agent_name) continue;
     if (!agentDateHourMap.has(c.agent_name)) agentDateHourMap.set(c.agent_name, new Map());
-    const dateMap = agentDateHourMap.get(c.agent_name)!;
-    const dateKey = c.date || 'unknown';
-    if (!dateMap.has(dateKey)) dateMap.set(dateKey, new Map());
-    const hourMap = dateMap.get(dateKey)!;
-    const existing = hourMap.get(c.hour);
-    if (!existing || c.seconds_in_bucket > existing.seconds) {
-      hourMap.set(c.hour, { status: c.status, seconds: c.seconds_in_bucket });
+    const hourMap = agentDateHourMap.get(c.agent_name)!;
+    if (!hourMap.has(c.hour)) {
+      hourMap.set(c.hour, {
+        totalSeconds: 0,
+        inQueueSeconds: 0,
+        dayCount: 0,
+        statuses: new Map(),
+      });
+    }
+    const hourData = hourMap.get(c.hour)!;
+    hourData.totalSeconds += c.seconds_in_bucket || 0;
+
+    const s = (c.status || '').toLowerCase();
+    const isInQueue = s.includes('cola') || s.includes('queue');
+    if (isInQueue) hourData.inQueueSeconds += c.seconds_in_bucket || 0;
+
+    const status = c.status || 'unknown';
+    hourData.statuses.set(status, (hourData.statuses.get(status) || 0) + (c.seconds_in_bucket || 0));
+
+    // Track distinct dates per agent
+    if (!agentDateSet.has(c.agent_name)) agentDateSet.set(c.agent_name, new Set());
+    if (c.date) agentDateSet.get(c.agent_name)!.add(c.date);
+  }
+
+  // Calculate dayCount for each agent+hour
+  for (const [agentName, hourMap] of agentDateHourMap.entries()) {
+    const uniqueDates = agentDateSet.get(agentName) || new Set();
+    for (const hourData of hourMap.values()) {
+      hourData.dayCount = uniqueDates.size;
     }
   }
 
@@ -225,23 +255,37 @@ function calculateOccupancyMetrics(
   }
 
   const ganttData: AgentGanttData[] = [];
-  for (const [agentName, dateMap] of agentDateHourMap.entries()) {
-    const sortedDates = Array.from(dateMap.keys()).sort().reverse();
-    const latestDate = sortedDates[0];
-    if (!latestDate) continue;
-    const hourMap = dateMap.get(latestDate)!;
+  for (const [agentName, hourMap] of agentDateHourMap.entries()) {
     const productiveHours = agentHourCallMap.get(agentName) || new Set();
 
     const periods = Array.from(hourMap.entries())
       .sort(([a], [b]) => a - b)
-      .map(([hour, { status }]) => {
-        const ganttStatus = productiveHours.has(hour) ? 'productivo' : mapConnectivityStatus(status);
+      .map(([hour, hourData]) => {
+        // Calculate average and queue percentage
+        const avgTotalSeconds = hourData.dayCount > 0 ? hourData.totalSeconds / hourData.dayCount : 0;
+        const inQueuePercent =
+          hourData.dayCount > 0 && hourData.totalSeconds > 0
+            ? Math.round((hourData.inQueueSeconds / hourData.totalSeconds) * 100)
+            : 0;
+
+        // Find dominant status
+        let dominantStatus = 'ocioso';
+        let maxSeconds = 0;
+        for (const [status, seconds] of hourData.statuses.entries()) {
+          if (seconds > maxSeconds) {
+            maxSeconds = seconds;
+            dominantStatus = status;
+          }
+        }
+
+        const ganttStatus = productiveHours.has(hour) ? 'productivo' : mapConnectivityStatus(dominantStatus);
         return {
           startHour: hour,
           startMinute: 0,
           endHour: hour + 1,
           endMinute: 0,
           status: ganttStatus as 'productivo' | 'ocioso' | 'pausa' | 'no_responde',
+          inQueuePercent,
         };
       });
 
