@@ -18,7 +18,6 @@ type DataState =
 
 export default function App() {
   const [dataState, setDataState] = useState<DataState>({ phase: 'loading' });
-  const [, setUploads] = useState<CallUpload[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -49,13 +48,12 @@ export default function App() {
       getAllAgentStatusUploads(),
       getAllCallRecords(),
     ])
-      .then(([allUploads, allAgentStatusUploads, records]) => {
+      .then(([, allAgentStatusUploads, records]) => {
         // Combine records from ALL agent status uploads (April + May + June, etc.)
         const combinedAgentRecords = combineAgentStatusRecords(allAgentStatusUploads);
         if (combinedAgentRecords.length > 0) {
           setAgentStatusRecords(combinedAgentRecords);
         }
-        setUploads(allUploads);
 
         if (records.length === 0) {
           setDataState({ phase: 'empty' });
@@ -109,7 +107,7 @@ export default function App() {
       const { records: parsed } = await transformRows(rows, columnMap);
 
       setProgress(`Guardando ${parsed.length.toLocaleString('es-CL')} registros...`);
-      const { upload, savedCount, stats } = await saveUpload(file.name, parsed);
+      const { savedCount, stats } = await saveUpload(file.name, parsed);
 
       let successMessage = `✓ Se guardaron ${savedCount.toLocaleString('es-CL')} registros`;
       if (stats.canceledOverlappingCalls > 0) {
@@ -130,7 +128,6 @@ export default function App() {
         date_range_end: dateRange.end,
       };
 
-      setUploads(prev => [upload, ...prev.filter(u => u.id !== upload.id)]);
       setDataState({ phase: 'ready', records: allRecords, upload: virtualUpload });
       setIsProcessing(false);
       setModalOpen(false);

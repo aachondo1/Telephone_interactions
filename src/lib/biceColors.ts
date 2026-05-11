@@ -122,36 +122,3 @@ export const ISOTIPO_BARS = {
     <rect y="20" width="28" height="2" fill="currentColor" />
   </svg>`,
 };
-
-/**
- * Format helpers
- */
-export const formatDuration = (seconds: number): string => {
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return `${m}m ${s}s`;
-};
-
-export const formatPercent = (ratio: number, decimals = 1): string => {
-  return `${(ratio * 100).toFixed(decimals)}%`;
-};
-
-export const formatNumber = (num: number): string => {
-  return num.toLocaleString('es-CL');
-};
-
-/**
- * Status badge helpers
- */
-export const getStatusColor = (value: number, thresholds = { good: 0.8, warning: 0.6 }) => {
-  if (value >= thresholds.good) return BICE_COLORS.success;
-  if (value >= thresholds.warning) return BICE_COLORS.warning;
-  return BICE_COLORS.alert;
-};
-
-export const getStatusLabel = (value: number, thresholds = { good: 0.8, warning: 0.6 }) => {
-  if (value >= thresholds.good) return 'Bueno';
-  if (value >= thresholds.warning) return 'Advertencia';
-  return 'Crítico';
-};

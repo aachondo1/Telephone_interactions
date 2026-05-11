@@ -303,10 +303,9 @@ type Props = {
   kpis: KPISummary;
   records: CallRecord[];
   filters: FilterState;
-  onNavigate?: (tab: string) => void;
 };
 
-export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavigate }: Props) {
+export function ExecutiveDashboard({ kpis, records, filters }: Props) {
   // Valores de display: derivados de kpis (fuente única = calculateKPIs(currentRecords))
   // Garantiza consistencia con todas las demás pestañas del dashboard
   // Calcular período actual y anterior basado en filtros

@@ -1,15 +1,8 @@
-import type { ExecutiveOutboundStat } from '../lib/kpi';
+import { formatDuration, type ExecutiveOutboundStat } from '../lib/kpi';
 
 type Props = {
   stats: ExecutiveOutboundStat[];
 };
-
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return `${m}m ${s}s`;
-}
 
 function getContactRateBg(rate: number): string {
   if (rate >= 0.7) return 'bg-emerald-50';
