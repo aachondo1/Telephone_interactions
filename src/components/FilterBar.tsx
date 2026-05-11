@@ -46,6 +46,13 @@ export function getDateRangeForRelative(range: FilterState['dateRange']): { star
   }
 }
 
+export function getEffectiveDateRange(filters: FilterState): { start: string; end: string } {
+  if (filters.dateRange === 'custom') {
+    return { start: filters.dateStart, end: filters.dateEnd };
+  }
+  return getDateRangeForRelative(filters.dateRange);
+}
+
 export type FilterState = {
   dateStart: string;
   dateEnd: string;

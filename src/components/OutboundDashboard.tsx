@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { CallRecord } from '../lib/supabase';
 import {
   calculateOutboundKPIs,
@@ -16,43 +16,22 @@ type Props = {
 };
 
 export function OutboundDashboard({ records }: Props) {
-  const [selectedQueue, setSelectedQueue] = useState<string | 'all'>('all');
-
-  const filteredRecords = useMemo(() => {
-    if (selectedQueue === 'all') {
-      return records;
-    }
-    return records.filter(r => r.queue === selectedQueue);
-  }, [records, selectedQueue]);
-
-  const kpi = useMemo(() => calculateOutboundKPIs(filteredRecords), [filteredRecords]);
+  const kpi = useMemo(() => calculateOutboundKPIs(records), [records]);
 
   const heatmapData = useMemo(
-    () => generateContactabilityHeatmap(filteredRecords),
-    [filteredRecords]
+    () => generateContactabilityHeatmap(records),
+    [records]
   );
 
   const executiveStats = useMemo(
-    () => calculateExecutiveOutboundStats(filteredRecords),
-    [filteredRecords]
+    () => calculateExecutiveOutboundStats(records),
+    [records]
   );
 
   const scatterData = useMemo(
-    () => generateExecutiveScatterData(filteredRecords),
-    [filteredRecords]
+    () => generateExecutiveScatterData(records),
+    [records]
   );
-
-  const uniqueQueues = useMemo(() => {
-    const queues = new Set<string>();
-    records
-      .filter(r => r.call_direction?.toLowerCase() === 'saliente')
-      .forEach(r => {
-        if (r.queue && r.queue.trim() !== '') {
-          queues.add(r.queue);
-        }
-      });
-    return Array.from(queues).sort();
-  }, [records]);
 
   return (
     <div className="space-y-6">
@@ -63,40 +42,6 @@ export function OutboundDashboard({ records }: Props) {
           Inteligencia de Llamadas Salientes: Contactabilidad, Esfuerzo de Recuperación e Impacto en Ocupación
         </p>
       </div>
-
-      {/* Queue Filter */}
-      {uniqueQueues.length > 0 && (
-        <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-3">
-            Filtrar por Cola
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setSelectedQueue('all')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                selectedQueue === 'all'
-                  ? 'bg-slate-800 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Todas
-            </button>
-            {uniqueQueues.map(queue => (
-              <button
-                key={queue}
-                onClick={() => setSelectedQueue(queue)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  selectedQueue === queue
-                    ? 'bg-slate-800 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                {queue}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* KPI Cards */}
       <OutboundKPICards kpi={kpi} />
