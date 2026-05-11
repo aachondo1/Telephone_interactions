@@ -1,5 +1,5 @@
 import { TrendingUp, TrendingDown, Clock, Zap, PhoneOff, Activity } from 'lucide-react';
-import type { QueueHealthMetric, OperationalKPIs, AbandonFunnelData } from '../lib/kpi';
+import { formatDuration, type QueueHealthMetric, type OperationalKPIs, type AbandonFunnelData } from '../lib/kpi';
 import { Tooltip } from './Tooltip';
 
 type Props = {
@@ -7,13 +7,6 @@ type Props = {
   operationalKPIs: OperationalKPIs;
   funnelData?: AbandonFunnelData;
 };
-
-function formatDuration(seconds: number): string {
-  if (seconds < 0) seconds = 0;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
 
 export function QueueHealthMetricsCards({ metrics, operationalKPIs, funnelData }: Props) {
   // Calculate aggregate metrics across all queues (weighted averages)

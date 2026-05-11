@@ -69,7 +69,6 @@ export function detectUnusualHours(
   reportedEndHour: number
 ): AuditFlag | null {
   const stdMon = STANDARD_BUSINESS_HOURS.monday;
-  const stdFri = STANDARD_BUSINESS_HOURS.friday;
 
   const stdStartMinutes = stdMon.startHour * 60 + stdMon.startMinute;
   const stdEndMinutes = stdMon.endHour * 60 + stdMon.endMinute;

@@ -44,7 +44,7 @@ export {
 } from './salud-colas';
 
 // Ejecutivos
-export { calculateExecutiveOccupancy, calculateAgentAuditFlags } from './ejecutivos';
+export { calculateAgentAuditFlags } from './ejecutivos';
 export type { AgentAuditFlag } from './ejecutivos';
 
 // Planificación
@@ -66,18 +66,6 @@ export {
   isCorruptedTechnicalCall,
   getDataQualityReport,
 } from './calidad';
-
-// Occupancy Validation & Audit
-export {
-  validateOccupancyByBusinessHours,
-  isLikelyGhostConnection,
-} from './ocupancy-validator';
-
-export {
-  getDeadAvailabilityByDateRange,
-  calculateDeadAvailabilityPerAgent,
-  adjustOccupancyForDeadAvailability,
-} from './dead-availability';
 
 export {
   generateAuditFlags,

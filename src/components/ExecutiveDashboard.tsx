@@ -232,9 +232,6 @@ function countQueueCalls(records: CallRecord[]): Map<string, number> {
   return map;
 }
 
-type QueueWithVariation = { queue: string; count: number; variation: number | null };
-
-
 function ChangeBadge({ pct, inverted = false, compareLabel }: { pct: number | null; inverted?: boolean; compareLabel?: string }) {
   if (pct === null) return null;
   const isPositive = inverted ? pct < 0 : pct > 0;
@@ -306,10 +303,9 @@ type Props = {
   kpis: KPISummary;
   records: CallRecord[];
   filters: FilterState;
-  onNavigate?: (tab: string) => void;
 };
 
-export function ExecutiveDashboard({ kpis, records, filters, onNavigate: _onNavigate }: Props) {
+export function ExecutiveDashboard({ kpis, records, filters }: Props) {
   // Valores de display: derivados de kpis (fuente única = calculateKPIs(currentRecords))
   // Garantiza consistencia con todas las demás pestañas del dashboard
   // Calcular período actual y anterior basado en filtros

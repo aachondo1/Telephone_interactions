@@ -1,15 +1,8 @@
-import type { OutboundKPI } from '../lib/kpi';
+import { formatDuration, type OutboundKPI } from '../lib/kpi';
 
 type Props = {
   kpi: OutboundKPI;
 };
-
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return `${m}m ${s}s`;
-}
 
 function getContactRateColor(rate: number): string {
   if (rate >= 0.7) return '#84BD00';
