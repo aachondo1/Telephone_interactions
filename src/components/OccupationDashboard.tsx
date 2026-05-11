@@ -1,6 +1,8 @@
 import { useMemo, useState, useEffect } from 'react';
 import type { CallRecord, AgentConnectivityHourly, AgentStatusRecord } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
+import type { FilterState } from './FilterBar';
+import { getEffectiveDateRange } from './FilterBar';
 import { identifyChronicOffenders } from '../lib/kpi/chronic-offenders';
 import { SectionHeader } from './SectionHeader';
 import { BarChart3 } from 'lucide-react';
@@ -43,6 +45,7 @@ type Props = {
   agentStatusRecords: AgentStatusRecord[];
   connectivityRefreshKey?: number;
   executiveFilter?: string[];
+  filters: FilterState;
 };
 
 // Maps Genesys Cloud status strings to Gantt status categories
@@ -491,7 +494,7 @@ function calculateOccupancyMetrics(
   };
 }
 
-export function OccupationDashboard({ records, allRecords, agentStatusRecords, connectivityRefreshKey, executiveFilter }: Props) {
+export function OccupationDashboard({ records, allRecords, agentStatusRecords, connectivityRefreshKey, executiveFilter, filters }: Props) {
 
   const [connectivity, setConnectivity] = useState<AgentConnectivityHourly[]>([]);
   const [loading, setLoading] = useState(false);
@@ -499,16 +502,7 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
   const [trendGranularity, setTrendGranularity] = useState<'hour' | 'day' | 'week' | 'month'>('day');
   const [totalConnectivityCount, setTotalConnectivityCount] = useState<number>(0);
 
-  // Derive date bounds from the filtered records (already date-filtered by global FilterBar)
-  const dateMin = useMemo(() => {
-    const dates = records.map(r => r.call_date).filter(Boolean) as string[];
-    return dates.length ? dates.reduce((a, b) => (a < b ? a : b)).slice(0, 10) : '';
-  }, [records]);
-
-  const dateMax = useMemo(() => {
-    const dates = records.map(r => r.call_date).filter(Boolean) as string[];
-    return dates.length ? dates.reduce((a, b) => (a > b ? a : b)).slice(0, 10) : '';
-  }, [records]);
+  const { start: dateMin, end: dateMax } = useMemo(() => getEffectiveDateRange(filters), [filters]);
 
   // Fetch total count of connectivity records available
   useEffect(() => {

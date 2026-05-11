@@ -4,7 +4,7 @@ import { HourlyChart } from './HourlyChart';
 import { ExecutivesTable } from './ExecutivesTable';
 import { DirectionChart } from './DirectionChart';
 import { DurationExtremes } from './DurationExtremes';
-import { FilterBar, DEFAULT_FILTERS } from './FilterBar';
+import { FilterBar, DEFAULT_FILTERS, getEffectiveDateRange } from './FilterBar';
 import type { FilterState } from './FilterBar';
 import { QueueKPICards } from './QueueKPICards';
 import { QueueBarChart } from './QueueBarChart';
@@ -66,50 +66,6 @@ function isInbound(direction: string): boolean {
   return d === 'inbound' || d === 'entrante';
 }
 
-function getEffectiveDateRange(filters: FilterState): { start: string; end: string } {
-  if (filters.dateRange === 'custom') {
-    return { start: filters.dateStart, end: filters.dateEnd };
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const formatDate = (d: Date) => d.toISOString().split('T')[0];
-
-  switch (filters.dateRange) {
-    case 'thisWeek': {
-      const start = new Date(today);
-      start.setDate(today.getDate() - today.getDay());
-      return { start: formatDate(start), end: formatDate(today) };
-    }
-    case 'lastWeek': {
-      const end = new Date(today);
-      end.setDate(today.getDate() - today.getDay() - 1);
-      const start = new Date(end);
-      start.setDate(end.getDate() - 6);
-      return { start: formatDate(start), end: formatDate(end) };
-    }
-    case 'thisMonth': {
-      const start = new Date(today.getFullYear(), today.getMonth(), 1);
-      return { start: formatDate(start), end: formatDate(today) };
-    }
-    case 'lastMonth': {
-      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      const end = new Date(today.getFullYear(), today.getMonth(), 0);
-      return { start: formatDate(start), end: formatDate(end) };
-    }
-    case 'thisQuarter': {
-      const quarter = Math.floor(today.getMonth() / 3);
-      const start = new Date(today.getFullYear(), quarter * 3, 1);
-      return { start: formatDate(start), end: formatDate(today) };
-    }
-    case 'lastQuarter': {
-      const quarter = Math.floor(today.getMonth() / 3);
-      const start = new Date(today.getFullYear(), (quarter - 1) * 3, 1);
-      const end = new Date(today.getFullYear(), quarter * 3, 0);
-      return { start: formatDate(start), end: formatDate(end) };
-    }
-  }
-}
 
 function isBusinessHours(r: CallRecord): boolean {
   if (!r.call_date || r.call_hour === null || r.call_hour === undefined) return true;
@@ -421,7 +377,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       )}
 
       {activeSection === 'ocupacion-agentes' && (
-        <OccupationDashboard records={filteredRecords} allRecords={records} agentStatusRecords={filteredAgentStatusRecords} connectivityRefreshKey={connectivityRefreshKey} executiveFilter={filters.executives} />
+        <OccupationDashboard records={filteredRecords} allRecords={records} agentStatusRecords={filteredAgentStatusRecords} connectivityRefreshKey={connectivityRefreshKey} executiveFilter={filters.executives} filters={filters} />
       )}
 
       {activeSection === 'planificacion' && (
