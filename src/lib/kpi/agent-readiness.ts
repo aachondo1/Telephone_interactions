@@ -19,11 +19,11 @@ export interface ReadinessSummaryRow {
   requiresReview: boolean;
 }
 
-const READY_STATES = ['disponible', 'en la cola'];
+const IN_QUEUE_STATES = ['en la cola', 'en queue', 'queue'];
 
-function isReadyState(status: string): boolean {
+function isInQueueState(status: string): boolean {
   const lower = (status || '').toLowerCase();
-  return READY_STATES.some(state => lower.includes(state));
+  return IN_QUEUE_STATES.some(state => lower.includes(state));
 }
 
 // Returns true if any part of the bucket [hour:00, hour+1:00) falls within business hours for that date
@@ -58,10 +58,9 @@ export function calculateReadinessPercentage(
     return { data: [], agents: [], hours: [] };
   }
 
-  // Build agent -> hour -> { queueSeconds, availableSeconds, dates }
+  // Build agent -> hour -> { inQueueSeconds, dates }
   type HourData = {
-    queueSeconds: number;
-    availableSeconds: number;
+    inQueueSeconds: number;
     dates: Set<string>;
   };
 
@@ -81,18 +80,14 @@ export function calculateReadinessPercentage(
 
     const hourMap = agentHourMap.get(c.agent_name)!;
     if (!hourMap.has(c.hour)) {
-      hourMap.set(c.hour, { queueSeconds: 0, availableSeconds: 0, dates: new Set() });
+      hourMap.set(c.hour, { inQueueSeconds: 0, dates: new Set() });
     }
 
     const hourData = hourMap.get(c.hour)!;
     const seconds = c.seconds_in_bucket || 0;
 
-    if (isReadyState(c.status)) {
-      if ((c.status || '').toLowerCase().includes('cola')) {
-        hourData.queueSeconds += seconds;
-      } else {
-        hourData.availableSeconds += seconds;
-      }
+    if (isInQueueState(c.status)) {
+      hourData.inQueueSeconds += seconds;
     }
 
     if (c.date) hourData.dates.add(c.date);
@@ -122,19 +117,18 @@ export function calculateReadinessPercentage(
       }
 
       const hourData = hourMap.get(hour)!;
-      const readySeconds = hourData.queueSeconds + hourData.availableSeconds;
       const dayCount = hourData.dates.size;
 
-      // Percentage relative to a full hour; cap at 100
-      const readinessPercent = Math.min(100, Math.round((readySeconds / 3600) * 100));
+      // Percentage of time in queue relative to a full hour; cap at 100
+      const readinessPercent = Math.min(100, Math.round((hourData.inQueueSeconds / 3600) * 100));
 
       matrix.push({
         agentName,
         hour,
         readinessPercent: dayCount > 0 ? readinessPercent : null,
         dayCount,
-        queueSeconds: hourData.queueSeconds,
-        availableSeconds: hourData.availableSeconds,
+        queueSeconds: hourData.inQueueSeconds,
+        availableSeconds: 0, // Not used, kept for interface compatibility
       });
     }
   }

@@ -79,10 +79,10 @@ export default function AgentReadinessHeatmap({
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
       <div className="mb-6">
         <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2">
-          Disponibilidad por Hora
+          Tiempo en Cola por Hora
         </h3>
         <p className="text-xs text-slate-400">
-          Porcentaje de tiempo en estado listo (Disponible + En la cola) · Hace clic en una celda para más detalles
+          Porcentaje de tiempo en estado "En la cola" (hablando en llamada) · Haz clic en una celda para más detalles
         </p>
       </div>
 
@@ -147,7 +147,7 @@ export default function AgentReadinessHeatmap({
 
                   const title =
                     percentage !== null
-                      ? `${agent}, Hora ${String(hour).padStart(2, '0')}:00 - ${percentage}% listo (${cell?.dayCount || 0} días)`
+                      ? `${agent}, Hora ${String(hour).padStart(2, '0')}:00 - ${percentage}% en cola (${cell?.dayCount || 0} días)`
                       : `${agent}, Hora ${String(hour).padStart(2, '0')}:00 - Sin datos`;
 
                   return (

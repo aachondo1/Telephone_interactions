@@ -21,10 +21,10 @@ export function AgentReadinessSummary({ summary }: Props) {
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
       <div className="mb-6">
         <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2">
-          Resumen de Disponibilidad
+          Resumen de Tiempo en Cola
         </h3>
         <p className="text-xs text-slate-400">
-          Indicadores clave de disponibilidad por agente
+          Indicadores clave de ocupación (tiempo en llamada) por agente
         </p>
       </div>
 
@@ -99,8 +99,8 @@ export function AgentReadinessSummary({ summary }: Props) {
       <div className="mt-4 p-4 bg-slate-50 rounded-lg">
         <p className="text-xs text-slate-600">
           <strong>Nota:</strong> Los agentes con promedio inferior al 70% se marcan como
-          "Requiere revisión". Esto puede indicar conectividad deficiente o tiempos
-          significativos fuera del horario de trabajo.
+          "Requiere revisión". Esto puede indicar baja ocupación o tiempos significativos
+          en estado "Disponible" sin tomar llamadas.
         </p>
       </div>
     </div>
