@@ -117,23 +117,7 @@ export function detectColumns(headers: string[]): Record<string, string> {
     const found = findColumn(headers, aliases);
     if (found) map[key] = found;
 
-    // DEBUG: Log critical column detection
-    if (['ivrTotal', 'users'].includes(key)) {
-      console.log(`[CSV Parse DEBUG] Detectando ${key}:`, {
-        aliases,
-        headers_available: headers,
-        found,
-        normalized_headers: headers.map(h => h.toLowerCase().trim()),
-      });
-    }
   }
-
-  // Log columns that were NOT found
-  console.log('[CSV Parse DEBUG] Resumen de columnas detectadas:', {
-    total_headers: headers.length,
-    detected_columns: map,
-    missing_users_column: !map['users'],
-  });
 
   return map;
 }
@@ -541,18 +525,6 @@ export async function transformRows(
     const abandonType = calculateAbandonType(attended, flowExit, queueTimeSeconds, alertedUsers, originalCallId, anomalies);
     const isBounce = calculateIsBounce(alertSegments, alertedUsers, allUsers);
 
-    // DEBUG: Log IVR parsing for first few records
-    if (i < 5) {
-      console.log(`[CSV Parse DEBUG] Record ${i} IVR:`, {
-        columnMapHasIvrTotal: !!columnMap.ivrTotal,
-        ivrColumnName: columnMap.ivrTotal,
-        rawValue: columnMap.ivrTotal ? row[columnMap.ivrTotal] : 'NO COLUMN',
-        parsedSeconds: ivrTotalSeconds,
-        flowExit,
-        queue,
-      });
-    }
-
     const usersNotRespond = columnMap.usersNotRespond
       ? (row[columnMap.usersNotRespond] ?? '')
       : '';
@@ -807,7 +779,6 @@ export async function saveImportAudit(
   supabaseClient: any
 ): Promise<void> {
   if (anomaliesToSave.length === 0) {
-    console.log('✓ Sin anomalías detectadas');
     return;
   }
 
@@ -834,7 +805,6 @@ export async function saveImportAudit(
       .from('import_audit_log')
       .insert([summary]);
 
-    console.log('✓ Auditoría guardada:', summary);
   } catch (error) {
     console.error('✗ Error guardando auditoría:', error);
   }

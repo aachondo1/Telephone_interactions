@@ -225,18 +225,6 @@ export async function calculateKPIs(records: CallRecord[]): Promise<KPISummary> 
 
   const validRecords = inboundRecords.filter(r => !isCorruptedTechnicalCall(r));
 
-  const technicalCuts = inboundRecords.length - validRecords.length;
-  const outboundCount = records.length - inboundRecords.length;
-
-  if (outboundCount > 0 || technicalCuts > 0) {
-    console.log(
-      `📊 KPI Metrics: ${records.length} total registros, ` +
-      `${validRecords.length} válidas entrantes, ` +
-      `${outboundCount} salientes excluidos, ` +
-      `${technicalCuts} cortes técnicos excluidos`
-    );
-  }
-
   const total = validRecords.length;
   if (total === 0) return getEmptyKPISummary();
 

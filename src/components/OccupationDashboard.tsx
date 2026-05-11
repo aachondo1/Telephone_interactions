@@ -40,7 +40,6 @@ export type AgentAvailabilityEntry = {
 type Props = {
   records: CallRecord[];
   allRecords: CallRecord[];
-  connectivityData: AgentConnectivityHourly[];
   agentStatusRecords: AgentStatusRecord[];
   connectivityRefreshKey?: number;
   executiveFilter?: string[];
@@ -492,9 +491,9 @@ function calculateOccupancyMetrics(
   };
 }
 
-export function OccupationDashboard({ records, allRecords, connectivityData, agentStatusRecords, connectivityRefreshKey, executiveFilter }: Props) {
+export function OccupationDashboard({ records, allRecords, agentStatusRecords, connectivityRefreshKey, executiveFilter }: Props) {
 
-  const [connectivity, setConnectivity] = useState<AgentConnectivityHourly[]>(connectivityData || []);
+  const [connectivity, setConnectivity] = useState<AgentConnectivityHourly[]>([]);
   const [loading, setLoading] = useState(false);
   const [connectivityError, setConnectivityError] = useState<string | null>(null);
   const [trendGranularity, setTrendGranularity] = useState<'hour' | 'day' | 'week' | 'month'>('day');

@@ -28,16 +28,17 @@ import { QueueHealthDashboard } from './QueueHealthDashboard';
 import { OutboundDashboard } from './OutboundDashboard';
 import { OccupationDashboard } from './OccupationDashboard';
 import { SectionHeader } from './SectionHeader';
+import { DataQualityBanner, DataQualityIndicator } from './DataQualityBanner';
+import { AuditTab } from './AuditTab';
 import { calculateKPIs, getEmptyKPISummary, calculateAgentAuditFlags } from '../lib/kpi';
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
-import { Activity, AlertCircle, Calendar, CheckCircle, Info, AlertTriangle, Layers, PhoneCall, Shield, Users } from 'lucide-react';
+import { Activity, AlertTriangle, Calendar, Layers, PhoneCall, Shield, Users } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
 import { AgentAuditFlags } from './AgentAuditFlags';
 import type { AgentStatusRecord } from '../lib/supabase';
-import { supabase } from '../lib/supabase';
 
 type Props = {
   records: CallRecord[];
@@ -168,191 +169,6 @@ function applyFilters(records: CallRecord[], filters: FilterState): CallRecord[]
 
     return true;
   });
-}
-
-// Component: Data Quality Banner
-function DataQualityBanner({ quality }: { quality: DataQualityReport | null }) {
-  if (!quality) return null;
-
-  const hasCriticalIssues = quality.criticalIssues.handleTimeCorrupted > 0 || quality.criticalIssues.technicalCutsAsAttended > 0;
-  const hasOutboundFiltered = quality.outboundCalls > 0;
-  const isClean = !hasCriticalIssues && !hasOutboundFiltered;
-
-  if (isClean) {
-    return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-4 flex items-center gap-3">
-        <CheckCircle size={20} className="text-emerald-600" />
-        <div>
-          <p className="font-semibold text-emerald-900">Integridad de datos verificada</p>
-          <p className="text-sm text-emerald-700 mt-0.5">Se analizaron {quality.totalRecords.toLocaleString('es-CL')} registros sin anomalías detectadas</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (hasCriticalIssues) {
-    return (
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl px-6 py-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle size={20} className="text-amber-600 mt-0.5" />
-          <div>
-            <p className="font-semibold text-amber-900">Anomalías detectadas en datos</p>
-            <p className="text-sm text-amber-700 mt-0.5">
-              {quality.handleTimeCorrupted} registros con handle_time corrupto, {quality.technicalCuts} cortes técnicos detectados.
-              Ver pestaña <strong>Auditoría</strong> para detalles.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (hasOutboundFiltered) {
-    return (
-      <div className="bg-sky-50 border border-sky-200 rounded-2xl px-6 py-4 flex items-center gap-3">
-        <Info size={20} className="text-sky-600" />
-        <div>
-          <p className="font-semibold text-sky-900">Llamadas salientes filtradas</p>
-          <p className="text-sm text-sky-700 mt-0.5">Se excluyeron {quality.outboundCalls.toLocaleString('es-CL')} llamadas salientes de los cálculos de KPI (Service Level solo incluye entrantes)</p>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}
-
-// Component: Audit Tab
-function AuditTab() {
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadAuditLogs = async () => {
-      try {
-        const { data, error: fetchError } = await supabase
-          .from('import_audit_log')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (fetchError) throw fetchError;
-        setAuditLogs(data || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error loading audit logs');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadAuditLogs();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center">
-        <p className="text-slate-500">Cargando registros de auditoría...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-2xl px-6 py-4">
-        <p className="text-red-700 font-semibold">Error al cargar auditoría</p>
-        <p className="text-sm text-red-600 mt-1">{error}</p>
-      </div>
-    );
-  }
-
-  if (auditLogs.length === 0) {
-    return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center">
-        <AlertCircle size={32} className="mx-auto text-slate-300 mb-3" />
-        <p className="text-slate-600 font-semibold">Sin registros de auditoría</p>
-        <p className="text-sm text-slate-400 mt-1">Aún no se han detectado anomalías en las importaciones</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {auditLogs.map(log => (
-        <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="font-semibold text-slate-800">Importación {log.upload_id?.substring(0, 8)}...</p>
-              <p className="text-xs text-slate-400 mt-1">
-                {new Date(log.created_at).toLocaleDateString('es-CL', {
-                  dateStyle: 'short',
-                  timeStyle: 'short'
-                })}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {log.critical_count > 0 && (
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-                  🔴 {log.critical_count} críticas
-                </span>
-              )}
-              {log.warning_count > 0 && (
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                  ⚠️ {log.warning_count} advertencias
-                </span>
-              )}
-            </div>
-          </div>
-
-          {log.total_anomalies > 0 && (
-            <div className="text-sm text-slate-600">
-              <p className="font-medium mb-2">Total anomalías: {log.total_anomalies}</p>
-              {log.anomaly_breakdown && (
-                <ul className="list-disc list-inside text-xs space-y-1 text-slate-500">
-                  {Object.entries(log.anomaly_breakdown as Record<string, number>).map(([key, count]) => (
-                    <li key={key}>{key}: {count}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Component: Data Quality Indicator (for header)
-function DataQualityIndicator({ quality }: { quality: DataQualityReport | null }) {
-  if (!quality) return null;
-
-  const hasCritical = quality.criticalIssues.handleTimeCorrupted > 0 || quality.criticalIssues.technicalCutsAsAttended > 0;
-  const hasWarning = quality.handleTimeCorrupted > 0 || quality.technicalCuts > 0;
-
-  if (hasCritical) {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-        <AlertCircle size={14} />
-        Anomalías detectadas
-      </span>
-    );
-  }
-
-  if (hasWarning) {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-        <AlertTriangle size={14} />
-        Advertencias
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
-      <CheckCircle size={14} />
-      Datos limpios
-    </span>
-  );
 }
 
 export function Dashboard({ records, upload, agentStatusRecords, activeSection, dataQuality, connectivityRefreshKey }: Props) {
@@ -605,7 +421,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       )}
 
       {activeSection === 'ocupacion-agentes' && (
-        <OccupationDashboard records={filteredRecords} allRecords={records} connectivityData={[]} agentStatusRecords={filteredAgentStatusRecords} connectivityRefreshKey={connectivityRefreshKey} executiveFilter={filters.executives} />
+        <OccupationDashboard records={filteredRecords} allRecords={records} agentStatusRecords={filteredAgentStatusRecords} connectivityRefreshKey={connectivityRefreshKey} executiveFilter={filters.executives} />
       )}
 
       {activeSection === 'planificacion' && (

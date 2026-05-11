@@ -331,16 +331,6 @@ export function calculateMenuAbandonRate(records: CallRecord[]): number {
     return escapedIVR && spentTimeInMenu;
   });
 
-  const ivrExitsCount = inboundCalls.filter(r => r.flow_exit !== true).length;
-  const withIvrTimeCount = inboundCalls.filter(r => (r.ivr_time_seconds ?? 0) > 0).length;
-
-  console.log(`[MenuAbandonRate DEBUG]
-    Total inbound: ${inboundCalls.length}
-    Calls with flow_exit !== true: ${ivrExitsCount}
-    Calls with ivr_time_seconds > 0: ${withIvrTimeCount}
-    Menu abandons (flow_exit !== true AND ivr_time > 10s): ${menuAbandons.length}
-  `);
-
   return Math.round((menuAbandons.length / inboundCalls.length) * 100);
 }
 

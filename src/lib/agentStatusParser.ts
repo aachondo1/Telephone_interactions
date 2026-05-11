@@ -154,24 +154,6 @@ function parseTimelineFormat(
   const result: AgentStatusRow[] = [];
   const rawEvents: AgentConnectivityRawRow[] = [];
 
-  console.log('[TimelineFormat] Detectadas columnas:', {
-    colAgentId,
-    colAgentName,
-    colStart,
-    colEnd,
-    colStatus,
-    colStatusSecondary,
-    totalRows: rows.length,
-  });
-
-  // Log first few raw date strings so we can diagnose format issues
-  const sampleDates = rows.slice(0, 3).map(r => ({
-    start: (r[colStart] ?? '').trim(),
-    end:   (r[colEnd]   ?? '').trim(),
-    status: (r[colStatus] ?? '').trim(),
-  }));
-  console.log('[TimelineFormat] Muestra de fechas del CSV (primeras 3 filas):', sampleDates);
-
   // Group by agent and accumulate time by status
   const agentMap = new Map<string, {
     name: string;
@@ -184,7 +166,6 @@ function parseTimelineFormat(
 
   let processedCount = 0;
   let skippedMissingData = 0;
-  let skippedDesconectado = 0;
   let skippedInvalidDates = 0;
   let skippedZeroDuration = 0;
 
@@ -199,9 +180,6 @@ function parseTimelineFormat(
 
     if (!agentName || !startStr || !endStr) {
       skippedMissingData++;
-      if (i < 3) {
-        console.log(`[TimelineFormat] Fila ${i} - Datos faltantes:`, { agentName, startStr, endStr });
-      }
       continue;
     }
 
@@ -213,24 +191,12 @@ function parseTimelineFormat(
 
     if (startInvalid || endInvalid) {
       skippedInvalidDates++;
-      if (i < 5) {
-        console.log(`[TimelineFormat] Fila ${i} - Fechas inválidas:`, {
-          startStr,
-          endStr,
-          startTimeParsed: startTime && !isNaN(startTime.getTime()) ? startTime.toISOString() : 'invalid',
-          endTimeParsed:   endTime   && !isNaN(endTime.getTime())   ? endTime.toISOString()   : 'invalid',
-          note: 'Verifica que el formato sea: DD-MM-YYYY HH:MM o M/DD/YY HH:MM:SS'
-        });
-      }
       continue;
     }
 
     const totalDurationSeconds = Math.max(0, (endTime.getTime() - startTime.getTime()) / 1000);
     if (totalDurationSeconds === 0) {
       skippedZeroDuration++;
-      if (i < 3) {
-        console.log(`[TimelineFormat] Fila ${i} - Duración cero:`, { startStr, endStr });
-      }
       continue;
     }
 
@@ -247,29 +213,9 @@ function parseTimelineFormat(
 
     // HARD CUT: Apply business hours filter for aggregated totals only
     const overlap = getBusinessHoursOverlap(startTime, endTime);
-    if (!overlap) {
-      if (i < 3) {
-        console.log(`[TimelineFormat] Fila ${i} - Fuera de horario operativo (no cuenta en totales):`, {
-          agentName,
-          startStr: startTime.toISOString(),
-          endStr: endTime.toISOString(),
-        });
-      }
-      continue;
-    }
+    if (!overlap) continue;
 
     const durationSeconds = Math.max(0, (overlap.end.getTime() - overlap.start.getTime()) / 1000);
-    const wasTruncated = durationSeconds < totalDurationSeconds;
-
-    if (i < 3) {
-      console.log(`[TimelineFormat] Fila ${i} - Procesada:`, {
-        agentName,
-        status,
-        durationSeconds,
-        originalDuration: totalDurationSeconds,
-        wasTruncated,
-      });
-    }
 
     processedCount++;
 
@@ -302,17 +248,6 @@ function parseTimelineFormat(
     }
   }
 
-  console.log('[TimelineFormat] Resumen de procesamiento:', {
-    totalRows: rows.length,
-    processedCount,
-    skippedMissingData,
-    skippedDesconectado,
-    skippedInvalidDates,
-    skippedZeroDuration,
-    uniqueAgents: agentMap.size,
-    rawEventsCaptured: rawEvents.length,
-  });
-
   for (const agent of agentMap.values()) {
     if (agent.connectedSeconds === 0 && agent.inQueueSeconds === 0) continue;
 
@@ -326,11 +261,6 @@ function parseTimelineFormat(
       outOfQueueSeconds: agent.connectedSeconds,
     });
   }
-
-  console.log('[TimelineFormat] Resultado final:', {
-    agentsWithTime: result.length,
-    totalConnectedSeconds: result.reduce((sum, a) => sum + a.connectedSeconds, 0),
-  });
 
   if (result.length === 0 && rawEvents.length === 0) {
     return {
