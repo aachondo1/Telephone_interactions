@@ -67,18 +67,6 @@ export {
   getDataQualityReport,
 } from './calidad';
 
-// Occupancy Validation & Audit
-export {
-  validateOccupancyByBusinessHours,
-  isLikelyGhostConnection,
-} from './ocupancy-validator';
-
-export {
-  getDeadAvailabilityByDateRange,
-  calculateDeadAvailabilityPerAgent,
-  adjustOccupancyForDeadAvailability,
-} from './dead-availability';
-
 export {
   generateAuditFlags,
   detectGhostConnection,
