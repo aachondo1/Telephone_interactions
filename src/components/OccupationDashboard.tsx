@@ -482,13 +482,6 @@ function calculateOccupancyMetrics(
     totalAlerted: totalAlertedTeam,
   };
 
-  console.log('[Gantt] calculateOccupancyMetrics ejecutado:', {
-    records: records.length,
-    connectivity: connectivity.length,
-    firstConnDate: connectivity[0]?.date,
-    lastConnDate: connectivity[connectivity.length - 1]?.date,
-  });
-
   return {
     kpiData: enrichedKpiData,
     ganttData: displayedGantt,
@@ -521,17 +514,6 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
     return dates.length ? dates.reduce((a, b) => (a > b ? a : b)).slice(0, 10) : '';
   }, [records]);
 
-  // Diagnostic: log when dateMin/dateMax change
-  useEffect(() => {
-    console.log('[Gantt] dateMin/dateMax CHANGED:', {
-      dateMin,
-      dateMax,
-      recordsCount: records.length,
-      firstRecordDate: records[0]?.call_date,
-      lastRecordDate: records[records.length - 1]?.call_date
-    });
-  }, [dateMin, dateMax, records.length]);
-
   // Fetch total count of connectivity records available
   useEffect(() => {
     supabase
@@ -546,9 +528,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
   }, []);
 
   useEffect(() => {
-    console.log('[Gantt] useEffect executing with dateMin/dateMax:', { dateMin, dateMax });
     if (!dateMin || !dateMax) {
-      console.log('[Gantt] Skipping fetch: dateMin or dateMax is empty');
       setLoading(false);
       return;
     }
@@ -571,7 +551,6 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) {
-          console.log('[Gantt] useEffect fetch error:', error.message);
           setConnectivityError(error.message);
           setConnectivity([]);
           return;
@@ -586,16 +565,6 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
         }
       }
 
-      const dates = new Map<string, number>();
-      allData.forEach(c => {
-        if (c.date) dates.set(c.date, (dates.get(c.date) || 0) + 1);
-      });
-      console.log('[Gantt] useEffect fetch completed:', {
-        count: allData.length,
-        pages: page,
-        dateRange: { dateMin, dateMax },
-        datesWithData: Array.from(dates.keys()).sort(),
-      });
       setConnectivity(allData);
     };
 
