@@ -119,8 +119,9 @@ export function calculateReadinessPercentage(
       const hourData = hourMap.get(hour)!;
       const dayCount = hourData.dates.size;
 
-      // Percentage of time in queue relative to a full hour; cap at 100
-      const readinessPercent = Math.min(100, Math.round((hourData.inQueueSeconds / 3600) * 100));
+      // Average seconds in queue per day, as percentage of one full hour (3600s)
+      const avgInQueueSeconds = dayCount > 0 ? hourData.inQueueSeconds / dayCount : 0;
+      const readinessPercent = Math.min(100, Math.round((avgInQueueSeconds / 3600) * 100));
 
       matrix.push({
         agentName,
