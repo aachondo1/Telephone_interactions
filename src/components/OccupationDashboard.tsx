@@ -109,13 +109,8 @@ function calculateOccupancyMetrics(
   const chronicOffendersNorm = identifyChronicOffenders(allRecords).map(name => name.toLowerCase().trim());
   const keyAgentNames = new Set<string>(chronicOffendersNorm);
 
-  // ----- Step 3: Connectivity filtered to records' date range -----
-  const recordDates = filteredRecords.map((r) => r.call_date).filter(Boolean) as string[];
-  const dateMin = recordDates.length ? recordDates.reduce((a, b) => (a < b ? a : b)) : '';
-  const dateMax = recordDates.length ? recordDates.reduce((a, b) => (a > b ? a : b)) : '';
-  const filteredConnectivity = dateMin
-    ? connectivity.filter((c) => c.date && c.date >= dateMin && c.date <= dateMax)
-    : connectivity;
+  // ----- Step 3: Connectivity is already filtered by useEffect via dateMin/dateMax -----
+  const filteredConnectivity = connectivity;
 
   // keyConnectivity: only key agents, date-filtered
   const keyConnectivity = keyAgentNames.size > 0
@@ -201,19 +196,49 @@ function calculateOccupancyMetrics(
   };
 
   // ----- Gantt: Build agent periods from hourly connectivity -----
-  type AgentHourMap = Map<string, Map<string, Map<number, { status: string; seconds: number }>>>;
+  // New structure: agentName -> hour -> { totalSeconds, inQueueSeconds, dayCount, statuses }
+  type HourData = {
+    totalSeconds: number;
+    inQueueSeconds: number;
+    dayCount: number;
+    statuses: Map<string, number>; // status -> seconds
+  };
+  type AgentHourMap = Map<string, Map<number, HourData>>;
   const agentDateHourMap: AgentHourMap = new Map();
+  const agentDateSet = new Map<string, Set<string>>(); // agentName -> Set<dates>
 
   for (const c of filteredConnectivity) {
     if (!c.agent_name) continue;
     if (!agentDateHourMap.has(c.agent_name)) agentDateHourMap.set(c.agent_name, new Map());
-    const dateMap = agentDateHourMap.get(c.agent_name)!;
-    const dateKey = c.date || 'unknown';
-    if (!dateMap.has(dateKey)) dateMap.set(dateKey, new Map());
-    const hourMap = dateMap.get(dateKey)!;
-    const existing = hourMap.get(c.hour);
-    if (!existing || c.seconds_in_bucket > existing.seconds) {
-      hourMap.set(c.hour, { status: c.status, seconds: c.seconds_in_bucket });
+    const hourMap = agentDateHourMap.get(c.agent_name)!;
+    if (!hourMap.has(c.hour)) {
+      hourMap.set(c.hour, {
+        totalSeconds: 0,
+        inQueueSeconds: 0,
+        dayCount: 0,
+        statuses: new Map(),
+      });
+    }
+    const hourData = hourMap.get(c.hour)!;
+    hourData.totalSeconds += c.seconds_in_bucket || 0;
+
+    const s = (c.status || '').toLowerCase();
+    const isInQueue = s.includes('cola') || s.includes('queue');
+    if (isInQueue) hourData.inQueueSeconds += c.seconds_in_bucket || 0;
+
+    const status = c.status || 'unknown';
+    hourData.statuses.set(status, (hourData.statuses.get(status) || 0) + (c.seconds_in_bucket || 0));
+
+    // Track distinct dates per agent
+    if (!agentDateSet.has(c.agent_name)) agentDateSet.set(c.agent_name, new Set());
+    if (c.date) agentDateSet.get(c.agent_name)!.add(c.date);
+  }
+
+  // Calculate dayCount for each agent+hour
+  for (const [agentName, hourMap] of agentDateHourMap.entries()) {
+    const uniqueDates = agentDateSet.get(agentName) || new Set();
+    for (const hourData of hourMap.values()) {
+      hourData.dayCount = uniqueDates.size;
     }
   }
 
@@ -225,23 +250,37 @@ function calculateOccupancyMetrics(
   }
 
   const ganttData: AgentGanttData[] = [];
-  for (const [agentName, dateMap] of agentDateHourMap.entries()) {
-    const sortedDates = Array.from(dateMap.keys()).sort().reverse();
-    const latestDate = sortedDates[0];
-    if (!latestDate) continue;
-    const hourMap = dateMap.get(latestDate)!;
+  for (const [agentName, hourMap] of agentDateHourMap.entries()) {
     const productiveHours = agentHourCallMap.get(agentName) || new Set();
 
     const periods = Array.from(hourMap.entries())
       .sort(([a], [b]) => a - b)
-      .map(([hour, { status }]) => {
-        const ganttStatus = productiveHours.has(hour) ? 'productivo' : mapConnectivityStatus(status);
+      .map(([hour, hourData]) => {
+        // Calculate average and queue percentage
+        const avgTotalSeconds = hourData.dayCount > 0 ? hourData.totalSeconds / hourData.dayCount : 0;
+        const inQueuePercent =
+          hourData.dayCount > 0 && hourData.totalSeconds > 0
+            ? Math.round((hourData.inQueueSeconds / hourData.totalSeconds) * 100)
+            : 0;
+
+        // Find dominant status
+        let dominantStatus = 'ocioso';
+        let maxSeconds = 0;
+        for (const [status, seconds] of hourData.statuses.entries()) {
+          if (seconds > maxSeconds) {
+            maxSeconds = seconds;
+            dominantStatus = status;
+          }
+        }
+
+        const ganttStatus = productiveHours.has(hour) ? 'productivo' : mapConnectivityStatus(dominantStatus);
         return {
           startHour: hour,
           startMinute: 0,
           endHour: hour + 1,
           endMinute: 0,
           status: ganttStatus as 'productivo' | 'ocioso' | 'pausa' | 'no_responde',
+          inQueuePercent,
         };
       });
 
@@ -462,6 +501,7 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
   const [loading, setLoading] = useState(false);
   const [connectivityError, setConnectivityError] = useState<string | null>(null);
   const [trendGranularity, setTrendGranularity] = useState<'hour' | 'day' | 'week' | 'month'>('day');
+  const [totalConnectivityCount, setTotalConnectivityCount] = useState<number>(0);
 
   // Derive date bounds from the filtered records (already date-filtered by global FilterBar)
   const dateMin = useMemo(() => {
@@ -474,33 +514,62 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
     return dates.length ? dates.reduce((a, b) => (a > b ? a : b)).slice(0, 10) : '';
   }, [records]);
 
+  // Fetch total count of connectivity records available
   useEffect(() => {
-    if (!connectivityData || connectivityData.length === 0) {
-      setLoading(true);
-      setConnectivityError(null);
-      let query = supabase.from('agent_connectivity_hourly').select('*');
-      if (dateMin) query = query.gte('date', dateMin);
-      if (dateMax) query = query.lte('date', dateMax);
-      query
-        .limit(50000)
-        .then(({ data, error }) => {
-          if (error) {
-            console.error('[connectivity] Supabase error:', error);
-            setConnectivityError(error.message);
-            setConnectivity([]);
-          } else {
-            setConnectivity(data || []);
-          }
-        })
-        .catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error('[connectivity] Network error:', msg);
-          setConnectivityError(msg);
-          setConnectivity([]);
-        })
-        .finally(() => setLoading(false));
+    supabase
+      .from('agent_connectivity_hourly')
+      .select('*', { count: 'exact', head: true })
+      .then(({ count }) => {
+        setTotalConnectivityCount(count || 0);
+      })
+      .catch(() => {
+        setTotalConnectivityCount(0);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!dateMin || !dateMax) {
+      setLoading(false);
+      return;
     }
-  }, [connectivityData, dateMin, dateMax, connectivityRefreshKey]);
+    setLoading(true);
+    setConnectivityError(null);
+
+    // Fetch all records using pagination (Supabase has 1000 record limit per request)
+    const fetchAllConnectivity = async () => {
+      let allData: AgentConnectivityHourly[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('agent_connectivity_hourly')
+          .select('*')
+          .gte('date', dateMin)
+          .lte('date', dateMax)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) {
+          setConnectivityError(error.message);
+          setConnectivity([]);
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          hasMore = false;
+        } else {
+          allData = allData.concat(data);
+          page++;
+          if (data.length < pageSize) hasMore = false;
+        }
+      }
+
+      setConnectivity(allData);
+    };
+
+    fetchAllConnectivity().finally(() => setLoading(false));
+  }, [dateMin, dateMax, connectivityRefreshKey]);
 
   const {
     kpiData,
@@ -528,11 +597,17 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
 
   return (
     <div className="space-y-6">
-      <SectionHeader
-        icon={BarChart3}
-        title="Ocupación de Agentes"
-        description="Panel completo de ocupación, conectividad y auditoría forense"
-      />
+      <div className="flex items-center justify-between">
+        <SectionHeader
+          icon={BarChart3}
+          title="Ocupación de Agentes"
+          description="Panel completo de ocupación, conectividad y auditoría forense"
+        />
+        <div className="text-sm text-slate-600">
+          <div>📞 Llamadas: {records.length.toLocaleString()} registros</div>
+          <div>📊 Conectividad: {connectivity.length.toLocaleString()} de {totalConnectivityCount.toLocaleString()} registros</div>
+        </div>
+      </div>
 
       {loading && (
         <div className="bg-sky-50 border border-sky-100 rounded-lg px-6 py-4 text-sm text-sky-700">

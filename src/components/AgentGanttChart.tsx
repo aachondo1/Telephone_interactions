@@ -7,6 +7,7 @@ export type AgentStatusPeriod = {
   endHour: number;
   endMinute: number;
   status: 'productivo' | 'ocioso' | 'pausa' | 'no_responde';
+  inQueuePercent?: number;
 };
 
 export type AgentGanttData = {
@@ -144,7 +145,7 @@ export function AgentGanttChart({ agents, demandData }: Props) {
                     return (
                       <div
                         key={idx}
-                        className="absolute top-1.5 h-7 rounded opacity-90 hover:opacity-100 transition-opacity"
+                        className="absolute top-1.5 h-7 rounded opacity-90 hover:opacity-100 transition-opacity flex items-center justify-center overflow-hidden"
                         style={{
                           left: `${left}%`,
                           width: `${width}%`,
@@ -152,7 +153,13 @@ export function AgentGanttChart({ agents, demandData }: Props) {
                           minWidth: '3px',
                         }}
                         title={`${period.status}: ${String(period.startHour).padStart(2, '0')}:${String(period.startMinute).padStart(2, '0')} – ${String(period.endHour).padStart(2, '0')}:${String(period.endMinute).padStart(2, '0')}`}
-                      />
+                      >
+                        {period.inQueuePercent != null && period.inQueuePercent > 0 && width > 4 && (
+                          <span className="text-[10px] font-medium text-white leading-none select-none">
+                            {period.inQueuePercent}%
+                          </span>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
