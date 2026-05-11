@@ -1,4 +1,5 @@
 import type { AgentConnectivityHourly } from '../supabase';
+import { getBusinessHours } from '../businessHours';
 
 export interface ReadinessCellData {
   agentName: string;
@@ -25,6 +26,22 @@ function isReadyState(status: string): boolean {
   return READY_STATES.some(state => lower.includes(state));
 }
 
+// Returns true if any part of the bucket [hour:00, hour+1:00) falls within business hours for that date
+function isHourWithinBusinessHours(dateStr: string, hour: number): boolean {
+  const date = new Date(dateStr + 'T12:00:00');
+  const config = getBusinessHours(date);
+
+  // Closed day (weekends or holidays)
+  if (config.endHour === 0 && config.endMinute === 0) return false;
+
+  const hourStart = hour;
+  const hourEnd = hour + 1;
+  const startInHours = config.startHour + config.startMinute / 60;
+  const endInHours = config.endHour + config.endMinute / 60;
+
+  return hourStart < endInHours && hourEnd > startInHours;
+}
+
 export function calculateReadinessPercentage(
   connectivity: AgentConnectivityHourly[]
 ): { data: ReadinessCellData[][]; agents: string[]; hours: number[] } {
@@ -32,19 +49,27 @@ export function calculateReadinessPercentage(
     return { data: [], agents: [], hours: [] };
   }
 
-  // Build agent -> hour -> { queueSeconds, availableSeconds, dayCount }
+  // Filter to only records within business hours
+  const withinHours = connectivity.filter(
+    c => c.date && isHourWithinBusinessHours(c.date, c.hour)
+  );
+
+  if (withinHours.length === 0) {
+    return { data: [], agents: [], hours: [] };
+  }
+
+  // Build agent -> hour -> { queueSeconds, availableSeconds, dates }
   type HourData = {
     queueSeconds: number;
     availableSeconds: number;
     dates: Set<string>;
   };
-  type AgentHourMap = Map<string, Map<number, HourData>>;
 
-  const agentHourMap: AgentHourMap = new Map();
+  const agentHourMap = new Map<string, Map<number, HourData>>();
   const allHours = new Set<number>();
   const allAgents = new Set<string>();
 
-  for (const c of connectivity) {
+  for (const c of withinHours) {
     if (!c.agent_name) continue;
 
     allAgents.add(c.agent_name);
@@ -56,18 +81,13 @@ export function calculateReadinessPercentage(
 
     const hourMap = agentHourMap.get(c.agent_name)!;
     if (!hourMap.has(c.hour)) {
-      hourMap.set(c.hour, {
-        queueSeconds: 0,
-        availableSeconds: 0,
-        dates: new Set(),
-      });
+      hourMap.set(c.hour, { queueSeconds: 0, availableSeconds: 0, dates: new Set() });
     }
 
     const hourData = hourMap.get(c.hour)!;
     const seconds = c.seconds_in_bucket || 0;
 
     if (isReadyState(c.status)) {
-      // "En la cola" and "Disponible" both count as ready
       if ((c.status || '').toLowerCase().includes('cola')) {
         hourData.queueSeconds += seconds;
       } else {
@@ -75,35 +95,43 @@ export function calculateReadinessPercentage(
       }
     }
 
-    if (c.date) {
-      hourData.dates.add(c.date);
-    }
+    if (c.date) hourData.dates.add(c.date);
   }
 
-  // Sort agents and hours
   const sortedAgents = Array.from(allAgents).sort();
   const sortedHours = Array.from(allHours).sort((a, b) => a - b);
 
-  // Build matrix: agents x hours
+  // Build flat cell array (all agents × all hours)
   const matrix: ReadinessCellData[] = [];
 
   for (const agentName of sortedAgents) {
     const hourMap = agentHourMap.get(agentName)!;
+
     for (const hour of sortedHours) {
-      if (!hourMap.has(hour)) continue;
+      if (!hourMap.has(hour)) {
+        // Agent has no data at all for this hour — leave as null
+        matrix.push({
+          agentName,
+          hour,
+          readinessPercent: null,
+          dayCount: 0,
+          queueSeconds: 0,
+          availableSeconds: 0,
+        });
+        continue;
+      }
 
       const hourData = hourMap.get(hour)!;
       const readySeconds = hourData.queueSeconds + hourData.availableSeconds;
-      const totalSeconds = 3600; // 1 hour
-      const readinessPercent = readySeconds > 0
-        ? Math.round((readySeconds / totalSeconds) * 100)
-        : 0;
       const dayCount = hourData.dates.size;
+
+      // Percentage relative to a full hour; cap at 100
+      const readinessPercent = Math.min(100, Math.round((readySeconds / 3600) * 100));
 
       matrix.push({
         agentName,
         hour,
-        readinessPercent: readinessPercent <= 100 ? readinessPercent : null,
+        readinessPercent: dayCount > 0 ? readinessPercent : null,
         dayCount,
         queueSeconds: hourData.queueSeconds,
         availableSeconds: hourData.availableSeconds,
@@ -129,51 +157,35 @@ export function calculateReadinessSummary(
 
   for (const cell of cellData) {
     if (!agentMap.has(cell.agentName)) {
-      agentMap.set(cell.agentName, {
-        percentages: [],
-        hours: [],
-        dayCount: cell.dayCount,
-      });
+      agentMap.set(cell.agentName, { percentages: [], hours: [], dayCount: cell.dayCount });
     }
-
     const data = agentMap.get(cell.agentName)!;
     if (cell.readinessPercent !== null) {
       data.percentages.push(cell.readinessPercent);
       data.hours.push(cell.hour);
     }
+    // Keep the max dayCount seen across hours for this agent
+    if (cell.dayCount > data.dayCount) data.dayCount = cell.dayCount;
   }
 
-  const summary: ReadinessSummaryRow[] = Array.from(agentMap.entries()).map(
-    ([agentName, data]) => {
+  return Array.from(agentMap.entries())
+    .map(([agentName, data]) => {
       const avgReadiness =
         data.percentages.length > 0
-          ? Math.round(
-              data.percentages.reduce((a, b) => a + b, 0) / data.percentages.length
-            )
+          ? Math.round(data.percentages.reduce((a, b) => a + b, 0) / data.percentages.length)
           : 0;
 
-      const minReadinessIdx = data.percentages.indexOf(
-        Math.min(...data.percentages)
-      );
-      const maxReadinessIdx = data.percentages.indexOf(
-        Math.max(...data.percentages)
-      );
-
-      const minReadinessHour =
-        minReadinessIdx >= 0 ? data.hours[minReadinessIdx] : 0;
-      const maxReadinessHour =
-        maxReadinessIdx >= 0 ? data.hours[maxReadinessIdx] : 0;
+      const minIdx = data.percentages.indexOf(Math.min(...data.percentages));
+      const maxIdx = data.percentages.indexOf(Math.max(...data.percentages));
 
       return {
         agentName,
         avgReadiness,
-        minReadinessHour,
-        maxReadinessHour,
+        minReadinessHour: minIdx >= 0 ? data.hours[minIdx] : 0,
+        maxReadinessHour: maxIdx >= 0 ? data.hours[maxIdx] : 0,
         workingDays: data.dayCount,
         requiresReview: avgReadiness < 70,
       };
-    }
-  );
-
-  return summary.sort((a, b) => a.agentName.localeCompare(b.agentName));
+    })
+    .sort((a, b) => a.agentName.localeCompare(b.agentName));
 }
