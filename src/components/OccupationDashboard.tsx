@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import type { CallRecord, AgentConnectivityHourly, AgentStatusRecord } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
 import { identifyChronicOffenders } from '../lib/kpi/chronic-offenders';
+import { calculateReadinessPercentage, calculateReadinessSummary, type ReadinessCellData, type ReadinessSummaryRow } from '../lib/kpi/agent-readiness';
 import { SectionHeader } from './SectionHeader';
 import { BarChart3 } from 'lucide-react';
 import { OccupationKPICards, type OccupationKPIData } from './OccupationKPICards';
@@ -12,6 +13,8 @@ import { CascadeAgentChart } from './CascadeAgentChart';
 import { AgentAvailabilityChart } from './AgentAvailabilityChart';
 import { AgentTimeDistributionChart } from './AgentTimeDistributionChart';
 import { AgentTimeTrendChart } from './AgentTimeTrendChart';
+import AgentReadinessHeatmap from './AgentReadinessHeatmap';
+import { AgentReadinessSummary } from './AgentReadinessSummary';
 
 export type AgentCascadeStat = {
   agent: string;
@@ -482,6 +485,11 @@ function calculateOccupancyMetrics(
     totalAlerted: totalAlertedTeam,
   };
 
+  // ----- Readiness calculation -----
+  const readinessResult = calculateReadinessPercentage(filteredConnectivity);
+  const readinessCellData = readinessResult.data[0] || [];
+  const readinessSummary = calculateReadinessSummary(readinessCellData);
+
   return {
     kpiData: enrichedKpiData,
     ganttData: displayedGantt,
@@ -492,6 +500,10 @@ function calculateOccupancyMetrics(
     cascadeDepth,
     availabilityData,
     filteredConnectivity,
+    readinessCellData,
+    readinessSummary,
+    readinessAgents: readinessResult.agents,
+    readinessHours: readinessResult.hours,
   };
 }
 
@@ -581,6 +593,10 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
     cascadeDepth,
     availabilityData,
     filteredConnectivity,
+    readinessCellData,
+    readinessSummary,
+    readinessAgents,
+    readinessHours,
   } = useMemo(
     () => calculateOccupancyMetrics(records, allRecords, connectivity, agentStatusRecords),
     [records, allRecords, connectivity, agentStatusRecords]
@@ -632,6 +648,12 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
       ) : (
         <>
           <OccupationKPICards data={kpiData} />
+          <AgentReadinessHeatmap
+            data={readinessCellData}
+            agents={readinessAgents}
+            hours={readinessHours}
+          />
+          <AgentReadinessSummary summary={readinessSummary} />
           <AgentTimeDistributionChart agentStatusRecords={agentStatusRecords} />
           <AgentTimeTrendChart
             connectivityData={trendConnectivity}
