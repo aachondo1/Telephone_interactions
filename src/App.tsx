@@ -18,7 +18,7 @@ type DataState =
 
 export default function App() {
   const [dataState, setDataState] = useState<DataState>({ phase: 'loading' });
-  const [_uploads, setUploads] = useState<CallUpload[]>([]);
+  const [, setUploads] = useState<CallUpload[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);

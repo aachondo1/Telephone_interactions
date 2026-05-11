@@ -1,5 +1,4 @@
 import { supabase } from '../supabase';
-import type { AgentConnectivityHourly } from '../supabase';
 
 export async function getAgentCountsByHourAndDay(
   dateRange: { start: string; end: string } | null

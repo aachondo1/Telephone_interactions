@@ -119,10 +119,6 @@ function calculateOccupancyMetrics(
 
   // Attended calls only
   const attendedRecords = filteredRecords.filter((r) => r.attended && r.executive && r.executive !== 'SIN ATENDER');
-  // Key agent attended records (for KPI numerators)
-  const keyAttendedRecords = keyAgentNames.size > 0
-    ? attendedRecords.filter((r) => r.executive && keyAgentNames.has(r.executive))
-    : attendedRecords;
 
   // ----- KPI 1 & 2: Ocupación Efectiva y Shrinkage -----
   // Denominador: connected_seconds de agentStatusRecords, filtrado a agentes clave (>50 alarmas perdidas en últimos 30d).
@@ -257,7 +253,6 @@ function calculateOccupancyMetrics(
       .sort(([a], [b]) => a - b)
       .map(([hour, hourData]) => {
         // Calculate average and queue percentage
-        const avgTotalSeconds = hourData.dayCount > 0 ? hourData.totalSeconds / hourData.dayCount : 0;
         const inQueuePercent =
           hourData.dayCount > 0 && hourData.totalSeconds > 0
             ? Math.round((hourData.inQueueSeconds / hourData.totalSeconds) * 100)

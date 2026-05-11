@@ -143,7 +143,7 @@ Para esos archivos, por favor usa: Importar → Conectividad de Agentes (Timelin
 // Parse timeline format (Hora de inicio, Hora de finalización, Estado principal)
 function parseTimelineFormat(
   rows: Record<string, string>[],
-  headers: string[],
+  _headers: string[],
   colAgentId: string | null,
   colAgentName: string | null,
   colStart: string,

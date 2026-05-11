@@ -232,9 +232,6 @@ function countQueueCalls(records: CallRecord[]): Map<string, number> {
   return map;
 }
 
-type QueueWithVariation = { queue: string; count: number; variation: number | null };
-
-
 function ChangeBadge({ pct, inverted = false, compareLabel }: { pct: number | null; inverted?: boolean; compareLabel?: string }) {
   if (pct === null) return null;
   const isPositive = inverted ? pct < 0 : pct > 0;
