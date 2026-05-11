@@ -189,6 +189,8 @@ function calculateOccupancyMetrics(
     evasionCalls,
     ghostHours: ghostTime,
     ghostImpact,
+    cascadeResponseRate: 0, // overwritten in enrichedKpiData below
+    totalAlerted: 0,        // overwritten in enrichedKpiData below
   };
 
   // ----- Gantt: Build agent periods from hourly connectivity -----
@@ -514,12 +516,10 @@ export function OccupationDashboard({ records, allRecords, connectivityData, age
     supabase
       .from('agent_connectivity_hourly')
       .select('*', { count: 'exact', head: true })
-      .then(({ count }) => {
-        setTotalConnectivityCount(count || 0);
-      })
-      .catch(() => {
-        setTotalConnectivityCount(0);
-      });
+      .then(
+        ({ count }) => setTotalConnectivityCount(count || 0),
+        () => setTotalConnectivityCount(0)
+      );
   }, []);
 
   useEffect(() => {

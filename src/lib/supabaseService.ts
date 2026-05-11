@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert, CallUpload, DeduplicationStats } from './supabase';
+import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert, CallUpload, DeduplicationStats, AgentConnectivityUpload, AgentConnectivityRaw } from './supabase';
 import type { ParsedCallRecord } from './csvParser';
 import type { AgentStatusRow, AgentConnectivityRawRow } from './agentStatusParser';
 import { hashPhone, maskPhone, filterOverlappingCalls } from './csvParser';
@@ -309,7 +309,7 @@ function aggregateRawToHourly(
     if (end <= start) continue;
 
     const cur = new Date(start);
-    cur.setMinutes(0, 0, 0, 0);
+    cur.setHours(cur.getHours(), 0, 0, 0);
 
     while (cur < end) {
       const nextHour = new Date(cur);
