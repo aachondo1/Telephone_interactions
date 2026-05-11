@@ -284,7 +284,6 @@ export default function App() {
               upload={dataState.upload}
               agentStatusRecords={agentStatusRecords}
               activeSection={activeSection}
-              onUploadAgentStatus={openAgentStatusModal}
               dataQuality={dataQuality}
               connectivityRefreshKey={connectivityRefreshKey}
             />

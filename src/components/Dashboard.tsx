@@ -44,7 +44,6 @@ type Props = {
   upload: CallUpload;
   agentStatusRecords: AgentStatusRecord[];
   activeSection: Section;
-  onUploadAgentStatus: () => void;
   dataQuality: DataQualityReport | null;
   connectivityRefreshKey?: number;
 };
@@ -356,10 +355,9 @@ function DataQualityIndicator({ quality }: { quality: DataQualityReport | null }
   );
 }
 
-export function Dashboard({ records, upload, agentStatusRecords, activeSection, onUploadAgentStatus, dataQuality, connectivityRefreshKey }: Props) {
+export function Dashboard({ records, upload, agentStatusRecords, activeSection, dataQuality, connectivityRefreshKey }: Props) {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [kpis, setKpis] = useState(() => getEmptyKPISummary());
-  const [isLoadingKpis, setIsLoadingKpis] = useState(false);
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
 
   // Filter agentStatusRecords by overlap with the global date range.
@@ -383,16 +381,9 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
   const agentAuditFlags = useMemo(() => calculateAgentAuditFlags(agentStatusRecords), [agentStatusRecords]);
 
   useEffect(() => {
-    setIsLoadingKpis(true);
     calculateKPIs(filteredRecords)
-      .then(result => {
-        setKpis(result);
-        setIsLoadingKpis(false);
-      })
-      .catch(err => {
-        console.error('Error calculating KPIs:', err);
-        setIsLoadingKpis(false);
-      });
+      .then(result => setKpis(result))
+      .catch(err => console.error('Error calculating KPIs:', err));
   }, [filteredRecords]);
 
   // Scroll to top when section changes
