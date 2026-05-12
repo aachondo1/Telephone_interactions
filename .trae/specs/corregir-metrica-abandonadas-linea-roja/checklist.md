@@ -1,0 +1,5 @@
+- [ ] La serie roja del Súper Gantt usa “abandonos reales” (cola + alerta) y excluye short abandons (queue_time < 10s)
+- [ ] Solo se consideran llamadas entrantes y con hora en rango 08:00–17:59
+- [ ] La serie roja se expresa como promedio diario por hora (llamadas/día)
+- [ ] Labels/tooltip explican “Abandonadas (cola + alerta)” y su exclusión de short abandons
+- [ ] Build de producción (`npm run build`) finaliza correctamente
