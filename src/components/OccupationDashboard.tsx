@@ -8,13 +8,10 @@ import { SectionHeader } from './SectionHeader';
 import { BarChart3 } from 'lucide-react';
 import { OccupationKPICards, type OccupationKPIData } from './OccupationKPICards';
 import { AgentGanttChart, type AgentGanttData, type DemandPoint } from './AgentGanttChart';
-import { AgentPerformanceMatrix, type PerformancePoint } from './AgentPerformanceMatrix';
 import { AgentAuditTable, type AuditTableRow } from './AgentAuditTable';
 import { CascadeAgentChart } from './CascadeAgentChart';
 import { AgentAvailabilityChart } from './AgentAvailabilityChart';
-import { AgentTimeDistributionChart } from './AgentTimeDistributionChart';
 import { AgentTimeTrendChart } from './AgentTimeTrendChart';
-import { ProductivityMatrix, type ProductivityPoint } from './ProductivityMatrix';
 import { countWorkingDaysInRange, getUnifiedQueueBase, getUnifiedStates } from '../lib/kpi/shared';
 
 export type AgentCascadeStat = {
@@ -418,9 +415,8 @@ function calculateOccupancyMetrics(
     };
   });
 
-  // ----- Performance Matrix -----
+  // ----- Audit Table -----
   const agentConnectedSeconds = new Map<string, number>();
-  const agentTalkSeconds = new Map<string, number>();
 
   for (const c of filteredConnectivity) {
     if (!c.agent_name) continue;
@@ -429,44 +425,8 @@ function calculateOccupancyMetrics(
       (agentConnectedSeconds.get(c.agent_name) || 0) + (c.seconds_in_bucket || 0)
     );
   }
-  for (const r of attendedRecords) {
-    if (!r.executive) continue;
-    agentTalkSeconds.set(
-      r.executive,
-      (agentTalkSeconds.get(r.executive) || 0) + (r.duration_seconds || 0) + (r.acw_seconds || 0)
-    );
-  }
 
-  const avgConnHours =
-    agentConnectedSeconds.size > 0
-      ? Array.from(agentConnectedSeconds.values()).reduce((s, v) => s + v, 0) /
-        agentConnectedSeconds.size /
-        3600
-      : 0;
-  const avgOcc =
-    agentConnectedSeconds.size > 0
-      ? Array.from(agentConnectedSeconds.entries()).reduce((s, [name, conn]) => {
-          const talk = agentTalkSeconds.get(name) || 0;
-          return s + (conn > 0 ? (talk / conn) * 100 : 0);
-        }, 0) / agentConnectedSeconds.size
-      : 0;
 
-  const performanceData: PerformancePoint[] = Array.from(agentConnectedSeconds.entries()).map(
-    ([name, connSec]) => {
-      const talk = agentTalkSeconds.get(name) || 0;
-      const occ = connSec > 0 ? Math.min(100, Math.round((talk / connSec) * 100)) : 0;
-      const hours = Math.round((connSec / 3600) * 10) / 10;
-
-      let quadrant: 'heroes' | 'efficient' | 'inflators' | 'underperformers' = 'efficient';
-      if (occ >= avgOcc && hours >= avgConnHours) quadrant = 'heroes';
-      else if (occ < avgOcc && hours >= avgConnHours) quadrant = 'inflators';
-      else if (occ < avgOcc && hours < avgConnHours) quadrant = 'underperformers';
-
-      return { name, occupancy: occ, activeHours: hours, quadrant };
-    }
-  );
-
-  // ----- Audit Table -----
   const auditData: AuditTableRow[] = Array.from(agentConnectedSeconds.entries()).map(
     ([agent, connSec]) => {
       const validatedTotalMinutes = Math.floor(connSec / 60);
@@ -594,68 +554,16 @@ function calculateOccupancyMetrics(
     totalAlerted: totalAlertedTeam,
   };
 
-  // ----- Productivity Matrix -----
-  // Jornada_Teorica: Mon-Thu = 8h, Fri = 6h, for the full date range
-  const jornadaTeóricaSeconds = (() => {
-    if (!rangeStart || !rangeEnd) return 0;
-    const { mondayToThursday, fridays } = countWorkingDaysInRange(rangeStart, rangeEnd);
-    return mondayToThursday * 8 * 3600 + fridays * 6 * 3600;
-  })();
-
-  const agentProductivityMap = new Map<string, { connectedSeconds: number; workQueueSeconds: number }>();
-
-  for (const c of connectivityBusinessHours) {
-    if (!c.agent_name) continue;
-    if (!agentProductivityMap.has(c.agent_name)) {
-      agentProductivityMap.set(c.agent_name, { connectedSeconds: 0, workQueueSeconds: 0 });
-    }
-    const stats = agentProductivityMap.get(c.agent_name)!;
-    stats.connectedSeconds += c.seconds_in_bucket || 0;
-
-    const s = (c.status || '').toLowerCase();
-    const isProductiveState =
-      s.includes('on_queue') || s.includes('cola') || s.includes('queue') ||
-      s.includes('interacting') || s.includes('interactuando') ||
-      s.includes('communicating') || s.includes('comunicando');
-    if (isProductiveState) {
-      stats.workQueueSeconds += c.seconds_in_bucket || 0;
-    }
-  }
-
-  const productivityData: ProductivityPoint[] = Array.from(agentProductivityMap.entries()).map(
-    ([name, stats]) => {
-      const connectedSeconds = stats.connectedSeconds;
-      const disconnectedSeconds = jornadaTeóricaSeconds > 0
-        ? Math.max(0, jornadaTeóricaSeconds - connectedSeconds)
-        : 0;
-      const connectionRatio = disconnectedSeconds > 0
-        ? Math.round((connectedSeconds / disconnectedSeconds) * 100) / 100
-        : 100;
-      const workQueueHours = Math.round((stats.workQueueSeconds / 3600) * 100) / 100;
-
-      return {
-        name,
-        connectionRatio,
-        workQueueHours,
-        connectedSeconds,
-        disconnectedSeconds,
-        workQueueSeconds: stats.workQueueSeconds,
-      };
-    }
-  );
-
   return {
     kpiData: enrichedKpiData,
     ganttData: displayedGantt,
     demandData,
-    performanceData,
     auditData: enrichedAuditData,
     cascadeStats,
     cascadeDepth,
     availabilityData,
     filteredConnectivity,
     averageRow,
-    productivityData,
   };
 }
 
@@ -728,14 +636,12 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
     kpiData,
     ganttData,
     demandData,
-    performanceData,
     auditData,
     cascadeStats,
     cascadeDepth,
     availabilityData,
     filteredConnectivity,
     averageRow,
-    productivityData,
   } = useMemo(
     () => calculateOccupancyMetrics(records, allRecords, connectivity, agentStatusRecords, dateMin, dateMax),
     [records, allRecords, connectivity, agentStatusRecords, dateMin, dateMax]
@@ -787,7 +693,6 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
       ) : (
         <>
           <OccupationKPICards data={kpiData} />
-          <AgentTimeDistributionChart agentStatusRecords={agentStatusRecords} />
           <AgentTimeTrendChart
             connectivityData={trendConnectivity}
             granularity={trendGranularity}
@@ -796,8 +701,6 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
           <CascadeAgentChart data={cascadeStats} depthData={cascadeDepth} />
           <AgentGanttChart agents={ganttData} demandData={demandData} averageRow={averageRow} />
           <AgentAvailabilityChart data={availabilityData} />
-          <AgentPerformanceMatrix data={performanceData} />
-          <ProductivityMatrix data={productivityData} />
           <AgentAuditTable rows={auditData} cascadeStats={cascadeStats} />
         </>
       )}
