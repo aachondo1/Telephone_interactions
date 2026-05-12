@@ -1,40 +1,45 @@
-# Plan: Filtro de Ejecutivos en “Mapa de Disponibilidad de Agentes”
+# Plan: Filtro General de Ejecutivos Aplicado a Toda la Conectividad (agent_connectivity_hourly)
 
 ## Summary
-Hacer que el gráfico **Mapa de Disponibilidad de Agentes** responda al filtro general de ejecutivos (filtro “Ejecutivos” del FilterBar), igual que el resto del dashboard. Hoy el gráfico se calcula y renderiza sin aplicar `filters.executives`.
+Hacer que **todos los gráficos que usan la conectividad cargada** (tabla `agent_connectivity_hourly`) respondan al filtro general de ejecutivos (FilterBar → “Ejecutivos”). Hoy solo el gráfico de tendencia usa el filtro; el Gantt, el promedio general, el mapa de disponibilidad y otros cálculos basados en conectividad no lo respetan de forma consistente.
 
 ## Current State Analysis
 - El dashboard principal ya pasa el filtro general de ejecutivos a Ocupación de Agentes como `executiveFilter={filters.executives}`: [Dashboard.tsx](file:///workspace/src/components/Dashboard.tsx#L395-L397).
 - En Ocupación de Agentes:
   - Se aplica `executiveFilter` solo al **trend chart** (`trendConnectivity`), filtrando `filteredConnectivity`: [OccupationDashboard.tsx](file:///workspace/src/components/OccupationDashboard.tsx#L691-L697).
-  - El **Mapa de Disponibilidad de Agentes** se renderiza con `availabilityData` sin filtro adicional: [OccupationDashboard.tsx](file:///workspace/src/components/OccupationDashboard.tsx#L735-L747).
+  - El resto de salidas derivadas desde conectividad se calculan sin considerar `executiveFilter`, porque `calculateOccupancyMetrics(...)` recibe `connectivity` completo del rango y lo asigna a `filteredConnectivity = connectivity`: [OccupationDashboard.tsx](file:///workspace/src/components/OccupationDashboard.tsx#L75-L135).
 - `AgentAvailabilityChart` solo recibe `data` y no tiene lógica propia para filtros globales: [AgentAvailabilityChart.tsx](file:///workspace/src/components/AgentAvailabilityChart.tsx#L13-L16).
-- `availabilityData` se calcula dentro de `calculateOccupancyMetrics`, y actualmente filtra por “≥5 alertas inbound” (MIN_ALERTS), pero no por ejecutivos seleccionados: [OccupationDashboard.tsx](file:///workspace/src/components/OccupationDashboard.tsx#L541-L577).
+- Ejemplos de salidas basadas en `filteredConnectivity` dentro de `calculateOccupancyMetrics` (todas deberían reflejar el filtro general si está activo):
+  - Performance Matrix / Audit: [OccupationDashboard.tsx](file:///workspace/src/components/OccupationDashboard.tsx#L420-L505)
+  - Mapa de disponibilidad (`availabilityData`): [OccupationDashboard.tsx](file:///workspace/src/components/OccupationDashboard.tsx#L541-L577)
+  - Gantt por hora (`ganttData`, `averageRow`) y filtro >10% en cola: [OccupationDashboard.tsx](file:///workspace/src/components/OccupationDashboard.tsx#L201-L329)
 
 ## Proposed Changes
-### 1) Filtrar `availabilityData` por `executiveFilter` antes de renderizar
+### 1) Aplicar el filtro de ejecutivos a la conectividad antes de calcular métricas
 Archivo: [OccupationDashboard.tsx](file:///workspace/src/components/OccupationDashboard.tsx)
-- Crear `filteredAvailabilityData` con `useMemo`:
-  - Si `executiveFilter` está vacío → usar `availabilityData` tal cual.
-  - Si `executiveFilter` tiene valores → filtrar por coincidencia de nombre:
-    - Normalizar ambos lados con `toLowerCase().trim()` (mismo patrón usado en `trendConnectivity`).
-    - `availabilityData.filter(a => names.has(a.agentName.toLowerCase().trim()))`
-- Renderizar `AgentAvailabilityChart` usando `filteredAvailabilityData` en vez de `availabilityData`.
+- Crear `connectivityForExecutives` con `useMemo` en el componente `OccupationDashboard` (fuera de `calculateOccupancyMetrics`):
+  - Si `executiveFilter` está vacío → usar `connectivity` tal cual.
+  - Si `executiveFilter` tiene valores → filtrar `connectivity` por `agent_name`:
+    - Normalizar con `toLowerCase().trim()` (idéntico patrón ya usado para `trendConnectivity`).
+    - `connectivity.filter(c => c.agent_name && names.has(c.agent_name.toLowerCase().trim()))`
+- Cambiar la llamada a `calculateOccupancyMetrics(records, allRecords, connectivity, ...)` para que reciba `connectivityForExecutives` como parámetro.
+  - Resultado: **todas** las salidas derivadas de conectividad (Gantt, promedio, disponibilidad, performance matrix, audit table, etc.) se vuelven responsivas al filtro general.
 
-### 2) Mantener consistencia de métricas y UX
-Archivos:
-- [OccupationDashboard.tsx](file:///workspace/src/components/OccupationDashboard.tsx)
-- [AgentAvailabilityChart.tsx](file:///workspace/src/components/AgentAvailabilityChart.tsx)
-- No cambiar definiciones del gráfico (cálculos, ordenamiento, top 20). Solo limitar el conjunto de agentes mostrado cuando el filtro de ejecutivos esté activo.
-- Mantener el estado “Sin datos…” cuando el filtro deja 0 agentes.
+### 2) Simplificar el trend chart para evitar doble filtrado
+Archivo: [OccupationDashboard.tsx](file:///workspace/src/components/OccupationDashboard.tsx)
+- Como `calculateOccupancyMetrics` recibirá conectividad ya filtrada, `filteredConnectivity` del retorno ya será el subset.
+- Reemplazar `trendConnectivity` para que use directamente `filteredConnectivity` (o mantener el `useMemo` existente, pero evitar filtrar dos veces).
 
 ## Assumptions & Decisions
-- El filtro general de ejecutivos (`filters.executives`) corresponde al nombre de ejecutivo en llamadas, y se cruza con `agentName` en conectividad por igualdad tras normalización básica (`lowercase + trim`), consistente con la lógica ya usada en Ocupación.
-- Se implementa como filtro en el render (post-cálculo) para minimizar cambios y riesgo.
+- `filters.executives` representa el nombre visible del ejecutivo y se cruza con `agent_connectivity_hourly.agent_name` mediante igualdad tras normalización básica (`lowercase + trim`), consistente con el código actual.
+- El filtrado se aplica a nivel de `OccupationDashboard` (input a `calculateOccupancyMetrics`) para mantener consistencia en todas las métricas y no tener que “re-filtrar” cada salida por separado.
 
 ## Verification Steps
 - Con filtro de ejecutivos vacío:
-  - El gráfico se comporta igual que hoy (mismos top 20 por desconexión).
+  - Todos los gráficos basados en conectividad se comportan igual que hoy.
 - Con 1–3 ejecutivos seleccionados:
-  - El gráfico muestra solo esos ejecutivos (o subset), y el “Promedio desconexión equipo” se recalcula sobre el subset.
+  - `AgentTimeTrendChart` refleja solo esos ejecutivos.
+  - `AgentGanttChart` (filas y Promedio General) refleja solo esos ejecutivos.
+  - `AgentAvailabilityChart` refleja solo esos ejecutivos.
+  - Cualquier gráfico/tabla que dependa de conectividad en `calculateOccupancyMetrics` (p. ej. performance matrix/audit) queda filtrado al subset.
 - Ejecutar `npm run build` para validar compilación.
