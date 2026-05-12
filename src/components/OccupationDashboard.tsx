@@ -640,6 +640,7 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
     cascadeStats,
     cascadeDepth,
     availabilityData,
+    filteredConnectivity,
     averageRow,
   } = useMemo(
     () => calculateOccupancyMetrics(records, allRecords, connectivity, agentStatusRecords),
