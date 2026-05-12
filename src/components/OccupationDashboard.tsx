@@ -250,36 +250,75 @@ function calculateOccupancyMetrics(
   }
 
   const ganttData: AgentGanttData[] = [];
+  const hourlyQueuePercentSums = new Map<number, { sum: number; count: number }>();
+
+  // Filtro > 10% en cola
+  const validAgents = new Set<string>();
+  const agentTotals = new Map<string, { connected: number; inQueue: number }>();
+  for (const c of filteredConnectivity) {
+    if (!c.agent_name) continue;
+    if (!agentTotals.has(c.agent_name)) agentTotals.set(c.agent_name, { connected: 0, inQueue: 0 });
+    const stats = agentTotals.get(c.agent_name)!;
+    stats.connected += c.seconds_in_bucket || 0;
+    const s = (c.status || '').toLowerCase();
+    if (s.includes('cola') || s.includes('queue')) {
+      stats.inQueue += c.seconds_in_bucket || 0;
+    }
+  }
+  for (const [agentName, stats] of agentTotals.entries()) {
+    if (stats.connected > 0 && (stats.inQueue / stats.connected) > 0.10) {
+      validAgents.add(agentName);
+    }
+  }
+
   for (const [agentName, hourMap] of agentDateHourMap.entries()) {
-    const productiveHours = agentHourCallMap.get(agentName) || new Set();
+    if (!validAgents.has(agentName)) continue;
 
     const periods = Array.from(hourMap.entries())
       .sort(([a], [b]) => a - b)
       .map(([hour, hourData]) => {
-        // Calculate average and queue percentage
-        const inQueuePercent =
-          hourData.dayCount > 0 && hourData.totalSeconds > 0
-            ? Math.round((hourData.inQueueSeconds / hourData.totalSeconds) * 100)
-            : 0;
+        let enColaSec = 0;
+        let dispSec = 0;
+        let otrosSec = 0;
 
-        // Find dominant status
-        let dominantStatus = 'ocioso';
-        let maxSeconds = 0;
         for (const [status, seconds] of hourData.statuses.entries()) {
-          if (seconds > maxSeconds) {
-            maxSeconds = seconds;
-            dominantStatus = status;
+          const s = status.toLowerCase();
+          if (s.includes('cola') || s.includes('queue')) {
+            enColaSec += seconds;
+          } else if (s.includes('disponible') || s.includes('available')) {
+            dispSec += seconds;
+          } else {
+            otrosSec += seconds;
           }
         }
 
-        const ganttStatus = productiveHours.has(hour) ? 'productivo' : mapConnectivityStatus(dominantStatus);
+        const total = enColaSec + dispSec + otrosSec;
+        let enColaPercent = 0;
+        let disponiblePercent = 0;
+        let otrosPercent = 0;
+
+        if (total > 0) {
+          enColaPercent = Math.round((enColaSec / total) * 100);
+          disponiblePercent = Math.round((dispSec / total) * 100);
+          otrosPercent = 100 - enColaPercent - disponiblePercent; // Ensure it sums to 100
+        }
+
+        // Add to average calculation
+        if (!hourlyQueuePercentSums.has(hour)) {
+          hourlyQueuePercentSums.set(hour, { sum: 0, count: 0 });
+        }
+        const hourStats = hourlyQueuePercentSums.get(hour)!;
+        hourStats.sum += enColaPercent;
+        hourStats.count++;
+
         return {
           startHour: hour,
           startMinute: 0,
           endHour: hour + 1,
           endMinute: 0,
-          status: ganttStatus as 'productivo' | 'ocioso' | 'pausa' | 'no_responde',
-          inQueuePercent,
+          enColaPercent,
+          disponiblePercent,
+          otrosPercent,
         };
       });
 
@@ -288,20 +327,52 @@ function calculateOccupancyMetrics(
     }
   }
 
+  // Calculate Average Row
+  const averageRow = Array.from(hourlyQueuePercentSums.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([hour, stats]) => {
+      const avgEnCola = stats.count > 0 ? Math.round(stats.sum / stats.count) : 0;
+      return {
+        startHour: hour,
+        startMinute: 0,
+        endHour: hour + 1,
+        endMinute: 0,
+        enColaPercent: avgEnCola,
+        disponiblePercent: 0, // Not displayed in average row
+        otrosPercent: 0,
+      };
+    });
+
   const displayedGantt = ganttData.slice(0, 12);
 
-  // ----- Demand Curve: inbound calls per hour -----
-  const callsByHour = new Map<number, number>();
-  for (const r of filteredRecords) {
-    if (r.call_hour == null) continue;
-    callsByHour.set(r.call_hour, (callsByHour.get(r.call_hour) || 0) + 1);
+  // ----- Demand Curve: inbound calls per hour (average by day) -----
+  const answeredByHour = new Map<number, number>();
+  const abandonedByHour = new Map<number, number>();
+  const uniqueDays = new Set<string>();
+
+  for (const r of inboundRecords) {
+    if (r.call_hour == null || r.call_hour < 8 || r.call_hour >= 18) continue;
+    if (r.call_date) uniqueDays.add(r.call_date);
+    
+    // Solo contar si pasó por una cola
+    if (r.queue) {
+      if (r.attended) {
+        answeredByHour.set(r.call_hour, (answeredByHour.get(r.call_hour) || 0) + 1);
+      } else {
+        abandonedByHour.set(r.call_hour, (abandonedByHour.get(r.call_hour) || 0) + 1);
+      }
+    }
   }
+
+  const numDays = Math.max(1, uniqueDays.size);
   const demandData: DemandPoint[] = Array.from({ length: 10 }, (_, i) => {
     const hour = 8 + i;
     return {
       hour,
       label: `${String(hour).padStart(2, '0')}:00`,
-      inboundCalls: callsByHour.get(hour) || 0,
+      inboundCalls: 0, // Fallback for types
+      answered: Math.round((answeredByHour.get(hour) || 0) / numDays),
+      abandoned: Math.round((abandonedByHour.get(hour) || 0) / numDays),
     };
   });
 
@@ -491,6 +562,7 @@ function calculateOccupancyMetrics(
     cascadeDepth,
     availabilityData,
     filteredConnectivity,
+    averageRow,
   };
 }
 
@@ -568,7 +640,7 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
     cascadeStats,
     cascadeDepth,
     availabilityData,
-    filteredConnectivity,
+    averageRow,
   } = useMemo(
     () => calculateOccupancyMetrics(records, allRecords, connectivity, agentStatusRecords),
     [records, allRecords, connectivity, agentStatusRecords]
@@ -627,7 +699,7 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
             onGranularityChange={setTrendGranularity}
           />
           <CascadeAgentChart data={cascadeStats} depthData={cascadeDepth} />
-          <AgentGanttChart agents={ganttData} demandData={demandData} />
+          <AgentGanttChart agents={ganttData} demandData={demandData} averageRow={averageRow} />
           <AgentAvailabilityChart data={availabilityData} />
           <AgentPerformanceMatrix data={performanceData} />
           <AgentAuditTable rows={auditData} cascadeStats={cascadeStats} />
