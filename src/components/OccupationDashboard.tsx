@@ -14,6 +14,7 @@ import { CascadeAgentChart } from './CascadeAgentChart';
 import { AgentAvailabilityChart } from './AgentAvailabilityChart';
 import { AgentTimeDistributionChart } from './AgentTimeDistributionChart';
 import { AgentTimeTrendChart } from './AgentTimeTrendChart';
+import { countWorkingDaysInRange, getUnifiedQueueBase, getUnifiedStates } from '../lib/kpi/shared';
 
 export type AgentCascadeStat = {
   agent: string;
@@ -75,7 +76,9 @@ function calculateOccupancyMetrics(
   records: CallRecord[],
   allRecords: CallRecord[],
   connectivity: AgentConnectivityHourly[],
-  agentStatusRecords: AgentStatusRecord[]
+  agentStatusRecords: AgentStatusRecord[],
+  rangeStart: string | null,
+  rangeEnd: string | null
 ) {
   // records are already filtered by the global FilterBar
   const filteredRecords = records;
@@ -113,6 +116,17 @@ function calculateOccupancyMetrics(
 
   // ----- Step 3: Connectivity is already filtered by useEffect via dateMin/dateMax -----
   const filteredConnectivity = connectivity;
+
+  const isWithinCentralBusinessHours = (dateStr: string, hour: number) => {
+    const dow = new Date(dateStr + 'T12:00:00').getDay();
+    if (dow >= 1 && dow <= 4) return hour >= 8 && hour < 18;
+    if (dow === 5) return hour >= 8 && hour < 14;
+    return false;
+  };
+
+  const connectivityBusinessHours = filteredConnectivity.filter(
+    (c) => c.date && isWithinCentralBusinessHours(c.date, c.hour)
+  );
 
   // keyConnectivity: only key agents, date-filtered
   const keyConnectivity = keyAgentNames.size > 0
@@ -207,7 +221,7 @@ function calculateOccupancyMetrics(
   const agentDateHourMap: AgentHourMap = new Map();
   const agentDateSet = new Map<string, Set<string>>(); // agentName -> Set<dates>
 
-  for (const c of filteredConnectivity) {
+  for (const c of connectivityBusinessHours) {
     if (!c.agent_name) continue;
     if (!agentDateHourMap.has(c.agent_name)) agentDateHourMap.set(c.agent_name, new Map());
     const hourMap = agentDateHourMap.get(c.agent_name)!;
@@ -250,36 +264,75 @@ function calculateOccupancyMetrics(
   }
 
   const ganttData: AgentGanttData[] = [];
+  const hourlyQueuePercentSums = new Map<number, { sum: number; count: number }>();
+
+  // Filtro > 10% en cola
+  const validAgents = new Set<string>();
+  const agentTotals = new Map<string, { connected: number; inQueue: number }>();
+  for (const c of connectivityBusinessHours) {
+    if (!c.agent_name) continue;
+    if (!agentTotals.has(c.agent_name)) agentTotals.set(c.agent_name, { connected: 0, inQueue: 0 });
+    const stats = agentTotals.get(c.agent_name)!;
+    stats.connected += c.seconds_in_bucket || 0;
+    const s = (c.status || '').toLowerCase();
+    if (s.includes('cola') || s.includes('queue')) {
+      stats.inQueue += c.seconds_in_bucket || 0;
+    }
+  }
+  for (const [agentName, stats] of agentTotals.entries()) {
+    if (stats.connected > 0 && (stats.inQueue / stats.connected) > 0.10) {
+      validAgents.add(agentName);
+    }
+  }
+
   for (const [agentName, hourMap] of agentDateHourMap.entries()) {
-    const productiveHours = agentHourCallMap.get(agentName) || new Set();
+    if (!validAgents.has(agentName)) continue;
 
     const periods = Array.from(hourMap.entries())
       .sort(([a], [b]) => a - b)
       .map(([hour, hourData]) => {
-        // Calculate average and queue percentage
-        const inQueuePercent =
-          hourData.dayCount > 0 && hourData.totalSeconds > 0
-            ? Math.round((hourData.inQueueSeconds / hourData.totalSeconds) * 100)
-            : 0;
+        let enColaSec = 0;
+        let dispSec = 0;
+        let otrosSec = 0;
 
-        // Find dominant status
-        let dominantStatus = 'ocioso';
-        let maxSeconds = 0;
         for (const [status, seconds] of hourData.statuses.entries()) {
-          if (seconds > maxSeconds) {
-            maxSeconds = seconds;
-            dominantStatus = status;
+          const s = status.toLowerCase();
+          if (s.includes('cola') || s.includes('queue')) {
+            enColaSec += seconds;
+          } else if (s.includes('disponible') || s.includes('available')) {
+            dispSec += seconds;
+          } else {
+            otrosSec += seconds;
           }
         }
 
-        const ganttStatus = productiveHours.has(hour) ? 'productivo' : mapConnectivityStatus(dominantStatus);
+        const total = enColaSec + dispSec + otrosSec;
+        let enColaPercent = 0;
+        let disponiblePercent = 0;
+        let otrosPercent = 0;
+
+        if (total > 0) {
+          enColaPercent = Math.round((enColaSec / total) * 100);
+          disponiblePercent = Math.round((dispSec / total) * 100);
+          otrosPercent = 100 - enColaPercent - disponiblePercent; // Ensure it sums to 100
+        }
+
+        // Add to average calculation
+        if (!hourlyQueuePercentSums.has(hour)) {
+          hourlyQueuePercentSums.set(hour, { sum: 0, count: 0 });
+        }
+        const hourStats = hourlyQueuePercentSums.get(hour)!;
+        hourStats.sum += enColaPercent;
+        hourStats.count++;
+
         return {
           startHour: hour,
           startMinute: 0,
           endHour: hour + 1,
           endMinute: 0,
-          status: ganttStatus as 'productivo' | 'ocioso' | 'pausa' | 'no_responde',
-          inQueuePercent,
+          enColaPercent,
+          disponiblePercent,
+          otrosPercent,
         };
       });
 
@@ -288,20 +341,79 @@ function calculateOccupancyMetrics(
     }
   }
 
+  // Calculate Average Row
+  const averageRow = Array.from(hourlyQueuePercentSums.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([hour, stats]) => {
+      const avgEnCola = stats.count > 0 ? Math.round(stats.sum / stats.count) : 0;
+      return {
+        startHour: hour,
+        startMinute: 0,
+        endHour: hour + 1,
+        endMinute: 0,
+        enColaPercent: avgEnCola,
+        disponiblePercent: 0, // Not displayed in average row
+        otrosPercent: 0,
+      };
+    });
+
   const displayedGantt = ganttData.slice(0, 12);
 
-  // ----- Demand Curve: inbound calls per hour -----
-  const callsByHour = new Map<number, number>();
-  for (const r of filteredRecords) {
-    if (r.call_hour == null) continue;
-    callsByHour.set(r.call_hour, (callsByHour.get(r.call_hour) || 0) + 1);
-  }
+  // ----- Demand Curve: inbound calls per hour (average by day) -----
+  const isWithinBusinessHours = (dateStr: string, hour: number) => {
+    const dow = new Date(dateStr + 'T12:00:00').getDay();
+    if (dow >= 1 && dow <= 4) return hour >= 8 && hour < 18;
+    if (dow === 5) return hour >= 8 && hour < 14;
+    return false;
+  };
+
+  const datesInRecords = inboundRecords
+    .map((r) => r.call_date)
+    .filter((d): d is string => Boolean(d));
+
+  const sortedDates = datesInRecords.length > 0 ? [...datesInRecords].sort() : null;
+  const inferredRangeStart = sortedDates && sortedDates.length > 0 ? sortedDates[0] : null;
+  const inferredRangeEnd =
+    sortedDates && sortedDates.length > 0 ? sortedDates[sortedDates.length - 1] : null;
+  const demandRangeStart = rangeStart ?? inferredRangeStart;
+  const demandRangeEnd = rangeEnd ?? inferredRangeEnd;
+
+  const workingDayCounts =
+    demandRangeStart && demandRangeEnd ? countWorkingDaysInRange(demandRangeStart, demandRangeEnd) : null;
+
+  const denominatorForHour = (hour: number) => {
+    if (!workingDayCounts) return 0;
+    if (hour >= 8 && hour < 14) return workingDayCounts.mondayToThursday + workingDayCounts.fridays;
+    if (hour >= 14 && hour < 18) return workingDayCounts.mondayToThursday;
+    return 0;
+  };
+
+  const answeredByHour = new Map<number, number>();
+  const abandonedByHour = new Map<number, number>();
+
+  const queueBase = getUnifiedQueueBase(inboundRecords);
+  const states = getUnifiedStates(queueBase);
+  const realAbandons = [...states.notAssigned, ...states.assignedNoConversation];
+  const realAnswered = states.conversationReal;
+
+  const addHourlyCount = (map: Map<number, number>, r: CallRecord) => {
+    if (r.call_hour == null || r.call_date == null) return;
+    if (!isWithinBusinessHours(r.call_date, r.call_hour)) return;
+    map.set(r.call_hour, (map.get(r.call_hour) || 0) + 1);
+  };
+
+  for (const r of realAnswered) addHourlyCount(answeredByHour, r);
+  for (const r of realAbandons) addHourlyCount(abandonedByHour, r);
+
   const demandData: DemandPoint[] = Array.from({ length: 10 }, (_, i) => {
     const hour = 8 + i;
+    const denom = denominatorForHour(hour);
     return {
       hour,
       label: `${String(hour).padStart(2, '0')}:00`,
-      inboundCalls: callsByHour.get(hour) || 0,
+      inboundCalls: 0,
+      answered: denom > 0 ? Math.round((answeredByHour.get(hour) || 0) / denom) : 0,
+      abandoned: denom > 0 ? Math.round((abandonedByHour.get(hour) || 0) / denom) : 0,
     };
   });
 
@@ -491,6 +603,7 @@ function calculateOccupancyMetrics(
     cascadeDepth,
     availabilityData,
     filteredConnectivity,
+    averageRow,
   };
 }
 
@@ -569,9 +682,10 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
     cascadeDepth,
     availabilityData,
     filteredConnectivity,
+    averageRow,
   } = useMemo(
-    () => calculateOccupancyMetrics(records, allRecords, connectivity, agentStatusRecords),
-    [records, allRecords, connectivity, agentStatusRecords]
+    () => calculateOccupancyMetrics(records, allRecords, connectivity, agentStatusRecords, dateMin, dateMax),
+    [records, allRecords, connectivity, agentStatusRecords, dateMin, dateMax]
   );
 
   // Apply executive filter to connectivity data for the trend chart
@@ -627,7 +741,7 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
             onGranularityChange={setTrendGranularity}
           />
           <CascadeAgentChart data={cascadeStats} depthData={cascadeDepth} />
-          <AgentGanttChart agents={ganttData} demandData={demandData} />
+          <AgentGanttChart agents={ganttData} demandData={demandData} averageRow={averageRow} />
           <AgentAvailabilityChart data={availabilityData} />
           <AgentPerformanceMatrix data={performanceData} />
           <AgentAuditTable rows={auditData} cascadeStats={cascadeStats} />
