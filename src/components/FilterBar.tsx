@@ -79,6 +79,7 @@ export const DEFAULT_FILTERS: FilterState = {
 
 type Props = {
   records: CallRecord[];
+  extraExecutives?: string[];
   filters: FilterState;
   onChange: (filters: FilterState) => void;
   filteredCount: number;
@@ -254,10 +255,10 @@ function MultiSelect({
   );
 }
 
-export function FilterBar({ records, filters, onChange, filteredCount }: Props) {
+export function FilterBar({ records, extraExecutives, filters, onChange, filteredCount }: Props) {
   const { allQueues, allExecutives, allDepartments, minDate, maxDate } = useMemo(() => {
     const queues = [...new Set(records.map(r => r.queue).filter(Boolean))].sort();
-    const executives = [...new Set(records.map(r => r.executive).filter(Boolean))].sort();
+    const executives = [...new Set([...(records.map(r => r.executive).filter(Boolean)), ...(extraExecutives ?? [])])].sort();
     const dates = records.map(r => r.call_date).filter(Boolean) as string[];
     const sorted = [...dates].sort();
 
@@ -275,7 +276,7 @@ export function FilterBar({ records, filters, onChange, filteredCount }: Props) 
       minDate: sorted[0] ?? '',
       maxDate: sorted[sorted.length - 1] ?? '',
     };
-  }, [records]);
+  }, [records, extraExecutives]);
 
 
   const filteredQueues = useMemo(() => {

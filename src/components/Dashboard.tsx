@@ -66,6 +66,10 @@ function isInbound(direction: string): boolean {
   return d === 'inbound' || d === 'entrante';
 }
 
+function normName(name: string): string {
+  return (name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
 
 function isBusinessHours(r: CallRecord): boolean {
   if (!r.call_date || r.call_hour === null || r.call_hour === undefined) return true;
@@ -131,26 +135,29 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [kpis, setKpis] = useState(() => getEmptyKPISummary());
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
+  const { executives } = filters;
+  const { start: effectiveStart, end: effectiveEnd } = getEffectiveDateRange(filters);
 
   // Filter agentStatusRecords by overlap with the global date range.
   // AgentStatusRecord is aggregated per upload (no daily granularity), so we include
   // a record if its period overlaps with the selected range at all.
   const filteredAgentStatusRecords = useMemo(() => {
-    const { dateStart, dateEnd } = filters;
-    if (!dateStart && !dateEnd) return agentStatusRecords;
-    return agentStatusRecords.filter(r => {
+    const execSet = executives.length > 0 ? new Set(executives.map(normName)) : null;
+    const dateFiltered = (!effectiveStart && !effectiveEnd) ? agentStatusRecords : agentStatusRecords.filter(r => {
       const rStart = (r.date_range_start ?? '').slice(0, 10);
       const rEnd   = (r.date_range_end   ?? '').slice(0, 10);
       if (!rStart && !rEnd) return true;
-      const filterStart = dateStart ? dateStart.slice(0, 10) : '';
-      const filterEnd   = dateEnd   ? dateEnd.slice(0, 10)   : '';
+      const filterStart = effectiveStart ? effectiveStart.slice(0, 10) : '';
+      const filterEnd   = effectiveEnd   ? effectiveEnd.slice(0, 10)   : '';
       const overlapEnd   = !filterStart || !rEnd   || rEnd   >= filterStart;
       const overlapStart = !filterEnd   || !rStart || rStart <= filterEnd;
       return overlapEnd && overlapStart;
     });
-  }, [agentStatusRecords, filters.dateStart, filters.dateEnd]);
+    if (!execSet) return dateFiltered;
+    return dateFiltered.filter(r => execSet.has(normName(r.agent_name)));
+  }, [agentStatusRecords, effectiveStart, effectiveEnd, executives]);
 
-  const agentAuditFlags = useMemo(() => calculateAgentAuditFlags(agentStatusRecords), [agentStatusRecords]);
+  const agentAuditFlags = useMemo(() => calculateAgentAuditFlags(filteredAgentStatusRecords), [filteredAgentStatusRecords]);
 
   useEffect(() => {
     calculateKPIs(filteredRecords)
@@ -203,6 +210,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       {/* Filters */}
       <FilterBar
         records={records}
+        extraExecutives={agentStatusRecords.map(r => r.agent_name).filter(Boolean)}
         filters={filters}
         onChange={setFilters}
         filteredCount={filteredRecords.length}
@@ -367,7 +375,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
                   </p>
                 </div>
                 <AgentConnectivityChart
-                  agentRecords={agentStatusRecords}
+                  agentRecords={filteredAgentStatusRecords}
                   executiveStats={kpis.executiveStats}
                 />
               </>

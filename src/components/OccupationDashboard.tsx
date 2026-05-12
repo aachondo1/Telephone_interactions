@@ -71,6 +71,10 @@ function formatHHMM(totalSeconds: number): { hours: number; minutes: number } {
   return { hours, minutes };
 }
 
+function normName(name: string): string {
+  return (name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
 function calculateOccupancyMetrics(
   records: CallRecord[],
   allRecords: CallRecord[],
@@ -516,7 +520,7 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
   }, []);
 
   useEffect(() => {
-    if (!dateMin || !dateMax) {
+    if (!dateMin && !dateMax) {
       setLoading(false);
       return;
     }
@@ -531,12 +535,14 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
       let hasMore = true;
 
       while (hasMore) {
-        const { data, error } = await supabase
+        let query = supabase
           .from('agent_connectivity_hourly')
-          .select('*')
-          .gte('date', dateMin)
-          .lte('date', dateMax)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
+          .select('*');
+
+        if (dateMin) query = query.gte('date', dateMin);
+        if (dateMax) query = query.lte('date', dateMax);
+
+        const { data, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) {
           setConnectivityError(error.message);
@@ -559,6 +565,18 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
     fetchAllConnectivity().finally(() => setLoading(false));
   }, [dateMin, dateMax, connectivityRefreshKey]);
 
+  const filteredAgentStatus = useMemo(() => {
+    if (!executiveFilter || executiveFilter.length === 0) return agentStatusRecords;
+    const names = new Set(executiveFilter.map(normName));
+    return agentStatusRecords.filter(r => names.has(normName(r.agent_name)));
+  }, [agentStatusRecords, executiveFilter]);
+
+  const filteredConnectivity = useMemo(() => {
+    if (!executiveFilter || executiveFilter.length === 0) return connectivity;
+    const names = new Set(executiveFilter.map(normName));
+    return connectivity.filter(c => c.agent_name && names.has(normName(c.agent_name)));
+  }, [connectivity, executiveFilter]);
+
   const {
     kpiData,
     ganttData,
@@ -568,18 +586,11 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
     cascadeStats,
     cascadeDepth,
     availabilityData,
-    filteredConnectivity,
+    filteredConnectivity: derivedFilteredConnectivity,
   } = useMemo(
-    () => calculateOccupancyMetrics(records, allRecords, connectivity, agentStatusRecords),
-    [records, allRecords, connectivity, agentStatusRecords]
+    () => calculateOccupancyMetrics(records, allRecords, filteredConnectivity, filteredAgentStatus),
+    [records, allRecords, filteredConnectivity, filteredAgentStatus]
   );
-
-  // Apply executive filter to connectivity data for the trend chart
-  const trendConnectivity = useMemo(() => {
-    if (!executiveFilter || executiveFilter.length === 0) return filteredConnectivity;
-    const names = new Set(executiveFilter.map(n => n.toLowerCase().trim()));
-    return filteredConnectivity.filter(c => c.agent_name && names.has(c.agent_name.toLowerCase().trim()));
-  }, [filteredConnectivity, executiveFilter]);
 
   const hasData = records.length > 0 || connectivity.length > 0;
 
@@ -620,9 +631,9 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
       ) : (
         <>
           <OccupationKPICards data={kpiData} />
-          <AgentTimeDistributionChart agentStatusRecords={agentStatusRecords} />
+          <AgentTimeDistributionChart agentStatusRecords={filteredAgentStatus} />
           <AgentTimeTrendChart
-            connectivityData={trendConnectivity}
+            connectivityData={derivedFilteredConnectivity}
             granularity={trendGranularity}
             onGranularityChange={setTrendGranularity}
           />
