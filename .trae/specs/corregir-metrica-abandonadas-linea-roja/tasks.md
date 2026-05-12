@@ -1,17 +1,23 @@
 # Tasks
-- [ ] Actualizar cálculo de “Perdidas en Cola” en el Súper Gantt
-  - [ ] Identificar la sección de `demandData` en [OccupationDashboard.tsx](file:///workspace/src/components/OccupationDashboard.tsx) y aislar el conteo actual de `abandoned`.
-  - [ ] Reutilizar reglas unificadas desde [shared.ts](file:///workspace/src/lib/kpi/shared.ts) (o implementar lógica equivalente) para contar abandonos reales:
+- [x] Actualizar cálculo de “Perdidas en Cola” en el Súper Gantt
+  - [x] Identificar la sección de `demandData` en [OccupationDashboard.tsx](file:///workspace/src/components/OccupationDashboard.tsx) y aislar el conteo actual de `abandoned`.
+  - [x] Reutilizar reglas unificadas desde [shared.ts](file:///workspace/src/lib/kpi/shared.ts) (o implementar lógica equivalente) para contar abandonos reales:
     - `getUnifiedQueueBase(inboundRecords)` + `getUnifiedStates(queueBase)` y tomar `notAssigned + assignedNoConversation`.
-  - [ ] Agrupar abandonos reales por `call_hour` (solo 08:00–17:59) y calcular promedio por día, manteniendo el esquema actual de “llamadas/día”.
-  - [ ] Mantener la serie azul (contestadas) sin cambios funcionales, salvo ajustes necesarios para compartir el mismo denominador de días si corresponde.
+  - [x] Aplicar horario laboral de central en el cálculo:
+    - Lun–Jue: horas 08–17
+    - Vie: horas 08–13
+    - Sáb/Dom: excluir
+  - [x] Agrupar abandonos reales por `call_hour` y calcular promedio por día **por hora**, usando denominador por-hora (no contar viernes para horas >= 14).
+  - [x] Mantener la serie azul (contestadas) con el mismo criterio de horario laboral y el mismo denominador por-hora, para que ambas líneas sean comparables.
 
-- [ ] Ajustar etiquetas/tooltip para reflejar definición
-  - [ ] Cambiar el label/tooltip de la serie roja para que diga explícitamente “Abandonadas (cola + alerta)” y que excluye short abandons.
+- [x] Ajustar etiquetas/tooltip para reflejar definición
+  - [x] Cambiar el label/tooltip de la serie roja para que diga explícitamente “Abandonadas (cola + alerta)” y que excluye short abandons.
 
-- [ ] Verificación
-  - [ ] Build de producción compila sin errores.
-  - [ ] Con un set de datos conocido, validar que: `sum(red)` en el rango ≈ total abandonos reales del embudo (cola + alerta) para el mismo filtro de horas.
+- [x] Verificación
+  - [x] Build de producción compila sin errores.
+  - [x] Con un set de datos conocido, validar que:
+    - `sum(red)` en el rango ≈ total abandonos reales del embudo (cola + alerta) al restringir al mismo horario laboral
+    - En viernes, las horas >= 14 no afectan promedios (ni aparecen como caídas artificiales)
 
 # Task Dependencies
 - La verificación depende de la actualización del cálculo de la serie roja.

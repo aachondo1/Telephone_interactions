@@ -96,7 +96,7 @@ export function AgentGanttChart({ agents, demandData, averageRow }: Props) {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: BICE_COLORS.noResponse }} />
-                      Perdidas en Cola
+                      Abandonadas (cola + alerta)
                     </div>
                   </div>
                   <div className="sticky left-0 z-20 bg-slate-50 border-b border-slate-100 border-r border-slate-200 px-3 py-2" />
@@ -126,7 +126,9 @@ export function AgentGanttChart({ agents, demandData, averageRow }: Props) {
                         contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', fontSize: 12 }}
                         formatter={(v: number, name: string) => [
                           `${v} llamadas/día`,
-                          name === 'answered' ? 'Contestadas' : 'Perdidas',
+                          name === 'answered'
+                            ? 'Contestadas'
+                            : 'Abandonadas (cola + alerta, sin short abandons)',
                         ]}
                       />
                       <Area

@@ -14,6 +14,7 @@ import { CascadeAgentChart } from './CascadeAgentChart';
 import { AgentAvailabilityChart } from './AgentAvailabilityChart';
 import { AgentTimeDistributionChart } from './AgentTimeDistributionChart';
 import { AgentTimeTrendChart } from './AgentTimeTrendChart';
+import { countWorkingDaysInRange, getUnifiedQueueBase, getUnifiedStates } from '../lib/kpi/shared';
 
 export type AgentCascadeStat = {
   agent: string;
@@ -75,7 +76,9 @@ function calculateOccupancyMetrics(
   records: CallRecord[],
   allRecords: CallRecord[],
   connectivity: AgentConnectivityHourly[],
-  agentStatusRecords: AgentStatusRecord[]
+  agentStatusRecords: AgentStatusRecord[],
+  rangeStart: string | null,
+  rangeEnd: string | null
 ) {
   // records are already filtered by the global FilterBar
   const filteredRecords = records;
@@ -346,33 +349,60 @@ function calculateOccupancyMetrics(
   const displayedGantt = ganttData.slice(0, 12);
 
   // ----- Demand Curve: inbound calls per hour (average by day) -----
+  const isWithinBusinessHours = (dateStr: string, hour: number) => {
+    const dow = new Date(dateStr + 'T12:00:00').getDay();
+    if (dow >= 1 && dow <= 4) return hour >= 8 && hour < 18;
+    if (dow === 5) return hour >= 8 && hour < 14;
+    return false;
+  };
+
+  const datesInRecords = inboundRecords
+    .map((r) => r.call_date)
+    .filter((d): d is string => Boolean(d));
+
+  const sortedDates = datesInRecords.length > 0 ? [...datesInRecords].sort() : null;
+  const inferredRangeStart = sortedDates && sortedDates.length > 0 ? sortedDates[0] : null;
+  const inferredRangeEnd =
+    sortedDates && sortedDates.length > 0 ? sortedDates[sortedDates.length - 1] : null;
+  const demandRangeStart = rangeStart ?? inferredRangeStart;
+  const demandRangeEnd = rangeEnd ?? inferredRangeEnd;
+
+  const workingDayCounts =
+    demandRangeStart && demandRangeEnd ? countWorkingDaysInRange(demandRangeStart, demandRangeEnd) : null;
+
+  const denominatorForHour = (hour: number) => {
+    if (!workingDayCounts) return 0;
+    if (hour >= 8 && hour < 14) return workingDayCounts.mondayToThursday + workingDayCounts.fridays;
+    if (hour >= 14 && hour < 18) return workingDayCounts.mondayToThursday;
+    return 0;
+  };
+
   const answeredByHour = new Map<number, number>();
   const abandonedByHour = new Map<number, number>();
-  const uniqueDays = new Set<string>();
 
-  for (const r of inboundRecords) {
-    if (r.call_hour == null || r.call_hour < 8 || r.call_hour >= 18) continue;
-    if (r.call_date) uniqueDays.add(r.call_date);
-    
-    // Solo contar si pasó por una cola
-    if (r.queue) {
-      if (r.attended) {
-        answeredByHour.set(r.call_hour, (answeredByHour.get(r.call_hour) || 0) + 1);
-      } else {
-        abandonedByHour.set(r.call_hour, (abandonedByHour.get(r.call_hour) || 0) + 1);
-      }
-    }
-  }
+  const queueBase = getUnifiedQueueBase(inboundRecords);
+  const states = getUnifiedStates(queueBase);
+  const realAbandons = [...states.notAssigned, ...states.assignedNoConversation];
+  const realAnswered = states.conversationReal;
 
-  const numDays = Math.max(1, uniqueDays.size);
+  const addHourlyCount = (map: Map<number, number>, r: CallRecord) => {
+    if (r.call_hour == null || r.call_date == null) return;
+    if (!isWithinBusinessHours(r.call_date, r.call_hour)) return;
+    map.set(r.call_hour, (map.get(r.call_hour) || 0) + 1);
+  };
+
+  for (const r of realAnswered) addHourlyCount(answeredByHour, r);
+  for (const r of realAbandons) addHourlyCount(abandonedByHour, r);
+
   const demandData: DemandPoint[] = Array.from({ length: 10 }, (_, i) => {
     const hour = 8 + i;
+    const denom = denominatorForHour(hour);
     return {
       hour,
       label: `${String(hour).padStart(2, '0')}:00`,
-      inboundCalls: 0, // Fallback for types
-      answered: Math.round((answeredByHour.get(hour) || 0) / numDays),
-      abandoned: Math.round((abandonedByHour.get(hour) || 0) / numDays),
+      inboundCalls: 0,
+      answered: denom > 0 ? Math.round((answeredByHour.get(hour) || 0) / denom) : 0,
+      abandoned: denom > 0 ? Math.round((abandonedByHour.get(hour) || 0) / denom) : 0,
     };
   });
 
@@ -643,8 +673,8 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
     filteredConnectivity,
     averageRow,
   } = useMemo(
-    () => calculateOccupancyMetrics(records, allRecords, connectivity, agentStatusRecords),
-    [records, allRecords, connectivity, agentStatusRecords]
+    () => calculateOccupancyMetrics(records, allRecords, connectivity, agentStatusRecords, dateMin, dateMax),
+    [records, allRecords, connectivity, agentStatusRecords, dateMin, dateMax]
   );
 
   // Apply executive filter to connectivity data for the trend chart
