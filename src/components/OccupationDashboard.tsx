@@ -117,6 +117,17 @@ function calculateOccupancyMetrics(
   // ----- Step 3: Connectivity is already filtered by useEffect via dateMin/dateMax -----
   const filteredConnectivity = connectivity;
 
+  const isWithinCentralBusinessHours = (dateStr: string, hour: number) => {
+    const dow = new Date(dateStr + 'T12:00:00').getDay();
+    if (dow >= 1 && dow <= 4) return hour >= 8 && hour < 18;
+    if (dow === 5) return hour >= 8 && hour < 14;
+    return false;
+  };
+
+  const connectivityBusinessHours = filteredConnectivity.filter(
+    (c) => c.date && isWithinCentralBusinessHours(c.date, c.hour)
+  );
+
   // keyConnectivity: only key agents, date-filtered
   const keyConnectivity = keyAgentNames.size > 0
     ? filteredConnectivity.filter((c) => c.agent_name && keyAgentNames.has(c.agent_name))
@@ -210,7 +221,7 @@ function calculateOccupancyMetrics(
   const agentDateHourMap: AgentHourMap = new Map();
   const agentDateSet = new Map<string, Set<string>>(); // agentName -> Set<dates>
 
-  for (const c of filteredConnectivity) {
+  for (const c of connectivityBusinessHours) {
     if (!c.agent_name) continue;
     if (!agentDateHourMap.has(c.agent_name)) agentDateHourMap.set(c.agent_name, new Map());
     const hourMap = agentDateHourMap.get(c.agent_name)!;
@@ -258,7 +269,7 @@ function calculateOccupancyMetrics(
   // Filtro > 10% en cola
   const validAgents = new Set<string>();
   const agentTotals = new Map<string, { connected: number; inQueue: number }>();
-  for (const c of filteredConnectivity) {
+  for (const c of connectivityBusinessHours) {
     if (!c.agent_name) continue;
     if (!agentTotals.has(c.agent_name)) agentTotals.set(c.agent_name, { connected: 0, inQueue: 0 });
     const stats = agentTotals.get(c.agent_name)!;
