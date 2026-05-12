@@ -136,21 +136,37 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
   // AgentStatusRecord is aggregated per upload (no daily granularity), so we include
   // a record if its period overlaps with the selected range at all.
   const filteredAgentStatusRecords = useMemo(() => {
-    const { dateStart, dateEnd } = filters;
-    if (!dateStart && !dateEnd) return agentStatusRecords;
+    const { dateStart, dateEnd, executives } = filters;
+    if (!dateStart && !dateEnd && executives.length === 0) return agentStatusRecords;
+    
     return agentStatusRecords.filter(r => {
-      const rStart = (r.date_range_start ?? '').slice(0, 10);
-      const rEnd   = (r.date_range_end   ?? '').slice(0, 10);
-      if (!rStart && !rEnd) return true;
-      const filterStart = dateStart ? dateStart.slice(0, 10) : '';
-      const filterEnd   = dateEnd   ? dateEnd.slice(0, 10)   : '';
-      const overlapEnd   = !filterStart || !rEnd   || rEnd   >= filterStart;
-      const overlapStart = !filterEnd   || !rStart || rStart <= filterEnd;
-      return overlapEnd && overlapStart;
-    });
-  }, [agentStatusRecords, filters.dateStart, filters.dateEnd]);
+      // Filtro por fechas
+      let dateMatch = true;
+      if (dateStart || dateEnd) {
+        const rStart = (r.date_range_start ?? '').slice(0, 10);
+        const rEnd   = (r.date_range_end   ?? '').slice(0, 10);
+        if (rStart || rEnd) {
+          const filterStart = dateStart ? dateStart.slice(0, 10) : '';
+          const filterEnd   = dateEnd   ? dateEnd.slice(0, 10)   : '';
+          const overlapEnd   = !filterStart || !rEnd   || rEnd   >= filterStart;
+          const overlapStart = !filterEnd   || !rStart || rStart <= filterEnd;
+          dateMatch = overlapEnd && overlapStart;
+        }
+      }
 
-  const agentAuditFlags = useMemo(() => calculateAgentAuditFlags(agentStatusRecords), [agentStatusRecords]);
+      // Filtro por ejecutivos
+      let execMatch = true;
+      if (executives.length > 0) {
+        const lowerExecutives = executives.map(e => e.toLowerCase().trim());
+        const lowerAgentName = (r.agent_name || '').toLowerCase().trim();
+        execMatch = lowerExecutives.includes(lowerAgentName);
+      }
+
+      return dateMatch && execMatch;
+    });
+  }, [agentStatusRecords, filters.dateStart, filters.dateEnd, filters.executives]);
+
+  const agentAuditFlags = useMemo(() => calculateAgentAuditFlags(filteredAgentStatusRecords), [filteredAgentStatusRecords]);
 
   useEffect(() => {
     calculateKPIs(filteredRecords)
@@ -367,7 +383,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
                   </p>
                 </div>
                 <AgentConnectivityChart
-                  agentRecords={agentStatusRecords}
+                  agentRecords={filteredAgentStatusRecords}
                   executiveStats={kpis.executiveStats}
                 />
               </>
