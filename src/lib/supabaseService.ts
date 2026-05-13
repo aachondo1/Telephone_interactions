@@ -493,3 +493,41 @@ export function combineAgentStatusRecords(
 
   return Array.from(agentMap.values()).map(e => e.record);
 }
+
+/**
+ * Returns total in-queue seconds per agent_name for a given date range,
+ * sourced from agent_connectivity_hourly (status containing 'cola' or 'queue').
+ * Data was already clipped to business hours during upload.
+ */
+export async function getHourlyInQueueByAgent(
+  startDate: string,
+  endDate: string,
+): Promise<Map<string, number>> {
+  const PAGE_SIZE = 1000;
+  const result = new Map<string, number>();
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('agent_connectivity_hourly')
+      .select('agent_name, status, seconds_in_bucket')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error || !data || data.length === 0) break;
+
+    for (const row of data) {
+      const s = (row.status as string).toLowerCase();
+      if (s.includes('cola') || s.includes('queue')) {
+        const key = (row.agent_name as string).toLowerCase().trim();
+        result.set(key, (result.get(key) ?? 0) + (row.seconds_in_bucket as number));
+      }
+    }
+
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return result;
+}
