@@ -471,7 +471,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
           const queuePct = workSecs > 0 && inQueueSecs !== null
             ? Math.round((inQueueSecs / workSecs) * 100)
             : null;
-          return { executive: e.executive, attended: e.inboundCount, queuePct, tmo: e.avgDurationFormatted };
+          return { executive: e.executive, attended: e.inboundCount, queuePct, tmo: e.avgDurationFormatted, avgQueueTimeFormatted: e.avgQueueTimeFormatted };
         });
     }
 
@@ -494,7 +494,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
         const queuePct = ag && ag.workSecs > 0
           ? Math.round((ag.inQueue / ag.workSecs) * 100)
           : null;
-        return { executive: e.executive, attended: e.inboundCount, queuePct, tmo: e.avgDurationFormatted };
+        return { executive: e.executive, attended: e.inboundCount, queuePct, tmo: e.avgDurationFormatted, avgQueueTimeFormatted: e.avgQueueTimeFormatted };
       });
   }, [kpis.executiveStats, agentStatusRecords, hourlyQueueMap,
       dateRanges.current.start, dateRanges.current.end]);
@@ -547,7 +547,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
     top10Execs: top10Executives.map(e => ({
       nom: e.executive,
       cnt: e.attended,
-      tmo: e.tmo,
+      tCola: e.avgQueueTimeFormatted,
     })),
 
     funnelData,

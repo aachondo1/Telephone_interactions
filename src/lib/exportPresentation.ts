@@ -36,7 +36,7 @@ export type PresentationData = {
   tConvD: number | null;
 
   topQueues: { nom: string; cnt: number }[];
-  top10Execs: { nom: string; cnt: number; tmo: string }[];
+  top10Execs: { nom: string; cnt: number; tCola: string }[];
 
   funnelData: FunnelPoint[];
   outboundData: OutboundPoint[];
@@ -94,7 +94,7 @@ function buildTextReplacements(data: PresentationData): Map<string, string> {
       [`{{E${i + 1}_NOM}}`, data.top10Execs[i]?.nom ?? ''],
       [`{{E${i + 1}_CNT}}`, data.top10Execs[i]
         ? data.top10Execs[i].cnt.toLocaleString('es-CL') : ''],
-      [`{{E${i + 1}_TMO}}`, data.top10Execs[i]?.tmo ?? ''],
+      [`{{E${i + 1}_TMO}}`, data.top10Execs[i]?.tCola ?? ''],
     ]).flat() as [string, string][]),
   ]);
 }
@@ -503,7 +503,7 @@ export async function exportPPTX(data: PresentationData): Promise<void> {
     ['#', E_COL_RANK, 0, 'left'],
     ['Ejecutivo', E_COL_NOM, E_COL_RANK, 'left'],
     ['Atendidas', E_COL_CNT, E_COL_RANK + E_COL_NOM, 'right'],
-    ['TMO',       E_COL_TMO, E_COL_RANK + E_COL_NOM + E_COL_CNT, 'right'],
+    ['T. Cola',   E_COL_TMO, E_COL_RANK + E_COL_NOM + E_COL_CNT, 'right'],
   ].forEach(([hdr, w, ox, align]) => {
     slide.addShape('rect', { x: execX + (ox as number), y: RNK_Y + 0.3, w: w as number, h: E_ROW_H, fill: { color: 'D4EDBA' }, line: { color: BORDER, pt: 0.3 } });
     slide.addText(hdr as string, { x: execX + (ox as number) + 0.04, y: RNK_Y + 0.3, w: (w as number) - 0.08, h: E_ROW_H, fontSize: 7.5, bold: true, color: GREEN_TXT, fontFace: 'Helvetica Neue', valign: 'middle', align: align as 'left' | 'right' });
@@ -518,7 +518,7 @@ export async function exportPPTX(data: PresentationData): Promise<void> {
     slide.addText(String(ri + 1).padStart(2, '0'), { x: execX + 0.04,                                      y: ry, w: E_COL_RANK - 0.08, h: E_ROW_H, fontSize: 8.5, color: GRAY_L,   fontFace: 'Consolas',       align: 'center', valign: 'middle' });
     slide.addText(e.nom,                           { x: execX + E_COL_RANK + 0.04,                          y: ry, w: E_COL_NOM - 0.08,  h: E_ROW_H, fontSize: 8.5, color: DARK,     fontFace: 'Helvetica Neue',  align: 'left',   valign: 'middle' });
     slide.addText(e.cnt.toLocaleString('es-CL'),   { x: execX + E_COL_RANK + E_COL_NOM + 0.04,             y: ry, w: E_COL_CNT - 0.08,  h: E_ROW_H, fontSize: 8.5, color: DARK,     fontFace: 'Consolas',       align: 'right',  valign: 'middle' });
-    slide.addText(e.tmo,                           { x: execX + E_COL_RANK + E_COL_NOM + E_COL_CNT + 0.04, y: ry, w: E_COL_TMO - 0.08,  h: E_ROW_H, fontSize: 8.5, color: GRAY_MID, fontFace: 'Consolas',       align: 'right',  valign: 'middle' });
+    slide.addText(e.tCola,                         { x: execX + E_COL_RANK + E_COL_NOM + E_COL_CNT + 0.04, y: ry, w: E_COL_TMO - 0.08,  h: E_ROW_H, fontSize: 8.5, color: GRAY_MID, fontFace: 'Consolas',       align: 'right',  valign: 'middle' });
   });
 
   // ── Pie de página ────────────────────────────────────────────────────────
