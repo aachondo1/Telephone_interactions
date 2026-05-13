@@ -527,8 +527,8 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
     ejec:     fullPeriod.executiveCalls,
     atend:    fullPeriod.attendedCalls,
     aban:     fullPeriod.abandonedCalls,
-    tColaSec: fullPeriod.avgQueueTimeSec,
-    ahtSec:   fullPeriod.avgAHTSec,
+    asaSec:  currHealth.asaSeconds,
+    ataSec:  currHealth.ataSeconds,
     tConvSec: fullPeriod.avgConversationSec,
 
     totInD:  hasPrev ? changePct(curr.totalInbound,       prev.totalInbound)       : null,
@@ -536,8 +536,8 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
     ejecD:   hasPrev ? changePct(curr.executiveCalls,     prev.executiveCalls)     : null,
     atendD:  hasPrev ? changePct(curr.attendedCalls,      prev.attendedCalls)      : null,
     abanD:   hasPrev ? changePct(curr.abandonedCalls,     prev.abandonedCalls)     : null,
-    tColaD:  hasPrev ? changePct(curr.avgQueueTimeSec,    prev.avgQueueTimeSec)    : null,
-    ahtD:    hasPrev ? changePct(curr.avgAHTSec,          prev.avgAHTSec)          : null,
+    asaD:    hasPrev ? changePct(currHealth.asaSeconds,   prevHealth.asaSeconds)   : null,
+    ataD:    hasPrev ? changePct(currHealth.ataSeconds,   prevHealth.ataSeconds)   : null,
     tConvD:  hasPrev ? changePct(curr.avgConversationSec, prev.avgConversationSec) : null,
 
     topQueues: topQueues.slice(0, 6).map(q => ({
