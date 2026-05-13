@@ -264,6 +264,14 @@ export async function buildHtml(data: PresentationData): Promise<string> {
   }
   let html = await response.text();
 
+  // Vite SPA serves index.html with 200 for unknown paths — detect the fallback.
+  if (!html.includes('{{PERIODO}}')) {
+    throw new Error(
+      'El archivo Resumen_Operacional.html no está disponible en public/. ' +
+      'Solicítalo al equipo de diseño y colócalo en la carpeta public/.',
+    );
+  }
+
   html = applyDeltaClasses(html, data);
 
   const replacements = buildTextReplacements(data);
