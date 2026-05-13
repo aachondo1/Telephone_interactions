@@ -181,19 +181,52 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
 
   const dateRange = formatDateRange(upload.date_range_start, upload.date_range_end);
 
+  const agentDateStart = agentStatusRecords.length > 0
+    ? agentStatusRecords.reduce<string | null>((min, r) => {
+        if (!r.date_range_start) return min;
+        return !min || r.date_range_start < min ? r.date_range_start : min;
+      }, null)
+    : null;
+  const agentDateEnd = agentStatusRecords.length > 0
+    ? agentStatusRecords.reduce<string | null>((max, r) => {
+        if (!r.date_range_end) return max;
+        return !max || r.date_range_end > max ? r.date_range_end : max;
+      }, null)
+    : null;
+  const agentDateRange = formatDateRange(agentDateStart, agentDateEnd);
+
   return (
     <div className="space-y-6">
       {/* Dataset info bar */}
       <div className="bg-white rounded-2xl px-6 py-4 shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="font-semibold text-slate-700">Análisis histórico combinado</p>
-          {dateRange && <p className="text-sm text-slate-400 mt-0.5">{dateRange}</p>}
+        <div className="flex items-start gap-8 flex-wrap">
+          <div>
+            <p className="font-semibold text-slate-700">Análisis histórico combinado</p>
+            <div className="flex flex-wrap gap-x-6 gap-y-0.5 mt-0.5">
+              {dateRange && (
+                <p className="text-sm text-slate-400">
+                  <span className="text-slate-500 font-medium">Llamadas:</span> {dateRange}
+                </p>
+              )}
+              {agentStatusRecords.length > 0 && agentDateRange && (
+                <p className="text-sm text-slate-400">
+                  <span className="text-slate-500 font-medium">Estado agente:</span> {agentDateRange}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-6 text-sm">
           <div className="text-center">
-            <p className="text-slate-400">Registros</p>
+            <p className="text-slate-400">Llamadas</p>
             <p className="font-bold text-slate-700">{upload.record_count.toLocaleString('es-CL')}</p>
           </div>
+          {agentStatusRecords.length > 0 && (
+            <div className="text-center">
+              <p className="text-slate-400">Est. agente</p>
+              <p className="font-bold text-slate-700">{agentStatusRecords.length.toLocaleString('es-CL')}</p>
+            </div>
+          )}
           <div className="text-center">
             <p className="text-slate-400">Cargado</p>
             <p className="font-bold text-slate-700">
