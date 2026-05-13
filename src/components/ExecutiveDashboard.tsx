@@ -444,26 +444,33 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
   const maxQueueCount = topQueues[0]?.count ?? 1;
 
   const top10Executives = useMemo(() => {
-    const agentQueueMap = new Map<string, number>();
+    // Accumulate per agent: numerator (in_queue) and denominator (working hours for that record's own period)
+    // Using the record's own date range as denominator ensures they are always aligned,
+    // avoiding > 100% when an upload period is wider than the current filter.
+    const agentQueueMap = new Map<string, { inQueue: number; workSecs: number }>();
     for (const r of agentStatusRecords ?? []) {
       const key = (r.agent_name || '').toLowerCase().trim();
-      agentQueueMap.set(key, (agentQueueMap.get(key) ?? 0) + (r.in_queue_seconds || 0));
+      const prev = agentQueueMap.get(key) ?? { inQueue: 0, workSecs: 0 };
+      const rWorkSecs = r.date_range_start && r.date_range_end
+        ? getWorkingSecondsInRange(r.date_range_start, r.date_range_end)
+        : 0;
+      agentQueueMap.set(key, {
+        inQueue: prev.inQueue + (r.in_queue_seconds || 0),
+        workSecs: prev.workSecs + rWorkSecs,
+      });
     }
-    const workSecs = dateRanges.current.start && dateRanges.current.end
-      ? getWorkingSecondsInRange(dateRanges.current.start, dateRanges.current.end)
-      : 0;
     return kpis.executiveStats
       .filter(e => e.executive !== 'SIN ATENDER')
       .slice(0, 10)
       .map(e => {
         const key = e.executive.toLowerCase().trim();
-        const inQueueSecs = agentQueueMap.get(key) ?? null;
-        const queuePct = workSecs > 0 && inQueueSecs !== null
-          ? Math.round((inQueueSecs / workSecs) * 100)
+        const ag = agentQueueMap.get(key) ?? null;
+        const queuePct = ag && ag.workSecs > 0
+          ? Math.round((ag.inQueue / ag.workSecs) * 100)
           : null;
         return { executive: e.executive, attended: e.inboundCount, queuePct };
       });
-  }, [kpis.executiveStats, agentStatusRecords, dateRanges.current.start, dateRanges.current.end]);
+  }, [kpis.executiveStats, agentStatusRecords]);
 
   const hasPrev = prevRecords.length > 0;
 
