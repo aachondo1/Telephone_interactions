@@ -171,7 +171,7 @@ function buildFunnelSvg(data: FunnelPoint[]): string {
     return `<line x1="${CHART_LEFT}" y1="${y.toFixed(1)}" x2="${CHART_RIGHT}" y2="${y.toFixed(1)}"/>`;
   }).join('\n');
 
-  return `<svg viewBox="0 0 ${SVG_W} ${SVG_H}" preserveAspectRatio="none">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SVG_W} ${SVG_H}" preserveAspectRatio="none">
   <g stroke="#E2E8F0" stroke-width="1">${gridlines}</g>
   <g font-family="Consolas, monospace" font-size="10" fill="#94A3B8">${yLabels}</g>
   <g font-family="Consolas, monospace" font-size="9" fill="#94A3B8">${xLabels}</g>
@@ -236,7 +236,7 @@ function buildOutboundSvg(data: OutboundPoint[]): string {
       <rect x="${x}" y="${yFallidos}"  width="${BAR_W}" height="${fallidosH.toFixed(1)}"  fill="#888787" rx="2" ry="2"/>`;
   }).join('');
 
-  return `<svg viewBox="0 0 ${SVG_W} ${SVG_H}" preserveAspectRatio="none">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SVG_W} ${SVG_H}" preserveAspectRatio="none">
   <g stroke="#E2E8F0" stroke-width="1">${gridlines}</g>
   <g font-family="Consolas, monospace" font-size="10" fill="#94A3B8">${yLabels}</g>
   <g font-family="Consolas, monospace" font-size="9" fill="#94A3B8">${xLabels}</g>
