@@ -547,7 +547,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
     top10Execs: top10Executives.map(e => ({
       nom: e.executive,
       cnt: e.attended,
-      tCola: e.avgQueueTimeFormatted,
+      tCola: e.queuePct !== null ? `${e.queuePct}%` : '—',
     })),
 
     funnelData,
