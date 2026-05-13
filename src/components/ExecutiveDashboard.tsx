@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
@@ -443,34 +443,57 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
   }, [kpis.queueStats, currentRecords, prevRecords]);
   const maxQueueCount = topQueues[0]?.count ?? 1;
 
+  const [hourlyQueueMap, setHourlyQueueMap] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    const { start, end } = dateRanges.current;
+    if (!start || !end) return;
+    import('../lib/supabaseService').then(({ getHourlyInQueueByAgent }) =>
+      getHourlyInQueueByAgent(start, end).then(setHourlyQueueMap)
+    );
+  }, [dateRanges.current.start, dateRanges.current.end]);
+
   const top10Executives = useMemo(() => {
-    // Accumulate per agent: numerator (in_queue) and denominator (working hours for that record's own period)
-    // Using the record's own date range as denominator ensures they are always aligned,
-    // avoiding > 100% when an upload period is wider than the current filter.
-    const agentQueueMap = new Map<string, { inQueue: number; workSecs: number }>();
+    const useHourly = hourlyQueueMap.size > 0;
+
+    if (useHourly) {
+      const workSecs = getWorkingSecondsInRange(dateRanges.current.start, dateRanges.current.end);
+      return kpis.executiveStats
+        .filter(e => e.executive !== 'SIN ATENDER')
+        .slice(0, 10)
+        .map(e => {
+          const key = e.executive.toLowerCase().trim();
+          const inQueueSecs = hourlyQueueMap.get(key) ?? null;
+          const queuePct = workSecs > 0 && inQueueSecs !== null
+            ? Math.round((inQueueSecs / workSecs) * 100)
+            : null;
+          return { executive: e.executive, attended: e.inboundCount, queuePct };
+        });
+    }
+
+    // Fallback: aggregated AgentStatusRecord (no daily granularity — % won't change with filter)
+    const fallbackMap = new Map<string, { inQueue: number; workSecs: number }>();
     for (const r of agentStatusRecords ?? []) {
       const key = (r.agent_name || '').toLowerCase().trim();
-      const prev = agentQueueMap.get(key) ?? { inQueue: 0, workSecs: 0 };
-      const rWorkSecs = r.date_range_start && r.date_range_end
+      const prev = fallbackMap.get(key) ?? { inQueue: 0, workSecs: 0 };
+      const rWork = r.date_range_start && r.date_range_end
         ? getWorkingSecondsInRange(r.date_range_start, r.date_range_end)
         : 0;
-      agentQueueMap.set(key, {
-        inQueue: prev.inQueue + (r.in_queue_seconds || 0),
-        workSecs: prev.workSecs + rWorkSecs,
-      });
+      fallbackMap.set(key, { inQueue: prev.inQueue + (r.in_queue_seconds || 0), workSecs: prev.workSecs + rWork });
     }
     return kpis.executiveStats
       .filter(e => e.executive !== 'SIN ATENDER')
       .slice(0, 10)
       .map(e => {
         const key = e.executive.toLowerCase().trim();
-        const ag = agentQueueMap.get(key) ?? null;
+        const ag = fallbackMap.get(key) ?? null;
         const queuePct = ag && ag.workSecs > 0
           ? Math.round((ag.inQueue / ag.workSecs) * 100)
           : null;
         return { executive: e.executive, attended: e.inboundCount, queuePct };
       });
-  }, [kpis.executiveStats, agentStatusRecords]);
+  }, [kpis.executiveStats, agentStatusRecords, hourlyQueueMap,
+      dateRanges.current.start, dateRanges.current.end]);
 
   const hasPrev = prevRecords.length > 0;
 
