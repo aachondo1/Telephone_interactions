@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Resumen Operacional — Contact Center</title>
+<script src="deck-stage.js"></script>
+<style>
+  :root {
+    /* Palette from design guide */
+    --navy: #003A70;
+    --cyan: #00ABC8;
+    --green: #84BD00;
+    --green-text: #3B6D11;
+    --red: #C0392B;
+    --red-text: #A32D2D;
+    --slate: #64748B;
+    --gray: #888787;
+    --gray-light: #94A3B8;
+    --card-bg: #F1F5F9;
+    --row-alt: #F8FAFC;
+    --border: #E2E8F0;
+    --badge-pos: #EAF3DE;
+    --badge-neg: #FCEBEB;
+    --mono: "Consolas", "Courier New", ui-monospace, monospace;
+    --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  html, body { margin: 0; padding: 0; background: #1a1a1a; font-family: var(--sans); color: #0f172a; }
+  deck-stage { --slide-bg: #ffffff; }
+
+  /* ---- Slide layout (1920 × 1080 = 33.87 × 19.05 cm) ---- */
+  .slide {
+    width: 100%; height: 100%;
+    display: grid;
+    grid-template-rows:
+      113px      /* Banda superior — 2 cm */
+      1fr        /* main content area */
+      45px;      /* Pie de página — 0.8 cm */
+    background: #ffffff;
+  }
+
+  /* ===== BANDA SUPERIOR ===== */
+  .header {
+    background: var(--navy);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 48px;
+  }
+  .header .title {
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .header .periodo {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 500;
+    background: rgba(255,255,255,0.08);
+    padding: 10px 22px;
+    border-radius: 6px;
+    letter-spacing: 0.02em;
+  }
+
+  /* ===== MAIN CONTENT ===== */
+  .main {
+    padding: 28px 48px;
+    display: grid;
+    grid-template-rows: 160px 278px 1fr;
+    gap: 18px;
+    min-height: 0;
+  }
+
+  /* ----- KPI row ----- */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 14px;
+  }
+  .kpi {
+    background: var(--card-bg);
+    border-left: 5px solid var(--navy);
+    border-radius: 4px;
+    padding: 14px 14px 12px 16px;
+    display: flex; flex-direction: column;
+    justify-content: space-between;
+    min-width: 0;
+  }
+  .kpi.kpi-atend { border-left-color: var(--green); }
+  .kpi.kpi-aban  { border-left-color: var(--red); }
+
+  .kpi .value {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 32px;
+    line-height: 1.05;
+    color: var(--navy);
+    letter-spacing: -0.01em;
+  }
+  .kpi.kpi-atend .value { color: var(--green-text); }
+  .kpi.kpi-aban  .value { color: var(--red-text); }
+
+  .kpi .label {
+    font-size: 11px;
+    color: var(--slate);
+    font-weight: 500;
+    margin-top: 6px;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+  }
+  .kpi .delta {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 8px;
+    letter-spacing: 0.01em;
+  }
+  .kpi .delta.pos { color: var(--green-text); }
+  .kpi .delta.neg { color: var(--red-text); }
+  .kpi .delta.neu { color: var(--gray-light); }
+  .kpi .periodo-ant {
+    font-size: 10px;
+    color: var(--gray-light);
+    margin-top: 2px;
+    font-family: var(--mono);
+  }
+
+  /* ----- Charts row ----- */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 22px;
+    min-height: 0;
+  }
+  .chart-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 18px 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .chart-card .chart-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .chart-card .chart-sub {
+    font-size: 11px;
+    color: var(--slate);
+    margin-top: 2px;
+  }
+  .chart-card .chart-name-hint {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--gray-light);
+    margin-top: 2px;
+  }
+  .chart-card svg {
+    flex: 1;
+    width: 100%;
+    margin-top: 4px;
+    min-height: 0;
+  }
+  .legend {
+    display: flex;
+    gap: 18px;
+    justify-content: center;
+    margin-top: 2px;
+    font-size: 10px;
+    color: var(--slate);
+  }
+  .legend .sw {
+    display: inline-block;
+    width: 14px; height: 3px;
+    vertical-align: middle;
+    margin-right: 6px;
+    border-radius: 1px;
+  }
+
+  /* ----- Rankings row ----- */
+  .rankings-row {
+    display: grid;
+    grid-template-columns: 1fr 1.25fr;
+    gap: 22px;
+    min-height: 0;
+  }
+  .ranking {
+    display: flex; flex-direction: column;
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .ranking .r-title {
+    padding: 5px 16px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--slate);
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+  }
+  table.rt {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  table.rt thead th {
+    padding: 6px 14px;
+    color: #fff;
+    font-weight: 600;
+    text-align: left;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  table.rt thead.h-navy th { background: var(--navy); }
+  table.rt thead.h-green th { background: var(--green); color: #1a2e00; }
+  table.rt thead th.num { text-align: right; font-family: var(--mono); }
+  table.rt tbody td {
+    padding: 4px 14px;
+    border-bottom: 0.5px solid var(--border);
+    color: #1f2937;
+  }
+  table.rt tbody tr:nth-child(even) td { background: var(--row-alt); }
+  table.rt tbody td.num { font-family: var(--mono); text-align: right; }
+  table.rt tbody td.rank {
+    color: var(--gray-light);
+    font-family: var(--mono);
+    width: 28px;
+  }
+
+  /* ===== FOOTER ===== */
+  .footer {
+    background: #F8FAFC;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 48px;
+    color: var(--slate);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+  }
+  .footer .gen { font-family: var(--mono); }
+</style>
+</head>
+<body>
+
+<deck-stage>
+
+  <!-- ===================================================================
+       Lámina única — Resumen Operacional Contact Center
+       =================================================================== -->
+  <section class="slide" data-screen-label="01 Resumen Operacional">
+
+    <!-- BANDA SUPERIOR -->
+    <header class="header">
+      <div class="title">Resumen Operacional — Contact Center</div>
+      <div class="periodo">{{PERIODO}}</div>
+    </header>
+
+    <!-- MAIN -->
+    <div class="main">
+
+      <!-- ============ KPI ROW (8 cards) ============ -->
+      <div class="kpi-row">
+
+        <div class="kpi">
+          <div>
+            <div class="value">{{TOT_IN}}</div>
+            <div class="label">Llamadas Totales</div>
+          </div>
+          <div>
+            <div class="delta pos">{{TOT_IN_D}}</div>
+            <div class="periodo-ant">{{PERIODO_ANT}}</div>
+          </div>
+        </div>
+
+        <div class="kpi">
+          <div>
+            <div class="value">{{COLA}}</div>
+            <div class="label">En Cola</div>
+          </div>
+          <div>
+            <div class="delta neg">{{COLA_D}}</div>
+            <div class="periodo-ant">{{PERIODO_ANT}}</div>
+          </div>
+        </div>
+
+        <div class="kpi">
+          <div>
+            <div class="value">{{EJEC}}</div>
+            <div class="label">A Ejecutivo</div>
+          </div>
+          <div>
+            <div class="delta pos">{{EJEC_D}}</div>
+            <div class="periodo-ant">{{PERIODO_ANT}}</div>
+          </div>
+        </div>
+
+        <div class="kpi kpi-atend">
+          <div>
+            <div class="value">{{ATEND}}</div>
+            <div class="label">Atendidas</div>
+          </div>
+          <div>
+            <div class="delta pos">{{ATEND_D}}</div>
+            <div class="periodo-ant">{{PERIODO_ANT}}</div>
+          </div>
+        </div>
+
+        <div class="kpi kpi-aban">
+          <div>
+            <div class="value">{{ABAN}}</div>
+            <div class="label">Abandonadas</div>
+          </div>
+          <div>
+            <div class="delta pos">{{ABAN_D}}</div>
+            <div class="periodo-ant">{{PERIODO_ANT}}</div>
+          </div>
+        </div>
+
+        <div class="kpi">
+          <div>
+            <div class="value">{{T_COLA}}</div>
+            <div class="label">T. Cola Prom.</div>
+          </div>
+          <div>
+            <div class="delta pos">{{T_COLA_D}}</div>
+            <div class="periodo-ant">{{PERIODO_ANT}}</div>
+          </div>
+        </div>
+
+        <div class="kpi">
+          <div>
+            <div class="value">{{AHT}}</div>
+            <div class="label">AHT Prom.</div>
+          </div>
+          <div>
+            <div class="delta neg">{{AHT_D}}</div>
+            <div class="periodo-ant">{{PERIODO_ANT}}</div>
+          </div>
+        </div>
+
+        <div class="kpi">
+          <div>
+            <div class="value">{{T_CONV}}</div>
+            <div class="label">T. Conversación</div>
+          </div>
+          <div>
+            <div class="delta neu">{{T_CONV_D}}</div>
+            <div class="periodo-ant">{{PERIODO_ANT}}</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ============ CHARTS ROW ============ -->
+      <div class="charts-row">
+
+        <!-- CHART_FUNNEL — Line chart: entrantes / cola / contestadas -->
+        <div class="chart-card">
+          <div class="chart-title">Funnel de demanda entrante</div>
+          <div class="chart-sub">Llamadas por período · Entrantes → Cola → Contestadas</div>
+          <div class="chart-name-hint">[CHART_FUNNEL · Line chart nativo PPT]</div>
+
+          <svg viewBox="0 0 800 220" preserveAspectRatio="none">
+            <!-- horizontal gridlines -->
+            <g stroke="#E2E8F0" stroke-width="1">
+              <line x1="40" y1="20"  x2="790" y2="20"/>
+              <line x1="40" y1="60"  x2="790" y2="60"/>
+              <line x1="40" y1="100" x2="790" y2="100"/>
+              <line x1="40" y1="140" x2="790" y2="140"/>
+              <line x1="40" y1="180" x2="790" y2="180"/>
+            </g>
+            <!-- y axis labels -->
+            <g font-family="Consolas, monospace" font-size="10" fill="#94A3B8" text-anchor="end">
+              <text x="34" y="24">200</text>
+              <text x="34" y="64">150</text>
+              <text x="34" y="104">100</text>
+              <text x="34" y="144">50</text>
+              <text x="34" y="184">0</text>
+            </g>
+            <!-- x axis labels (sample of 7 of 31) -->
+            <g font-family="Consolas, monospace" font-size="9" fill="#94A3B8" text-anchor="middle">
+              <text x="60"  y="200">01 may</text>
+              <text x="180" y="200">06 may</text>
+              <text x="300" y="200">11 may</text>
+              <text x="420" y="200">16 may</text>
+              <text x="540" y="200">21 may</text>
+              <text x="660" y="200">26 may</text>
+              <text x="780" y="200">31 may</text>
+            </g>
+            <!-- Series 3 lines (sample data, 31 points) -->
+            <polyline fill="none" stroke="#003A70" stroke-width="2"
+              points="60,55 84,48 108,62 132,55 156,42 180,38 204,55 228,68 252,72 276,60 300,52 324,48 348,55 372,42 396,38 420,32 444,42 468,55 492,48 516,42 540,38 564,32 588,42 612,52 636,48 660,52 684,42 708,38 732,48 756,55 780,62"/>
+            <polyline fill="none" stroke="#888787" stroke-width="2"
+              points="60,85 84,78 108,88 132,82 156,72 180,68 204,82 228,92 252,98 276,88 300,82 324,78 348,82 372,72 396,68 420,62 444,72 468,82 492,78 516,72 540,68 564,62 588,72 612,82 636,78 660,82 684,72 708,68 732,78 756,82 780,92"/>
+            <polyline fill="none" stroke="#84BD00" stroke-width="2"
+              points="60,108 84,102 108,112 132,106 156,98 180,94 204,108 228,118 252,124 276,114 300,108 324,102 348,108 372,98 396,94 420,88 444,98 468,108 492,102 516,98 540,94 564,88 588,98 612,108 636,102 660,108 684,98 708,94 732,102 756,108 780,118"/>
+          </svg>
+
+          <div class="legend">
+            <span><span class="sw" style="background:#003A70"></span>FUNNEL_ENTRANTES</span>
+            <span><span class="sw" style="background:#888787"></span>FUNNEL_COLA</span>
+            <span><span class="sw" style="background:#84BD00"></span>FUNNEL_CONTEST</span>
+          </div>
+        </div>
+
+        <!-- CHART_OUTBOUND — Stacked column chart: efectivos / fallidos -->
+        <div class="chart-card">
+          <div class="chart-title">Volumen de gestión saliente</div>
+          <div class="chart-sub">Llamadas outbound por período · Efectivos + Fallidos</div>
+          <div class="chart-name-hint">[CHART_OUTBOUND · Stacked column nativo PPT]</div>
+
+          <svg viewBox="0 0 800 220" preserveAspectRatio="none">
+            <!-- horizontal gridlines -->
+            <g stroke="#E2E8F0" stroke-width="1">
+              <line x1="40" y1="20"  x2="790" y2="20"/>
+              <line x1="40" y1="60"  x2="790" y2="60"/>
+              <line x1="40" y1="100" x2="790" y2="100"/>
+              <line x1="40" y1="140" x2="790" y2="140"/>
+              <line x1="40" y1="180" x2="790" y2="180"/>
+            </g>
+            <g font-family="Consolas, monospace" font-size="10" fill="#94A3B8" text-anchor="end">
+              <text x="34" y="24">400</text>
+              <text x="34" y="64">300</text>
+              <text x="34" y="104">200</text>
+              <text x="34" y="144">100</text>
+              <text x="34" y="184">0</text>
+            </g>
+            <g font-family="Consolas, monospace" font-size="9" fill="#94A3B8" text-anchor="middle">
+              <text x="60"  y="200">01 may</text>
+              <text x="180" y="200">06 may</text>
+              <text x="300" y="200">11 may</text>
+              <text x="420" y="200">16 may</text>
+              <text x="540" y="200">21 may</text>
+              <text x="660" y="200">26 may</text>
+              <text x="780" y="200">31 may</text>
+            </g>
+            <!-- Stacked bars: 31 x positions, each bar 14w. Green bottom + gray top. -->
+            <g>
+              <rect x="47.0" y="125" width="14" height="55" fill="#84BD00"/>
+              <rect x="47.0" y="107" width="14" height="18" fill="#888787" rx="2" ry="2"/>
+              <rect x="71.4" y="112" width="14" height="68" fill="#84BD00"/>
+              <rect x="71.4" y="92" width="14" height="20" fill="#888787" rx="2" ry="2"/>
+              <rect x="95.8" y="108" width="14" height="72" fill="#84BD00"/>
+              <rect x="95.8" y="86" width="14" height="22" fill="#888787" rx="2" ry="2"/>
+              <rect x="120.2" y="120" width="14" height="60" fill="#84BD00"/>
+              <rect x="120.2" y="102" width="14" height="18" fill="#888787" rx="2" ry="2"/>
+              <rect x="144.6" y="128" width="14" height="52" fill="#84BD00"/>
+              <rect x="144.6" y="112" width="14" height="16" fill="#888787" rx="2" ry="2"/>
+              <rect x="169.0" y="132" width="14" height="48" fill="#84BD00"/>
+              <rect x="169.0" y="118" width="14" height="14" fill="#888787" rx="2" ry="2"/>
+              <rect x="193.4" y="125" width="14" height="55" fill="#84BD00"/>
+              <rect x="193.4" y="107" width="14" height="18" fill="#888787" rx="2" ry="2"/>
+              <rect x="217.8" y="138" width="14" height="42" fill="#84BD00"/>
+              <rect x="217.8" y="126" width="14" height="12" fill="#888787" rx="2" ry="2"/>
+              <rect x="242.2" y="142" width="14" height="38" fill="#84BD00"/>
+              <rect x="242.2" y="132" width="14" height="10" fill="#888787" rx="2" ry="2"/>
+              <rect x="266.6" y="148" width="14" height="32" fill="#84BD00"/>
+              <rect x="266.6" y="138" width="14" height="10" fill="#888787" rx="2" ry="2"/>
+              <rect x="291.0" y="138" width="14" height="42" fill="#84BD00"/>
+              <rect x="291.0" y="126" width="14" height="12" fill="#888787" rx="2" ry="2"/>
+              <rect x="315.4" y="125" width="14" height="55" fill="#84BD00"/>
+              <rect x="315.4" y="107" width="14" height="18" fill="#888787" rx="2" ry="2"/>
+              <rect x="339.8" y="132" width="14" height="48" fill="#84BD00"/>
+              <rect x="339.8" y="117" width="14" height="15" fill="#888787" rx="2" ry="2"/>
+              <rect x="364.2" y="138" width="14" height="42" fill="#84BD00"/>
+              <rect x="364.2" y="126" width="14" height="12" fill="#888787" rx="2" ry="2"/>
+              <rect x="388.6" y="142" width="14" height="38" fill="#84BD00"/>
+              <rect x="388.6" y="132" width="14" height="10" fill="#888787" rx="2" ry="2"/>
+              <rect x="413.0" y="148" width="14" height="32" fill="#84BD00"/>
+              <rect x="413.0" y="138" width="14" height="10" fill="#888787" rx="2" ry="2"/>
+              <rect x="437.4" y="138" width="14" height="42" fill="#84BD00"/>
+              <rect x="437.4" y="126" width="14" height="12" fill="#888787" rx="2" ry="2"/>
+              <rect x="461.8" y="128" width="14" height="52" fill="#84BD00"/>
+              <rect x="461.8" y="112" width="14" height="16" fill="#888787" rx="2" ry="2"/>
+              <rect x="486.2" y="132" width="14" height="48" fill="#84BD00"/>
+              <rect x="486.2" y="117" width="14" height="15" fill="#888787" rx="2" ry="2"/>
+              <rect x="510.6" y="128" width="14" height="52" fill="#84BD00"/>
+              <rect x="510.6" y="112" width="14" height="16" fill="#888787" rx="2" ry="2"/>
+              <rect x="535.0" y="138" width="14" height="42" fill="#84BD00"/>
+              <rect x="535.0" y="126" width="14" height="12" fill="#888787" rx="2" ry="2"/>
+              <rect x="559.4" y="142" width="14" height="38" fill="#84BD00"/>
+              <rect x="559.4" y="132" width="14" height="10" fill="#888787" rx="2" ry="2"/>
+              <rect x="583.8" y="132" width="14" height="48" fill="#84BD00"/>
+              <rect x="583.8" y="117" width="14" height="15" fill="#888787" rx="2" ry="2"/>
+              <rect x="608.2" y="125" width="14" height="55" fill="#84BD00"/>
+              <rect x="608.2" y="107" width="14" height="18" fill="#888787" rx="2" ry="2"/>
+              <rect x="632.6" y="118" width="14" height="62" fill="#84BD00"/>
+              <rect x="632.6" y="98" width="14" height="20" fill="#888787" rx="2" ry="2"/>
+              <rect x="657.0" y="122" width="14" height="58" fill="#84BD00"/>
+              <rect x="657.0" y="104" width="14" height="18" fill="#888787" rx="2" ry="2"/>
+              <rect x="681.4" y="128" width="14" height="52" fill="#84BD00"/>
+              <rect x="681.4" y="112" width="14" height="16" fill="#888787" rx="2" ry="2"/>
+              <rect x="705.8" y="132" width="14" height="48" fill="#84BD00"/>
+              <rect x="705.8" y="117" width="14" height="15" fill="#888787" rx="2" ry="2"/>
+              <rect x="730.2" y="125" width="14" height="55" fill="#84BD00"/>
+              <rect x="730.2" y="107" width="14" height="18" fill="#888787" rx="2" ry="2"/>
+              <rect x="754.6" y="118" width="14" height="62" fill="#84BD00"/>
+              <rect x="754.6" y="98" width="14" height="20" fill="#888787" rx="2" ry="2"/>
+              <rect x="779.0" y="108" width="14" height="72" fill="#84BD00"/>
+              <rect x="779.0" y="86" width="14" height="22" fill="#888787" rx="2" ry="2"/>
+            </g>
+          </svg>
+
+          <div class="legend">
+            <span><span class="sw" style="background:#84BD00"></span>OUT_EFECTIVOS</span>
+            <span><span class="sw" style="background:#888787"></span>OUT_FALLIDOS</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ============ RANKINGS ROW ============ -->
+      <div class="rankings-row">
+
+        <!-- Ranking de Colas -->
+        <div class="ranking">
+          <div class="r-title">Ranking de Colas</div>
+          <table class="rt">
+            <thead class="h-navy">
+              <tr>
+                <th style="width:36px">#</th>
+                <th>Cola</th>
+                <th class="num">Llamadas</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="rank">01</td><td>{{Q1_NOM}}</td><td class="num">{{Q1_CNT}}</td></tr>
+              <tr><td class="rank">02</td><td>{{Q2_NOM}}</td><td class="num">{{Q2_CNT}}</td></tr>
+              <tr><td class="rank">03</td><td>{{Q3_NOM}}</td><td class="num">{{Q3_CNT}}</td></tr>
+              <tr><td class="rank">04</td><td>{{Q4_NOM}}</td><td class="num">{{Q4_CNT}}</td></tr>
+              <tr><td class="rank">05</td><td>{{Q5_NOM}}</td><td class="num">{{Q5_CNT}}</td></tr>
+              <tr><td class="rank">06</td><td>{{Q6_NOM}}</td><td class="num">{{Q6_CNT}}</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Top 10 Ejecutivos -->
+        <div class="ranking">
+          <div class="r-title">Top 10 Ejecutivos</div>
+          <table class="rt">
+            <thead class="h-green">
+              <tr>
+                <th style="width:36px">#</th>
+                <th>Ejecutivo</th>
+                <th class="num">Atendidas</th>
+                <th class="num">TMO</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="rank">01</td><td>{{E1_NOM}}</td><td class="num">{{E1_CNT}}</td><td class="num">{{E1_TMO}}</td></tr>
+              <tr><td class="rank">02</td><td>{{E2_NOM}}</td><td class="num">{{E2_CNT}}</td><td class="num">{{E2_TMO}}</td></tr>
+              <tr><td class="rank">03</td><td>{{E3_NOM}}</td><td class="num">{{E3_CNT}}</td><td class="num">{{E3_TMO}}</td></tr>
+              <tr><td class="rank">04</td><td>{{E4_NOM}}</td><td class="num">{{E4_CNT}}</td><td class="num">{{E4_TMO}}</td></tr>
+              <tr><td class="rank">05</td><td>{{E5_NOM}}</td><td class="num">{{E5_CNT}}</td><td class="num">{{E5_TMO}}</td></tr>
+              <tr><td class="rank">06</td><td>{{E6_NOM}}</td><td class="num">{{E6_CNT}}</td><td class="num">{{E6_TMO}}</td></tr>
+              <tr><td class="rank">07</td><td>{{E7_NOM}}</td><td class="num">{{E7_CNT}}</td><td class="num">{{E7_TMO}}</td></tr>
+              <tr><td class="rank">08</td><td>{{E8_NOM}}</td><td class="num">{{E8_CNT}}</td><td class="num">{{E8_TMO}}</td></tr>
+              <tr><td class="rank">09</td><td>{{E9_NOM}}</td><td class="num">{{E9_CNT}}</td><td class="num">{{E9_TMO}}</td></tr>
+              <tr><td class="rank">10</td><td>{{E10_NOM}}</td><td class="num">{{E10_CNT}}</td><td class="num">{{E10_TMO}}</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- PIE DE PÁGINA -->
+    <footer class="footer">
+      <div>BICE Hipotecaria · Contact Center · <span class="gen">{{FECHA_GEN}}</span></div>
+    </footer>
+
+  </section>
+
+</deck-stage>
+
+</body>
+</html>

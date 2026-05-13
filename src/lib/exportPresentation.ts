@@ -295,50 +295,223 @@ export function openPresentation(html: string): void {
   window.open(url, '_blank');
 }
 
-export async function exportPPTX(html: string, periodoLabel: string): Promise<void> {
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = `
-    position: fixed; left: -9999px; top: -9999px;
-    width: 1920px; height: 1080px;
-    border: none; background: white;
-  `;
-  document.body.appendChild(iframe);
-
-  await new Promise<void>((resolve) => {
-    iframe.onload = () => {
-      setTimeout(resolve, 800);
-    };
-    iframe.srcdoc = html;
-  });
-
-  const iframeDoc = iframe.contentDocument;
-  if (!iframeDoc) throw new Error('No se pudo acceder al iframe');
-
-  const html2canvas = (await import('html2canvas')).default;
-  const canvas = await html2canvas(iframeDoc.body, {
-    backgroundColor: '#ffffff',
-    width: 1920,
-    height: 1080,
-    scale: 1,
-    useCORS: false,
-    logging: false,
-    windowWidth: 1920,
-    windowHeight: 1080,
-  });
-
-  document.body.removeChild(iframe);
+export async function exportPPTX(data: PresentationData): Promise<void> {
+  const NAVY      = '003A70';
+  const GREEN     = '84BD00';
+  const GREEN_TXT = '3B6D11';
+  const RED_TXT   = 'A32D2D';
+  const SLATE     = '64748B';
+  const GRAY_L    = '94A3B8';
+  const CARD_BG   = 'F1F5F9';
+  const BORDER    = 'E2E8F0';
+  const ROW_ALT   = 'F8FAFC';
+  const WHITE     = 'FFFFFF';
+  const DARK      = '1E293B';
+  const GRAY_MID  = '888787';
 
   const PptxGenJS = (await import('pptxgenjs')).default;
   const pres = new PptxGenJS();
   pres.layout = 'LAYOUT_WIDE';
 
+  const W      = 13.33;
+  const H      = 7.5;
+  const HDR_H  = 0.78;
+  const FTR_H  = 0.31;
+  const PAD    = 0.42;
+  const INNER_W = W - PAD * 2;
+
   const slide = pres.addSlide();
-  slide.addImage({
-    data: canvas.toDataURL('image/png'),
-    x: 0, y: 0,
-    w: '100%', h: '100%',
+
+  // ── Banda superior ───────────────────────────────────────────────────────
+  slide.addShape('rect', {
+    x: 0, y: 0, w: W, h: HDR_H,
+    fill: { color: NAVY }, line: { color: NAVY },
+  });
+  slide.addText('Resumen Operacional — Contact Center', {
+    x: PAD, y: 0, w: 7, h: HDR_H,
+    fontSize: 20, bold: true, color: WHITE,
+    fontFace: 'Helvetica Neue', valign: 'middle',
+  });
+  slide.addText(data.periodoLabel, {
+    x: W - PAD - 3.2, y: 0, w: 3.2, h: HDR_H,
+    fontSize: 14, color: 'C8D8EA', fontFace: 'Consolas',
+    align: 'right', valign: 'middle',
   });
 
-  const fileName = `BiceHipotecaria_${periodoLabel.replace(/[\s–/]/g, '_')}.pptx`;
+  // ── KPI Row — 8 cards ────────────────────────────────────────────────────
+  const KPI_Y   = HDR_H + 0.22;
+  const KPI_H   = 1.22;
+  const KPI_GAP = 0.10;
+  const KPI_W   = (INNER_W - KPI_GAP * 7) / 8;
+
+  type KpiDef = {
+    label: string; value: string; delta: number | null;
+    inverted?: boolean; accent: string; valuColor: string;
+  };
+
+  const kpis: KpiDef[] = [
+    { label: 'Llamadas Totales',  value: data.totIn.toLocaleString('es-CL'),  delta: data.totInD,  accent: NAVY,      valuColor: NAVY },
+    { label: 'En Cola',           value: data.cola.toLocaleString('es-CL'),   delta: data.colaD,   accent: NAVY,      valuColor: NAVY },
+    { label: 'A Ejecutivo',       value: data.ejec.toLocaleString('es-CL'),   delta: data.ejecD,   accent: NAVY,      valuColor: NAVY },
+    { label: 'Atendidas',         value: data.atend.toLocaleString('es-CL'),  delta: data.atendD,  accent: GREEN,     valuColor: GREEN_TXT },
+    { label: 'Abandonadas',       value: data.aban.toLocaleString('es-CL'),   delta: data.abanD,   inverted: true, accent: 'C0392B', valuColor: RED_TXT },
+    { label: 'T. Cola Prom.',     value: fmtSecs(data.tColaSec),              delta: data.tColaD,  inverted: true, accent: NAVY,  valuColor: NAVY },
+    { label: 'AHT Prom.',         value: fmtSecs(data.ahtSec),               delta: data.ahtD,    inverted: true, accent: NAVY,  valuColor: NAVY },
+    { label: 'T. Conversación',   value: fmtSecs(data.tConvSec),             delta: data.tConvD,  accent: NAVY,      valuColor: NAVY },
+  ];
+
+  kpis.forEach((kpi, i) => {
+    const x = PAD + i * (KPI_W + KPI_GAP);
+    slide.addShape('rect', {
+      x, y: KPI_Y, w: KPI_W, h: KPI_H,
+      fill: { color: CARD_BG }, line: { color: BORDER, pt: 0.5 },
+    });
+    slide.addShape('rect', {
+      x, y: KPI_Y, w: 0.05, h: KPI_H,
+      fill: { color: kpi.accent }, line: { color: kpi.accent },
+    });
+    slide.addText(kpi.value, {
+      x: x + 0.1, y: KPI_Y + 0.08, w: KPI_W - 0.12, h: 0.52,
+      fontSize: 22, bold: true, color: kpi.valuColor,
+      fontFace: 'Consolas', valign: 'middle',
+    });
+    slide.addText(kpi.label, {
+      x: x + 0.1, y: KPI_Y + 0.6, w: KPI_W - 0.12, h: 0.22,
+      fontSize: 8, color: SLATE, fontFace: 'Helvetica Neue',
+      bold: true, charSpacing: 0.5,
+    });
+    if (kpi.delta !== null) {
+      const isNeutral  = kpi.delta === 0;
+      const isPositive = kpi.inverted ? kpi.delta < 0 : kpi.delta > 0;
+      const deltaColor = isNeutral ? GRAY_L : isPositive ? GREEN_TXT : RED_TXT;
+      slide.addText(fmtDelta(kpi.delta), {
+        x: x + 0.1, y: KPI_Y + 0.82, w: KPI_W - 0.12, h: 0.18,
+        fontSize: 9, bold: true, color: deltaColor, fontFace: 'Consolas',
+      });
+      if (data.periodoAntLabel) {
+        slide.addText(data.periodoAntLabel, {
+          x: x + 0.1, y: KPI_Y + 0.99, w: KPI_W - 0.12, h: 0.16,
+          fontSize: 7.5, color: GRAY_L, fontFace: 'Consolas',
+        });
+      }
+    }
+  });
+
+  // ── Charts Row ───────────────────────────────────────────────────────────
+  const CHT_Y = KPI_Y + KPI_H + 0.16;
+  const CHT_H = 2.1;
+  const CHT_W = (INNER_W - 0.18) / 2;
+
+  const svgToDataUri = (svgStr: string): string => {
+    const encoded = btoa(unescape(encodeURIComponent(svgStr)));
+    return `data:image/svg+xml;base64,${encoded}`;
+  };
+
+  const addChartCard = (x: number, title: string, sub: string) => {
+    slide.addShape('rect', {
+      x, y: CHT_Y, w: CHT_W, h: CHT_H,
+      fill: { color: WHITE }, line: { color: BORDER, pt: 0.5 },
+    });
+    slide.addText(title, {
+      x: x + 0.14, y: CHT_Y + 0.1, w: CHT_W - 0.28, h: 0.22,
+      fontSize: 9, bold: true, color: NAVY,
+      fontFace: 'Helvetica Neue', charSpacing: 0.5,
+    });
+    slide.addText(sub, {
+      x: x + 0.14, y: CHT_Y + 0.3, w: CHT_W - 0.28, h: 0.16,
+      fontSize: 7.5, color: SLATE, fontFace: 'Helvetica Neue',
+    });
+  };
+
+  const funnelX   = PAD;
+  const outboundX = PAD + CHT_W + 0.18;
+
+  addChartCard(funnelX,   'FUNNEL DE DEMANDA ENTRANTE',    'Llamadas por período · Entrantes → Cola → Contestadas');
+  addChartCard(outboundX, 'VOLUMEN DE GESTIÓN SALIENTE',   'Llamadas outbound por período · Efectivos + Fallidos');
+
+  if (data.funnelData.length > 1) {
+    const svg = buildFunnelSvg(data.funnelData);
+    if (svg) slide.addImage({ data: svgToDataUri(svg), x: funnelX + 0.1, y: CHT_Y + 0.5, w: CHT_W - 0.2, h: CHT_H - 0.65 });
+  }
+  if (data.outboundData.length > 1) {
+    const svg = buildOutboundSvg(data.outboundData);
+    if (svg) slide.addImage({ data: svgToDataUri(svg), x: outboundX + 0.1, y: CHT_Y + 0.5, w: CHT_W - 0.2, h: CHT_H - 0.65 });
+  }
+
+  // ── Rankings Row ─────────────────────────────────────────────────────────
+  const RNK_Y = CHT_Y + CHT_H + 0.16;
+  const RNK_H = H - FTR_H - RNK_Y - 0.06;
+  const Q_W   = INNER_W * 0.43;
+  const E_W   = INNER_W - Q_W - 0.18;
+  const queueX = PAD;
+  const execX  = PAD + Q_W + 0.18;
+
+  // Colas
+  slide.addShape('rect', { x: queueX, y: RNK_Y, w: Q_W, h: RNK_H, fill: { color: WHITE }, line: { color: BORDER, pt: 0.5 } });
+  slide.addShape('rect', { x: queueX, y: RNK_Y, w: Q_W, h: 0.3,   fill: { color: NAVY },  line: { color: NAVY } });
+  slide.addText('RANKING DE COLAS', { x: queueX + 0.12, y: RNK_Y, w: Q_W - 0.24, h: 0.3, fontSize: 9, bold: true, color: WHITE, fontFace: 'Helvetica Neue', valign: 'middle', charSpacing: 0.5 });
+
+  const Q_COL_RANK = 0.3;
+  const Q_COL_CNT  = 0.9;
+  const Q_COL_NOM  = Q_W - Q_COL_RANK - Q_COL_CNT;
+  const Q_ROW_H    = (RNK_H - 0.3) / 7;
+
+  [['#', Q_COL_RANK, 0], ['Cola', Q_COL_NOM, Q_COL_RANK], ['Llamadas', Q_COL_CNT, Q_COL_RANK + Q_COL_NOM]].forEach(([hdr, w, ox]) => {
+    slide.addShape('rect', { x: queueX + (ox as number), y: RNK_Y + 0.3, w: w as number, h: Q_ROW_H, fill: { color: 'E8EFF6' }, line: { color: BORDER, pt: 0.3 } });
+    slide.addText(hdr as string, { x: queueX + (ox as number) + 0.05, y: RNK_Y + 0.3, w: (w as number) - 0.1, h: Q_ROW_H, fontSize: 8, bold: true, color: NAVY, fontFace: 'Helvetica Neue', valign: 'middle', align: hdr === 'Llamadas' ? 'right' : 'left' });
+  });
+
+  data.topQueues.slice(0, 6).forEach((q, ri) => {
+    const ry   = RNK_Y + 0.3 + (ri + 1) * Q_ROW_H;
+    const fill = ri % 2 === 1 ? ROW_ALT : WHITE;
+    [[Q_COL_RANK, 0], [Q_COL_NOM, Q_COL_RANK], [Q_COL_CNT, Q_COL_RANK + Q_COL_NOM]].forEach(([w, ox]) => {
+      slide.addShape('rect', { x: queueX + (ox as number), y: ry, w: w as number, h: Q_ROW_H, fill: { color: fill }, line: { color: BORDER, pt: 0.3 } });
+    });
+    slide.addText(String(ri + 1).padStart(2, '0'), { x: queueX + 0.05,                           y: ry, w: Q_COL_RANK - 0.1, h: Q_ROW_H, fontSize: 9, color: GRAY_L,  fontFace: 'Consolas',      align: 'center', valign: 'middle' });
+    slide.addText(q.nom,                           { x: queueX + Q_COL_RANK + 0.05,               y: ry, w: Q_COL_NOM - 0.1,  h: Q_ROW_H, fontSize: 9, color: DARK,    fontFace: 'Helvetica Neue', align: 'left',   valign: 'middle' });
+    slide.addText(q.cnt.toLocaleString('es-CL'),   { x: queueX + Q_COL_RANK + Q_COL_NOM + 0.05,   y: ry, w: Q_COL_CNT - 0.1,  h: Q_ROW_H, fontSize: 9, color: DARK,    fontFace: 'Consolas',      align: 'right',  valign: 'middle' });
+  });
+
+  // Ejecutivos
+  slide.addShape('rect', { x: execX, y: RNK_Y, w: E_W, h: RNK_H, fill: { color: WHITE }, line: { color: BORDER, pt: 0.5 } });
+  slide.addShape('rect', { x: execX, y: RNK_Y, w: E_W, h: 0.3,   fill: { color: GREEN }, line: { color: GREEN } });
+  slide.addText('TOP 10 EJECUTIVOS', { x: execX + 0.12, y: RNK_Y, w: E_W - 0.24, h: 0.3, fontSize: 9, bold: true, color: '1a2e00', fontFace: 'Helvetica Neue', valign: 'middle', charSpacing: 0.5 });
+
+  const E_COL_RANK = 0.28;
+  const E_COL_CNT  = 0.72;
+  const E_COL_TMO  = 0.72;
+  const E_COL_NOM  = E_W - E_COL_RANK - E_COL_CNT - E_COL_TMO;
+  const E_ROW_H    = (RNK_H - 0.3) / 11;
+
+  [
+    ['#', E_COL_RANK, 0, 'left'],
+    ['Ejecutivo', E_COL_NOM, E_COL_RANK, 'left'],
+    ['Atendidas', E_COL_CNT, E_COL_RANK + E_COL_NOM, 'right'],
+    ['TMO',       E_COL_TMO, E_COL_RANK + E_COL_NOM + E_COL_CNT, 'right'],
+  ].forEach(([hdr, w, ox, align]) => {
+    slide.addShape('rect', { x: execX + (ox as number), y: RNK_Y + 0.3, w: w as number, h: E_ROW_H, fill: { color: 'D4EDBA' }, line: { color: BORDER, pt: 0.3 } });
+    slide.addText(hdr as string, { x: execX + (ox as number) + 0.04, y: RNK_Y + 0.3, w: (w as number) - 0.08, h: E_ROW_H, fontSize: 7.5, bold: true, color: GREEN_TXT, fontFace: 'Helvetica Neue', valign: 'middle', align: align as 'left' | 'right' });
+  });
+
+  data.top10Execs.forEach((e, ri) => {
+    const ry   = RNK_Y + 0.3 + (ri + 1) * E_ROW_H;
+    const fill = ri % 2 === 1 ? ROW_ALT : WHITE;
+    [[E_COL_RANK, 0], [E_COL_NOM, E_COL_RANK], [E_COL_CNT, E_COL_RANK + E_COL_NOM], [E_COL_TMO, E_COL_RANK + E_COL_NOM + E_COL_CNT]].forEach(([w, ox]) => {
+      slide.addShape('rect', { x: execX + (ox as number), y: ry, w: w as number, h: E_ROW_H, fill: { color: fill }, line: { color: BORDER, pt: 0.3 } });
+    });
+    slide.addText(String(ri + 1).padStart(2, '0'), { x: execX + 0.04,                                      y: ry, w: E_COL_RANK - 0.08, h: E_ROW_H, fontSize: 8.5, color: GRAY_L,   fontFace: 'Consolas',       align: 'center', valign: 'middle' });
+    slide.addText(e.nom,                           { x: execX + E_COL_RANK + 0.04,                          y: ry, w: E_COL_NOM - 0.08,  h: E_ROW_H, fontSize: 8.5, color: DARK,     fontFace: 'Helvetica Neue',  align: 'left',   valign: 'middle' });
+    slide.addText(e.cnt.toLocaleString('es-CL'),   { x: execX + E_COL_RANK + E_COL_NOM + 0.04,             y: ry, w: E_COL_CNT - 0.08,  h: E_ROW_H, fontSize: 8.5, color: DARK,     fontFace: 'Consolas',       align: 'right',  valign: 'middle' });
+    slide.addText(e.tmo,                           { x: execX + E_COL_RANK + E_COL_NOM + E_COL_CNT + 0.04, y: ry, w: E_COL_TMO - 0.08,  h: E_ROW_H, fontSize: 8.5, color: GRAY_MID, fontFace: 'Consolas',       align: 'right',  valign: 'middle' });
+  });
+
+  // ── Pie de página ────────────────────────────────────────────────────────
+  slide.addShape('rect', { x: 0, y: H - FTR_H, w: W, h: FTR_H, fill: { color: 'F8FAFC' }, line: { color: BORDER, pt: 0.5 } });
+  slide.addText(`BICE Hipotecaria · Contact Center · ${data.fechaGen}`, {
+    x: PAD, y: H - FTR_H, w: W - PAD * 2, h: FTR_H,
+    fontSize: 8, color: GRAY_L, fontFace: 'Consolas', valign: 'middle',
+  });
+
+  const fileName = `BiceHipotecaria_${data.periodoLabel.replace(/[\s–/]/g, '_')}.pptx`;
   await pres.writeFile({ fileName });
 }

@@ -513,9 +513,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters }: 
     setExportState('exporting');
     setExportError(null);
     try {
-      const data = buildPresentationData();
-      const html = await buildHtml(data);
-      await exportPPTX(html, data.periodoLabel);
+      await exportPPTX(buildPresentationData());
     } catch (err) {
       setExportError(err instanceof Error ? err.message : 'Error al exportar el PPTX');
     } finally {
