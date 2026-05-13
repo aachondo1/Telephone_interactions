@@ -5,9 +5,10 @@ import {
 } from 'recharts';
 import {
   Phone, PhoneIncoming, PhoneOff, Clock, Users, TrendingUp, TrendingDown,
-  Minus, LayoutDashboard,
+  Minus, LayoutDashboard, Activity,
 } from 'lucide-react';
 import type { KPISummary } from '../lib/kpi';
+import { calculateQueueHealthMetrics, calculateOperationalKPIs, formatDuration } from '../lib/kpi';
 import type { CallRecord } from '../lib/supabase';
 import type { FilterState } from './FilterBar';
 import { getDateRangeForRelative } from './FilterBar';
@@ -222,6 +223,36 @@ function changePct(current: number, prev: number): number | null {
   return Math.round(((current - prev) / prev) * 100);
 }
 
+type QueueHealthKPIs = {
+  asaSeconds: number;
+  ataSeconds: number;
+  abandonmentRatePercent: number;
+  alertSuccessRatio: number;
+};
+
+function countQueueHealthKPIs(records: CallRecord[]): QueueHealthKPIs {
+  const metrics = calculateQueueHealthMetrics(records);
+  const validQueues = metrics.filter(
+    m => (m.attendedCalls > 0 || m.abandonedCalls > 0) && m.queue !== 'Sin cola'
+  );
+  if (validQueues.length === 0) {
+    return { asaSeconds: 0, ataSeconds: 0, abandonmentRatePercent: 0, alertSuccessRatio: 0 };
+  }
+  const totalAttended  = validQueues.reduce((s, m) => s + m.attendedCalls, 0);
+  const totalAbandoned = validQueues.reduce((s, m) => s + m.abandonedCalls, 0);
+  const totalValid     = validQueues.reduce((s, m) => s + m.totalCalls, 0);
+
+  const asaSeconds = totalAttended > 0
+    ? Math.round(validQueues.reduce((s, m) => s + m.asaSeconds * m.attendedCalls, 0) / totalAttended) : 0;
+  const ataSeconds = totalAbandoned > 0
+    ? Math.round(validQueues.reduce((s, m) => s + m.ataSeconds * m.abandonedCalls, 0) / totalAbandoned) : 0;
+  const abandonmentRatePercent = totalValid > 0
+    ? Math.round(validQueues.reduce((s, m) => s + m.abandonmentRatePercent * m.totalCalls, 0) / totalValid) : 0;
+
+  const { alertSuccessRatio } = calculateOperationalKPIs(records);
+  return { asaSeconds, ataSeconds, abandonmentRatePercent, alertSuccessRatio };
+}
+
 function countQueueCalls(records: CallRecord[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const r of records) {
@@ -302,10 +333,11 @@ function FunnelTooltip({ active, payload, label }: { active?: boolean; payload?:
 type Props = {
   kpis: KPISummary;
   records: CallRecord[];
+  filteredRecords: CallRecord[];
   filters: FilterState;
 };
 
-export function ExecutiveDashboard({ kpis, records, filters }: Props) {
+export function ExecutiveDashboard({ kpis, records, filteredRecords, filters }: Props) {
   // Valores de display: derivados de kpis (fuente única = calculateKPIs(currentRecords))
   // Garantiza consistencia con todas las demás pestañas del dashboard
   // Calcular período actual y anterior basado en filtros
@@ -407,6 +439,9 @@ export function ExecutiveDashboard({ kpis, records, filters }: Props) {
 
   const hasPrev = prevRecords.length > 0;
 
+  const currHealth = useMemo(() => countQueueHealthKPIs(filteredRecords), [filteredRecords]);
+  const prevHealth = useMemo(() => countQueueHealthKPIs(prevRecords), [prevRecords]);
+
   const tickInterval = getTickInterval(granularity, funnelData.length);
   const outboundTickInterval = getTickInterval(granularity, outboundData.length);
 
@@ -495,6 +530,51 @@ export function ExecutiveDashboard({ kpis, records, filters }: Props) {
           iconColor={BICE_GREEN}
           iconBg="bg-green-50"
         />
+      </div>
+
+      {/* ── Salud de Colas ──────────────────────────────────────────── */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-1">Salud de Colas</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <KPICard
+            label="ASA (Vel. Respuesta)"
+            value={formatDuration(currHealth.asaSeconds)}
+            change={hasPrev ? changePct(currHealth.asaSeconds, prevHealth.asaSeconds) : null}
+            compareLabel={hasPrev ? compareLabel : undefined}
+            invertedChange
+            icon={Clock}
+            iconColor={BICE_BLUE}
+            iconBg="bg-blue-50"
+          />
+          <KPICard
+            label="ATA (Paciencia)"
+            value={formatDuration(currHealth.ataSeconds)}
+            change={hasPrev ? changePct(currHealth.ataSeconds, prevHealth.ataSeconds) : null}
+            compareLabel={hasPrev ? compareLabel : undefined}
+            icon={Clock}
+            iconColor="#7c3aed"
+            iconBg="bg-purple-50"
+          />
+          <KPICard
+            label="Tasa de Abandono"
+            value={`${currHealth.abandonmentRatePercent}%`}
+            change={hasPrev ? changePct(currHealth.abandonmentRatePercent, prevHealth.abandonmentRatePercent) : null}
+            compareLabel={hasPrev ? compareLabel : undefined}
+            invertedChange
+            icon={PhoneOff}
+            iconColor="#ef4444"
+            iconBg="bg-red-50"
+          />
+          <KPICard
+            label="Éxito de Alertas"
+            value={`${currHealth.alertSuccessRatio}%`}
+            change={hasPrev ? changePct(currHealth.alertSuccessRatio, prevHealth.alertSuccessRatio) : null}
+            compareLabel={hasPrev ? compareLabel : undefined}
+            icon={Activity}
+            iconColor={BICE_GREEN}
+            iconBg="bg-green-50"
+          />
+        </div>
       </div>
 
       {/* ── 2. Panel de Gráficos Diarios ────────────────────────────── */}

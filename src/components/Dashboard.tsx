@@ -223,7 +223,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       {/* Section content — driven by sidebar */}
       <div key={activeSection} className="animate-section-enter">
       {activeSection === 'inicio' && (
-        <ExecutiveDashboard kpis={kpis} records={records} filters={filters} />
+        <ExecutiveDashboard kpis={kpis} records={records} filteredRecords={filteredRecords} filters={filters} />
       )}
 
       {activeSection === 'colas' && (
