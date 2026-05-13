@@ -402,10 +402,26 @@ export async function exportPPTX(data: PresentationData): Promise<void> {
   const CHT_H = 2.1;
   const CHT_W = (INNER_W - 0.18) / 2;
 
-  const svgToDataUri = (svgStr: string): string => {
-    const encoded = btoa(unescape(encodeURIComponent(svgStr)));
-    return `data:image/svg+xml;base64,${encoded}`;
-  };
+  const svgToPng = (svgStr: string, w: number, h: number): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+      const url  = URL.createObjectURL(blob);
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width  = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { URL.revokeObjectURL(url); reject(new Error('No canvas context')); return; }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG render error')); };
+      img.src = url;
+    });
 
   const addChartCard = (x: number, title: string, sub: string) => {
     slide.addShape('rect', {
@@ -431,11 +447,11 @@ export async function exportPPTX(data: PresentationData): Promise<void> {
 
   if (data.funnelData.length > 1) {
     const svg = buildFunnelSvg(data.funnelData);
-    if (svg) slide.addImage({ data: svgToDataUri(svg), x: funnelX + 0.1, y: CHT_Y + 0.5, w: CHT_W - 0.2, h: CHT_H - 0.65 });
+    if (svg) slide.addImage({ data: await svgToPng(svg, 800, 220), x: funnelX + 0.1, y: CHT_Y + 0.5, w: CHT_W - 0.2, h: CHT_H - 0.65 });
   }
   if (data.outboundData.length > 1) {
     const svg = buildOutboundSvg(data.outboundData);
-    if (svg) slide.addImage({ data: svgToDataUri(svg), x: outboundX + 0.1, y: CHT_Y + 0.5, w: CHT_W - 0.2, h: CHT_H - 0.65 });
+    if (svg) slide.addImage({ data: await svgToPng(svg, 800, 220), x: outboundX + 0.1, y: CHT_Y + 0.5, w: CHT_W - 0.2, h: CHT_H - 0.65 });
   }
 
   // ── Rankings Row ─────────────────────────────────────────────────────────
