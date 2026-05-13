@@ -5,8 +5,12 @@ import {
 } from 'recharts';
 import {
   Phone, PhoneIncoming, PhoneOff, Clock, Users, TrendingUp, TrendingDown,
-  Minus, LayoutDashboard, Activity,
+  Minus, LayoutDashboard, Activity, Download, Presentation,
 } from 'lucide-react';
+import {
+  buildHtml, openPresentation, exportPPTX,
+  type PresentationData,
+} from '../lib/exportPresentation';
 import type { KPISummary } from '../lib/kpi';
 import { calculateQueueHealthMetrics, calculateOperationalKPIs, formatDuration } from '../lib/kpi';
 import type { CallRecord, AgentStatusRecord } from '../lib/supabase';
@@ -467,7 +471,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
           const queuePct = workSecs > 0 && inQueueSecs !== null
             ? Math.round((inQueueSecs / workSecs) * 100)
             : null;
-          return { executive: e.executive, attended: e.inboundCount, queuePct };
+          return { executive: e.executive, attended: e.inboundCount, queuePct, tmo: e.avgDurationFormatted };
         });
     }
 
@@ -490,12 +494,90 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
         const queuePct = ag && ag.workSecs > 0
           ? Math.round((ag.inQueue / ag.workSecs) * 100)
           : null;
-        return { executive: e.executive, attended: e.inboundCount, queuePct };
+        return { executive: e.executive, attended: e.inboundCount, queuePct, tmo: e.avgDurationFormatted };
       });
   }, [kpis.executiveStats, agentStatusRecords, hourlyQueueMap,
       dateRanges.current.start, dateRanges.current.end]);
 
   const hasPrev = prevRecords.length > 0;
+
+  const dateLabel = useMemo(() => {
+    const fmt = (d: string) =>
+      new Date(d + 'T00:00:00').toLocaleDateString('es-CL', {
+        day: '2-digit', month: 'short', year: 'numeric',
+      });
+    const { start, end } = dateRanges.current;
+    if (start === end) return fmt(start);
+    return `${fmt(start)} – ${fmt(end)}`;
+  }, [dateRanges.current]);
+
+  const [exportState, setExportState] = useState<'idle' | 'building' | 'exporting'>('idle');
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const buildPresentationData = (): PresentationData => ({
+    periodoLabel:    dateLabel,
+    periodoAntLabel: hasPrev ? compareLabel : '',
+    fechaGen: new Date().toLocaleString('es-CL', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    }),
+
+    totIn:    fullPeriod.totalInbound,
+    cola:     fullPeriod.queueCalls,
+    ejec:     fullPeriod.executiveCalls,
+    atend:    fullPeriod.attendedCalls,
+    aban:     fullPeriod.abandonedCalls,
+    tColaSec: fullPeriod.avgQueueTimeSec,
+    ahtSec:   fullPeriod.avgAHTSec,
+    tConvSec: fullPeriod.avgConversationSec,
+
+    totInD:  hasPrev ? changePct(curr.totalInbound,       prev.totalInbound)       : null,
+    colaD:   hasPrev ? changePct(curr.queueCalls,         prev.queueCalls)         : null,
+    ejecD:   hasPrev ? changePct(curr.executiveCalls,     prev.executiveCalls)     : null,
+    atendD:  hasPrev ? changePct(curr.attendedCalls,      prev.attendedCalls)      : null,
+    abanD:   hasPrev ? changePct(curr.abandonedCalls,     prev.abandonedCalls)     : null,
+    tColaD:  hasPrev ? changePct(curr.avgQueueTimeSec,    prev.avgQueueTimeSec)    : null,
+    ahtD:    hasPrev ? changePct(curr.avgAHTSec,          prev.avgAHTSec)          : null,
+    tConvD:  hasPrev ? changePct(curr.avgConversationSec, prev.avgConversationSec) : null,
+
+    topQueues: topQueues.slice(0, 6).map(q => ({
+      nom: q.queue.replace('BiceHipotecaria - ', ''),
+      cnt: q.count,
+    })),
+    top10Execs: top10Executives.map(e => ({
+      nom: e.executive,
+      cnt: e.attended,
+      tmo: e.tmo,
+    })),
+
+    funnelData,
+    outboundData,
+  });
+
+  const handleOpenPresentation = async () => {
+    setExportState('building');
+    setExportError(null);
+    try {
+      const html = await buildHtml(buildPresentationData());
+      openPresentation(html);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Error al generar la presentación');
+    } finally {
+      setExportState('idle');
+    }
+  };
+
+  const handleExportPPTX = async () => {
+    setExportState('exporting');
+    setExportError(null);
+    try {
+      await exportPPTX(buildPresentationData());
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Error al exportar el PPTX');
+    } finally {
+      setExportState('idle');
+    }
+  };
 
   const currHealth = useMemo(() => countQueueHealthKPIs(filteredRecords), [filteredRecords]);
   const prevHealth = useMemo(() => countQueueHealthKPIs(prevRecords), [prevRecords]);
@@ -509,6 +591,38 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
         icon={LayoutDashboard}
         title="Vista de Directorio"
         description="Volumen, eficiencia y rankings de productividad"
+        actions={
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleOpenPresentation}
+                disabled={exportState !== 'idle'}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold
+                           border border-slate-200 text-slate-600 bg-white transition-all
+                           disabled:opacity-50 disabled:cursor-not-allowed
+                           hover:bg-slate-50 active:scale-95"
+              >
+                <Presentation size={14} />
+                {exportState === 'building' ? 'Abriendo...' : 'Ver'}
+              </button>
+              <button
+                onClick={handleExportPPTX}
+                disabled={exportState !== 'idle'}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold
+                           text-white transition-all
+                           disabled:opacity-50 disabled:cursor-not-allowed
+                           hover:opacity-90 active:scale-95"
+                style={{ backgroundColor: '#003A70' }}
+              >
+                <Download size={14} />
+                {exportState === 'exporting' ? 'Exportando...' : 'Exportar PPTX'}
+              </button>
+            </div>
+            {exportError && (
+              <p className="text-xs text-red-500 max-w-xs text-right">{exportError}</p>
+            )}
+          </div>
+        }
       />
 
       {/* ── 1. Fichas de KPIs Directos ──────────────────────────────── */}
