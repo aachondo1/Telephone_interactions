@@ -8,11 +8,9 @@ import { SectionHeader } from './SectionHeader';
 import { BarChart3 } from 'lucide-react';
 import { OccupationKPICards, type OccupationKPIData } from './OccupationKPICards';
 import { AgentGanttChart, type AgentGanttData, type DemandPoint } from './AgentGanttChart';
-import { AgentPerformanceMatrix, type PerformancePoint } from './AgentPerformanceMatrix';
 import { AgentAuditTable, type AuditTableRow } from './AgentAuditTable';
 import { CascadeAgentChart } from './CascadeAgentChart';
 import { AgentAvailabilityChart } from './AgentAvailabilityChart';
-import { AgentTimeDistributionChart } from './AgentTimeDistributionChart';
 import { AgentTimeTrendChart } from './AgentTimeTrendChart';
 import { countWorkingDaysInRange, getUnifiedQueueBase, getUnifiedStates } from '../lib/kpi/shared';
 
@@ -417,9 +415,8 @@ function calculateOccupancyMetrics(
     };
   });
 
-  // ----- Performance Matrix -----
+  // ----- Audit Table -----
   const agentConnectedSeconds = new Map<string, number>();
-  const agentTalkSeconds = new Map<string, number>();
 
   for (const c of filteredConnectivity) {
     if (!c.agent_name) continue;
@@ -428,44 +425,8 @@ function calculateOccupancyMetrics(
       (agentConnectedSeconds.get(c.agent_name) || 0) + (c.seconds_in_bucket || 0)
     );
   }
-  for (const r of attendedRecords) {
-    if (!r.executive) continue;
-    agentTalkSeconds.set(
-      r.executive,
-      (agentTalkSeconds.get(r.executive) || 0) + (r.duration_seconds || 0) + (r.acw_seconds || 0)
-    );
-  }
 
-  const avgConnHours =
-    agentConnectedSeconds.size > 0
-      ? Array.from(agentConnectedSeconds.values()).reduce((s, v) => s + v, 0) /
-        agentConnectedSeconds.size /
-        3600
-      : 0;
-  const avgOcc =
-    agentConnectedSeconds.size > 0
-      ? Array.from(agentConnectedSeconds.entries()).reduce((s, [name, conn]) => {
-          const talk = agentTalkSeconds.get(name) || 0;
-          return s + (conn > 0 ? (talk / conn) * 100 : 0);
-        }, 0) / agentConnectedSeconds.size
-      : 0;
 
-  const performanceData: PerformancePoint[] = Array.from(agentConnectedSeconds.entries()).map(
-    ([name, connSec]) => {
-      const talk = agentTalkSeconds.get(name) || 0;
-      const occ = connSec > 0 ? Math.min(100, Math.round((talk / connSec) * 100)) : 0;
-      const hours = Math.round((connSec / 3600) * 10) / 10;
-
-      let quadrant: 'heroes' | 'efficient' | 'inflators' | 'underperformers' = 'efficient';
-      if (occ >= avgOcc && hours >= avgConnHours) quadrant = 'heroes';
-      else if (occ < avgOcc && hours >= avgConnHours) quadrant = 'inflators';
-      else if (occ < avgOcc && hours < avgConnHours) quadrant = 'underperformers';
-
-      return { name, occupancy: occ, activeHours: hours, quadrant };
-    }
-  );
-
-  // ----- Audit Table -----
   const auditData: AuditTableRow[] = Array.from(agentConnectedSeconds.entries()).map(
     ([agent, connSec]) => {
       const validatedTotalMinutes = Math.floor(connSec / 60);
@@ -597,7 +558,6 @@ function calculateOccupancyMetrics(
     kpiData: enrichedKpiData,
     ganttData: displayedGantt,
     demandData,
-    performanceData,
     auditData: enrichedAuditData,
     cascadeStats,
     cascadeDepth,
@@ -676,7 +636,6 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
     kpiData,
     ganttData,
     demandData,
-    performanceData,
     auditData,
     cascadeStats,
     cascadeDepth,
@@ -734,7 +693,6 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
       ) : (
         <>
           <OccupationKPICards data={kpiData} />
-          <AgentTimeDistributionChart agentStatusRecords={agentStatusRecords} />
           <AgentTimeTrendChart
             connectivityData={trendConnectivity}
             granularity={trendGranularity}
@@ -743,7 +701,6 @@ export function OccupationDashboard({ records, allRecords, agentStatusRecords, c
           <CascadeAgentChart data={cascadeStats} depthData={cascadeDepth} />
           <AgentGanttChart agents={ganttData} demandData={demandData} averageRow={averageRow} />
           <AgentAvailabilityChart data={availabilityData} />
-          <AgentPerformanceMatrix data={performanceData} />
           <AgentAuditTable rows={auditData} cascadeStats={cascadeStats} />
         </>
       )}

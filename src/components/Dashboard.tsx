@@ -1,9 +1,4 @@
 import { useMemo, useState, useEffect } from 'react';
-import { KPICards } from './KPICards';
-import { HourlyChart } from './HourlyChart';
-import { ExecutivesTable } from './ExecutivesTable';
-import { DirectionChart } from './DirectionChart';
-import { DurationExtremes } from './DurationExtremes';
 import { FilterBar, DEFAULT_FILTERS, getEffectiveDateRange } from './FilterBar';
 import type { FilterState } from './FilterBar';
 import { QueueKPICards } from './QueueKPICards';
@@ -34,7 +29,7 @@ import { calculateKPIs, getEmptyKPISummary, calculateAgentAuditFlags } from '../
 import type { CallRecord, CallUpload } from '../lib/supabase';
 import type { DataQualityReport } from '../lib/kpi';
 import type { Section } from './Sidebar';
-import { Activity, AlertTriangle, Calendar, Layers, PhoneCall, Shield, Users } from 'lucide-react';
+import { Activity, AlertTriangle, Calendar, Layers, Shield, Users } from 'lucide-react';
 import { AgentConnectivityChart } from './AgentConnectivityChart';
 import { TopCallersTable } from './TopCallersTable';
 import { AgentAuditFlags } from './AgentAuditFlags';
@@ -229,26 +224,6 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       <div key={activeSection} className="animate-section-enter">
       {activeSection === 'inicio' && (
         <ExecutiveDashboard kpis={kpis} records={records} filters={filters} />
-      )}
-
-      {activeSection === 'llamadas' && (
-        <div className="space-y-6">
-          <SectionHeader
-            icon={PhoneCall}
-            title="Análisis de Llamadas"
-            description="Distribución horaria, dirección y duración de las llamadas"
-          />
-          <KPICards kpis={kpis} />
-          <HourlyChart data={kpis.hourlyDistribution} />
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <ExecutivesTable stats={kpis.executiveStats} />
-            {/* QueuesTable removed - table now integrated in QueueHealthDashboard with proper styling */}
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <DirectionChart stats={kpis.directionStats} />
-            <DurationExtremes kpis={kpis} />
-          </div>
-        </div>
       )}
 
       {activeSection === 'colas' && (
