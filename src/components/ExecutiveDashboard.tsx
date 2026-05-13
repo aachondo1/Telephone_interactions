@@ -9,8 +9,10 @@ import {
 } from 'lucide-react';
 import type { KPISummary } from '../lib/kpi';
 import { calculateQueueHealthMetrics, calculateOperationalKPIs, formatDuration } from '../lib/kpi';
-import type { CallRecord } from '../lib/supabase';
+import type { CallRecord, AgentStatusRecord } from '../lib/supabase';
 import type { FilterState } from './FilterBar';
+import { STANDARD_BUSINESS_HOURS } from '../lib/businessHours';
+import type { DayOfWeek } from '../lib/businessHours';
 import { getDateRangeForRelative } from './FilterBar';
 import { getMondayKey, weekLabel, monthLabel, isInbound } from '../lib/kpi/shared';
 import { isCorruptedTechnicalCall } from '../lib/kpi/calidad';
@@ -80,6 +82,21 @@ function fmtSecs(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.round(sec % 60);
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+const DOW_KEYS: DayOfWeek[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+function getWorkingSecondsInRange(start: string, end: string): number {
+  let seconds = 0;
+  const cursor = new Date(start + 'T00:00:00');
+  const endDate = new Date(end + 'T00:00:00');
+  while (cursor <= endDate) {
+    const config = STANDARD_BUSINESS_HOURS[DOW_KEYS[cursor.getDay()]];
+    const dayMinutes = config.endHour * 60 + config.endMinute - config.startHour * 60 - config.startMinute;
+    if (dayMinutes > 0) seconds += dayMinutes * 60;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return seconds;
 }
 
 type HalfPeriodMetrics = {
@@ -335,9 +352,10 @@ type Props = {
   records: CallRecord[];
   filteredRecords: CallRecord[];
   filters: FilterState;
+  agentStatusRecords?: AgentStatusRecord[];
 };
 
-export function ExecutiveDashboard({ kpis, records, filteredRecords, filters }: Props) {
+export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, agentStatusRecords }: Props) {
   // Valores de display: derivados de kpis (fuente única = calculateKPIs(currentRecords))
   // Garantiza consistencia con todas las demás pestañas del dashboard
   // Calcular período actual y anterior basado en filtros
@@ -425,17 +443,27 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters }: 
   }, [kpis.queueStats, currentRecords, prevRecords]);
   const maxQueueCount = topQueues[0]?.count ?? 1;
 
-  const top10Executives = useMemo(
-    () => kpis.executiveStats
+  const top10Executives = useMemo(() => {
+    const agentQueueMap = new Map<string, number>();
+    for (const r of agentStatusRecords ?? []) {
+      const key = (r.agent_name || '').toLowerCase().trim();
+      agentQueueMap.set(key, (agentQueueMap.get(key) ?? 0) + (r.in_queue_seconds || 0));
+    }
+    const workSecs = dateRanges.current.start && dateRanges.current.end
+      ? getWorkingSecondsInRange(dateRanges.current.start, dateRanges.current.end)
+      : 0;
+    return kpis.executiveStats
       .filter(e => e.executive !== 'SIN ATENDER')
       .slice(0, 10)
-      .map(e => ({
-        executive: e.executive,
-        attended: e.inboundCount,
-        tmo: fmtSecs(e.avgHandleTimeSeconds),
-      })),
-    [kpis.executiveStats],
-  );
+      .map(e => {
+        const key = e.executive.toLowerCase().trim();
+        const inQueueSecs = agentQueueMap.get(key) ?? null;
+        const queuePct = workSecs > 0 && inQueueSecs !== null
+          ? Math.round((inQueueSecs / workSecs) * 100)
+          : null;
+        return { executive: e.executive, attended: e.inboundCount, queuePct };
+      });
+  }, [kpis.executiveStats, agentStatusRecords, dateRanges.current.start, dateRanges.current.end]);
 
   const hasPrev = prevRecords.length > 0;
 
@@ -719,7 +747,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters }: 
           <h3 className="text-sm font-semibold text-slate-700 mb-1 uppercase tracking-wide">
             Top 10 Ejecutivos
           </h3>
-          <p className="text-xs text-slate-400 mb-4">Mayor gestión entrante · con TMO</p>
+          <p className="text-xs text-slate-400 mb-4">Mayor gestión entrante · % tiempo en cola</p>
           {top10Executives.length === 0 ? (
             <p className="text-slate-400 text-sm text-center py-8">Sin datos</p>
           ) : (
@@ -730,7 +758,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters }: 
                     <th className="text-left pb-3 w-8">#</th>
                     <th className="text-left pb-3">Ejecutivo</th>
                     <th className="text-right pb-3">Atendidas</th>
-                    <th className="text-right pb-3">TMO</th>
+                    <th className="text-right pb-3">En Cola</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -741,7 +769,9 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters }: 
                       <td className="py-2.5 text-right font-bold" style={{ color: BICE_GREEN }}>
                         {e.attended.toLocaleString('es-CL')}
                       </td>
-                      <td className="py-2.5 text-right text-slate-500 font-mono text-xs">{e.tmo}</td>
+                      <td className="py-2.5 text-right text-slate-500 font-mono text-xs">
+                        {e.queuePct !== null ? `${e.queuePct}%` : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
