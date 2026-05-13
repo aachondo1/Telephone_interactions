@@ -413,7 +413,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters }: 
     const prevQueueCounts = countQueueCalls(prevRecords);
     const hasPrevData = prevRecords.length > 0;
     return kpis.queueStats
-      .filter(q => q.queue !== 'Sin cola')
+      .filter(q => q.queue !== 'Sin cola' && q.queue !== 'IVR')
       .slice(0, 8)
       .map(q => ({
         queue: q.queue,
