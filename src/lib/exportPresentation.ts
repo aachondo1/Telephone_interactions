@@ -22,8 +22,8 @@ export type PresentationData = {
   atend: number;
   aban: number;
 
-  tColaSec: number;
-  ahtSec: number;
+  asaSec: number;
+  ataSec: number;
   tConvSec: number;
 
   totInD: number | null;
@@ -31,12 +31,12 @@ export type PresentationData = {
   ejecD: number | null;
   atendD: number | null;
   abanD: number | null;
-  tColaD: number | null;
-  ahtD: number | null;
+  asaD: number | null;
+  ataD: number | null;
   tConvD: number | null;
 
   topQueues: { nom: string; cnt: number }[];
-  top10Execs: { nom: string; cnt: number; tmo: string }[];
+  top10Execs: { nom: string; cnt: number; tCola: string }[];
 
   funnelData: FunnelPoint[];
   outboundData: OutboundPoint[];
@@ -71,8 +71,8 @@ function buildTextReplacements(data: PresentationData): Map<string, string> {
     ['{{EJEC}}',   data.ejec.toLocaleString('es-CL')],
     ['{{ATEND}}',  data.atend.toLocaleString('es-CL')],
     ['{{ABAN}}',   data.aban.toLocaleString('es-CL')],
-    ['{{T_COLA}}', fmtSecs(data.tColaSec)],
-    ['{{AHT}}',    fmtSecs(data.ahtSec)],
+    ['{{ASA}}',    fmtSecs(data.asaSec)],
+    ['{{ATA}}',    fmtSecs(data.ataSec)],
     ['{{T_CONV}}', fmtSecs(data.tConvSec)],
 
     ['{{TOT_IN_D}}', fmtDelta(data.totInD)],
@@ -80,8 +80,8 @@ function buildTextReplacements(data: PresentationData): Map<string, string> {
     ['{{EJEC_D}}',   fmtDelta(data.ejecD)],
     ['{{ATEND_D}}',  fmtDelta(data.atendD)],
     ['{{ABAN_D}}',   fmtDelta(data.abanD)],
-    ['{{T_COLA_D}}', fmtDelta(data.tColaD)],
-    ['{{AHT_D}}',    fmtDelta(data.ahtD)],
+    ['{{ASA_D}}',    fmtDelta(data.asaD)],
+    ['{{ATA_D}}',    fmtDelta(data.ataD)],
     ['{{T_CONV_D}}', fmtDelta(data.tConvD)],
 
     ...(Array.from({ length: 6 }, (_, i) => [
@@ -94,7 +94,7 @@ function buildTextReplacements(data: PresentationData): Map<string, string> {
       [`{{E${i + 1}_NOM}}`, data.top10Execs[i]?.nom ?? ''],
       [`{{E${i + 1}_CNT}}`, data.top10Execs[i]
         ? data.top10Execs[i].cnt.toLocaleString('es-CL') : ''],
-      [`{{E${i + 1}_TMO}}`, data.top10Execs[i]?.tmo ?? ''],
+      [`{{E${i + 1}_TMO}}`, data.top10Execs[i]?.tCola ?? ''],
     ]).flat() as [string, string][]),
   ]);
 }
@@ -106,8 +106,8 @@ function applyDeltaClasses(html: string, data: PresentationData): string {
     ['EJEC_D',   data.ejecD,   false],
     ['ATEND_D',  data.atendD,  false],
     ['ABAN_D',   data.abanD,   true],
-    ['T_COLA_D', data.tColaD,  true],
-    ['AHT_D',    data.ahtD,    true],
+    ['ASA_D',    data.asaD,    true],
+    ['ATA_D',    data.ataD,    true],
     ['T_CONV_D', data.tConvD,  false],
   ];
 
@@ -355,8 +355,8 @@ export async function exportPPTX(data: PresentationData): Promise<void> {
     { label: 'A Ejecutivo',       value: data.ejec.toLocaleString('es-CL'),   delta: data.ejecD,   accent: NAVY,      valuColor: NAVY },
     { label: 'Atendidas',         value: data.atend.toLocaleString('es-CL'),  delta: data.atendD,  accent: GREEN,     valuColor: GREEN_TXT },
     { label: 'Abandonadas',       value: data.aban.toLocaleString('es-CL'),   delta: data.abanD,   inverted: true, accent: 'C0392B', valuColor: RED_TXT },
-    { label: 'T. Cola Prom.',     value: fmtSecs(data.tColaSec),              delta: data.tColaD,  inverted: true, accent: NAVY,  valuColor: NAVY },
-    { label: 'AHT Prom.',         value: fmtSecs(data.ahtSec),               delta: data.ahtD,    inverted: true, accent: NAVY,  valuColor: NAVY },
+    { label: 'ASA',               value: fmtSecs(data.asaSec),               delta: data.asaD,    inverted: true, accent: NAVY,  valuColor: NAVY },
+    { label: 'ATA',               value: fmtSecs(data.ataSec),               delta: data.ataD,    inverted: true, accent: NAVY,  valuColor: NAVY },
     { label: 'T. Conversación',   value: fmtSecs(data.tConvSec),             delta: data.tConvD,  accent: NAVY,      valuColor: NAVY },
   ];
 
@@ -503,7 +503,7 @@ export async function exportPPTX(data: PresentationData): Promise<void> {
     ['#', E_COL_RANK, 0, 'left'],
     ['Ejecutivo', E_COL_NOM, E_COL_RANK, 'left'],
     ['Atendidas', E_COL_CNT, E_COL_RANK + E_COL_NOM, 'right'],
-    ['TMO',       E_COL_TMO, E_COL_RANK + E_COL_NOM + E_COL_CNT, 'right'],
+    ['T. Cola',   E_COL_TMO, E_COL_RANK + E_COL_NOM + E_COL_CNT, 'right'],
   ].forEach(([hdr, w, ox, align]) => {
     slide.addShape('rect', { x: execX + (ox as number), y: RNK_Y + 0.3, w: w as number, h: E_ROW_H, fill: { color: 'D4EDBA' }, line: { color: BORDER, pt: 0.3 } });
     slide.addText(hdr as string, { x: execX + (ox as number) + 0.04, y: RNK_Y + 0.3, w: (w as number) - 0.08, h: E_ROW_H, fontSize: 7.5, bold: true, color: GREEN_TXT, fontFace: 'Helvetica Neue', valign: 'middle', align: align as 'left' | 'right' });
@@ -518,7 +518,7 @@ export async function exportPPTX(data: PresentationData): Promise<void> {
     slide.addText(String(ri + 1).padStart(2, '0'), { x: execX + 0.04,                                      y: ry, w: E_COL_RANK - 0.08, h: E_ROW_H, fontSize: 8.5, color: GRAY_L,   fontFace: 'Consolas',       align: 'center', valign: 'middle' });
     slide.addText(e.nom,                           { x: execX + E_COL_RANK + 0.04,                          y: ry, w: E_COL_NOM - 0.08,  h: E_ROW_H, fontSize: 8.5, color: DARK,     fontFace: 'Helvetica Neue',  align: 'left',   valign: 'middle' });
     slide.addText(e.cnt.toLocaleString('es-CL'),   { x: execX + E_COL_RANK + E_COL_NOM + 0.04,             y: ry, w: E_COL_CNT - 0.08,  h: E_ROW_H, fontSize: 8.5, color: DARK,     fontFace: 'Consolas',       align: 'right',  valign: 'middle' });
-    slide.addText(e.tmo,                           { x: execX + E_COL_RANK + E_COL_NOM + E_COL_CNT + 0.04, y: ry, w: E_COL_TMO - 0.08,  h: E_ROW_H, fontSize: 8.5, color: GRAY_MID, fontFace: 'Consolas',       align: 'right',  valign: 'middle' });
+    slide.addText(e.tCola,                         { x: execX + E_COL_RANK + E_COL_NOM + E_COL_CNT + 0.04, y: ry, w: E_COL_TMO - 0.08,  h: E_ROW_H, fontSize: 8.5, color: GRAY_MID, fontFace: 'Consolas',       align: 'right',  valign: 'middle' });
   });
 
   // ── Pie de página ────────────────────────────────────────────────────────

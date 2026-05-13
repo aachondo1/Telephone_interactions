@@ -471,7 +471,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
           const queuePct = workSecs > 0 && inQueueSecs !== null
             ? Math.round((inQueueSecs / workSecs) * 100)
             : null;
-          return { executive: e.executive, attended: e.inboundCount, queuePct, tmo: e.avgDurationFormatted };
+          return { executive: e.executive, attended: e.inboundCount, queuePct, tmo: e.avgDurationFormatted, avgQueueTimeFormatted: e.avgQueueTimeFormatted };
         });
     }
 
@@ -494,7 +494,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
         const queuePct = ag && ag.workSecs > 0
           ? Math.round((ag.inQueue / ag.workSecs) * 100)
           : null;
-        return { executive: e.executive, attended: e.inboundCount, queuePct, tmo: e.avgDurationFormatted };
+        return { executive: e.executive, attended: e.inboundCount, queuePct, tmo: e.avgDurationFormatted, avgQueueTimeFormatted: e.avgQueueTimeFormatted };
       });
   }, [kpis.executiveStats, agentStatusRecords, hourlyQueueMap,
       dateRanges.current.start, dateRanges.current.end]);
@@ -527,8 +527,8 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
     ejec:     fullPeriod.executiveCalls,
     atend:    fullPeriod.attendedCalls,
     aban:     fullPeriod.abandonedCalls,
-    tColaSec: fullPeriod.avgQueueTimeSec,
-    ahtSec:   fullPeriod.avgAHTSec,
+    asaSec:  currHealth.asaSeconds,
+    ataSec:  currHealth.ataSeconds,
     tConvSec: fullPeriod.avgConversationSec,
 
     totInD:  hasPrev ? changePct(curr.totalInbound,       prev.totalInbound)       : null,
@@ -536,8 +536,8 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
     ejecD:   hasPrev ? changePct(curr.executiveCalls,     prev.executiveCalls)     : null,
     atendD:  hasPrev ? changePct(curr.attendedCalls,      prev.attendedCalls)      : null,
     abanD:   hasPrev ? changePct(curr.abandonedCalls,     prev.abandonedCalls)     : null,
-    tColaD:  hasPrev ? changePct(curr.avgQueueTimeSec,    prev.avgQueueTimeSec)    : null,
-    ahtD:    hasPrev ? changePct(curr.avgAHTSec,          prev.avgAHTSec)          : null,
+    asaD:    hasPrev ? changePct(currHealth.asaSeconds,   prevHealth.asaSeconds)   : null,
+    ataD:    hasPrev ? changePct(currHealth.ataSeconds,   prevHealth.ataSeconds)   : null,
     tConvD:  hasPrev ? changePct(curr.avgConversationSec, prev.avgConversationSec) : null,
 
     topQueues: topQueues.slice(0, 6).map(q => ({
@@ -547,7 +547,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
     top10Execs: top10Executives.map(e => ({
       nom: e.executive,
       cnt: e.attended,
-      tmo: e.tmo,
+      tCola: e.queuePct !== null ? `${e.queuePct}%` : '—',
     })),
 
     funnelData,
