@@ -71,13 +71,15 @@ function isBusinessHours(r: CallRecord): boolean {
   return false;
 }
 
-function applyFilters(records: CallRecord[], filters: FilterState): CallRecord[] {
+function applyFilters(records: CallRecord[], filters: FilterState, skipDateFilter = false): CallRecord[] {
   const { start, end } = getEffectiveDateRange(filters);
 
   return records.filter(r => {
     if (!isBusinessHours(r)) return false;
-    if (start && r.call_date && r.call_date < start) return false;
-    if (end && r.call_date && r.call_date > end) return false;
+    if (!skipDateFilter) {
+      if (start && r.call_date && r.call_date < start) return false;
+      if (end && r.call_date && r.call_date > end) return false;
+    }
 
     if (filters.departments.length > 0) {
       const queueUpper = (r.queue || '').toUpperCase();
@@ -126,6 +128,9 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [kpis, setKpis] = useState(() => getEmptyKPISummary());
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
+  // Non-date-filtered records for ExecutiveDashboard, which applies its own date filtering
+  // internally so it can also compute the previous period for delta comparisons.
+  const baseFilteredRecords = useMemo(() => applyFilters(records, filters, true), [records, filters]);
 
   // Filter agentStatusRecords by overlap with the global date range.
   // AgentStatusRecord is aggregated per upload (no daily granularity), so we include
@@ -223,7 +228,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
       {/* Section content — driven by sidebar */}
       <div key={activeSection} className="animate-section-enter">
       {activeSection === 'inicio' && (
-        <ExecutiveDashboard kpis={kpis} records={records} filteredRecords={filteredRecords} filters={filters} />
+        <ExecutiveDashboard kpis={kpis} records={baseFilteredRecords} filteredRecords={filteredRecords} filters={filters} />
       )}
 
       {activeSection === 'colas' && (
