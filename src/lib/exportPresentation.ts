@@ -35,7 +35,7 @@ export type PresentationData = {
   ataD: number | null;
   tConvD: number | null;
 
-  topQueues: { nom: string; cnt: number }[];
+  topQueues: { nom: string; cnt: number; aban: number }[];
   top10Execs: { nom: string; cnt: number; tCola: string }[];
 
   funnelData: FunnelPoint[];
@@ -85,9 +85,9 @@ function buildTextReplacements(data: PresentationData): Map<string, string> {
     ['{{T_CONV_D}}', fmtDelta(data.tConvD)],
 
     ...(Array.from({ length: 6 }, (_, i) => [
-      [`{{Q${i + 1}_NOM}}`, data.topQueues[i]?.nom ?? ''],
-      [`{{Q${i + 1}_CNT}}`, data.topQueues[i]
-        ? data.topQueues[i].cnt.toLocaleString('es-CL') : ''],
+      [`{{Q${i + 1}_NOM}}`,  data.topQueues[i]?.nom ?? ''],
+      [`{{Q${i + 1}_CNT}}`,  data.topQueues[i] ? data.topQueues[i].cnt.toLocaleString('es-CL') : ''],
+      [`{{Q${i + 1}_ABAN}}`, data.topQueues[i] ? `${data.topQueues[i].aban}%` : ''],
     ]).flat() as [string, string][]),
 
     ...(Array.from({ length: 10 }, (_, i) => [
@@ -468,24 +468,32 @@ export async function exportPPTX(data: PresentationData): Promise<void> {
   slide.addText('RANKING DE COLAS', { x: queueX + 0.12, y: RNK_Y, w: Q_W - 0.24, h: 0.3, fontSize: 9, bold: true, color: WHITE, fontFace: 'Helvetica Neue', valign: 'middle', charSpacing: 0.5 });
 
   const Q_COL_RANK = 0.3;
-  const Q_COL_CNT  = 0.9;
-  const Q_COL_NOM  = Q_W - Q_COL_RANK - Q_COL_CNT;
+  const Q_COL_CNT  = 0.75;
+  const Q_COL_ABAN = 0.65;
+  const Q_COL_NOM  = Q_W - Q_COL_RANK - Q_COL_CNT - Q_COL_ABAN;
   const Q_ROW_H    = (RNK_H - 0.3) / 7;
 
-  [['#', Q_COL_RANK, 0], ['Cola', Q_COL_NOM, Q_COL_RANK], ['Llamadas', Q_COL_CNT, Q_COL_RANK + Q_COL_NOM]].forEach(([hdr, w, ox]) => {
+  [
+    ['#',        Q_COL_RANK, 0],
+    ['Cola',     Q_COL_NOM,  Q_COL_RANK],
+    ['Llamadas', Q_COL_CNT,  Q_COL_RANK + Q_COL_NOM],
+    ['Fugas',    Q_COL_ABAN, Q_COL_RANK + Q_COL_NOM + Q_COL_CNT],
+  ].forEach(([hdr, w, ox]) => {
     slide.addShape('rect', { x: queueX + (ox as number), y: RNK_Y + 0.3, w: w as number, h: Q_ROW_H, fill: { color: 'E8EFF6' }, line: { color: BORDER, pt: 0.3 } });
-    slide.addText(hdr as string, { x: queueX + (ox as number) + 0.05, y: RNK_Y + 0.3, w: (w as number) - 0.1, h: Q_ROW_H, fontSize: 8, bold: true, color: NAVY, fontFace: 'Helvetica Neue', valign: 'middle', align: hdr === 'Llamadas' ? 'right' : 'left' });
+    slide.addText(hdr as string, { x: queueX + (ox as number) + 0.05, y: RNK_Y + 0.3, w: (w as number) - 0.1, h: Q_ROW_H, fontSize: 8, bold: true, color: NAVY, fontFace: 'Helvetica Neue', valign: 'middle', align: hdr === '#' || hdr === 'Cola' ? 'left' : 'right' });
   });
 
   data.topQueues.slice(0, 6).forEach((q, ri) => {
     const ry   = RNK_Y + 0.3 + (ri + 1) * Q_ROW_H;
     const fill = ri % 2 === 1 ? ROW_ALT : WHITE;
-    [[Q_COL_RANK, 0], [Q_COL_NOM, Q_COL_RANK], [Q_COL_CNT, Q_COL_RANK + Q_COL_NOM]].forEach(([w, ox]) => {
+    [[Q_COL_RANK, 0], [Q_COL_NOM, Q_COL_RANK], [Q_COL_CNT, Q_COL_RANK + Q_COL_NOM], [Q_COL_ABAN, Q_COL_RANK + Q_COL_NOM + Q_COL_CNT]].forEach(([w, ox]) => {
       slide.addShape('rect', { x: queueX + (ox as number), y: ry, w: w as number, h: Q_ROW_H, fill: { color: fill }, line: { color: BORDER, pt: 0.3 } });
     });
-    slide.addText(String(ri + 1).padStart(2, '0'), { x: queueX + 0.05,                           y: ry, w: Q_COL_RANK - 0.1, h: Q_ROW_H, fontSize: 9, color: GRAY_L,  fontFace: 'Consolas',      align: 'center', valign: 'middle' });
-    slide.addText(q.nom,                           { x: queueX + Q_COL_RANK + 0.05,               y: ry, w: Q_COL_NOM - 0.1,  h: Q_ROW_H, fontSize: 9, color: DARK,    fontFace: 'Helvetica Neue', align: 'left',   valign: 'middle' });
-    slide.addText(q.cnt.toLocaleString('es-CL'),   { x: queueX + Q_COL_RANK + Q_COL_NOM + 0.05,   y: ry, w: Q_COL_CNT - 0.1,  h: Q_ROW_H, fontSize: 9, color: DARK,    fontFace: 'Consolas',      align: 'right',  valign: 'middle' });
+    const abanColor = q.aban <= 10 ? '276643' : q.aban <= 20 ? 'C27C00' : 'C0392B';
+    slide.addText(String(ri + 1).padStart(2, '0'),  { x: queueX + 0.05,                                        y: ry, w: Q_COL_RANK - 0.1, h: Q_ROW_H, fontSize: 9, color: GRAY_L,    fontFace: 'Consolas',       align: 'center', valign: 'middle' });
+    slide.addText(q.nom,                             { x: queueX + Q_COL_RANK + 0.05,                           y: ry, w: Q_COL_NOM - 0.1,  h: Q_ROW_H, fontSize: 9, color: DARK,      fontFace: 'Helvetica Neue', align: 'left',   valign: 'middle' });
+    slide.addText(q.cnt.toLocaleString('es-CL'),     { x: queueX + Q_COL_RANK + Q_COL_NOM + 0.05,               y: ry, w: Q_COL_CNT - 0.1,  h: Q_ROW_H, fontSize: 9, color: DARK,      fontFace: 'Consolas',       align: 'right',  valign: 'middle' });
+    slide.addText(`${q.aban}%`,                      { x: queueX + Q_COL_RANK + Q_COL_NOM + Q_COL_CNT + 0.05,   y: ry, w: Q_COL_ABAN - 0.1, h: Q_ROW_H, fontSize: 9, color: abanColor,  fontFace: 'Consolas',       align: 'right',  valign: 'middle', bold: true });
   });
 
   // Ejecutivos

@@ -546,6 +546,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
     topQueues: topQueues.slice(0, 6).map(q => ({
       nom: q.queue.replace('BiceHipotecaria - ', ''),
       cnt: q.count,
+      aban: q.abandonmentRatePercent,
     })),
     top10Execs: top10Executives.map(e => ({
       nom: e.executive,
