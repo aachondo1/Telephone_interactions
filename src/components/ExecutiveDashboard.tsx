@@ -434,6 +434,8 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
     const currQueueCounts = countQueueCalls(currentRecords);
     const prevQueueCounts = countQueueCalls(prevRecords);
     const hasPrevData = prevRecords.length > 0;
+    const healthMetrics = calculateQueueHealthMetrics(currentRecords);
+    const abandonByQueue = new Map(healthMetrics.map(m => [m.queue, m.abandonmentRatePercent]));
     return kpis.queueStats
       .filter(q => q.queue !== 'Sin cola' && q.queue !== 'IVR')
       .slice(0, 8)
@@ -443,6 +445,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
         variation: hasPrevData
           ? changePct(currQueueCounts.get(q.queue) ?? 0, prevQueueCounts.get(q.queue) ?? 0)
           : null,
+        abandonmentRatePercent: abandonByQueue.get(q.queue) ?? 0,
       }));
   }, [kpis.queueStats, currentRecords, prevRecords]);
   const maxQueueCount = topQueues[0]?.count ?? 1;
@@ -869,6 +872,17 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
                         {q.count.toLocaleString('es-CL')}
                       </span>
                       <ChangeBadge pct={q.variation} />
+                      <span
+                        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                          q.abandonmentRatePercent <= 10
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : q.abandonmentRatePercent <= 20
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}
+                      >
+                        {q.abandonmentRatePercent}% ab.
+                      </span>
                     </div>
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
