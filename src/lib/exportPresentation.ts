@@ -350,14 +350,14 @@ export async function exportPPTX(data: PresentationData): Promise<void> {
   };
 
   const kpis: KpiDef[] = [
-    { label: 'Llamadas Totales',  value: data.totIn.toLocaleString('es-CL'),  delta: data.totInD,  accent: NAVY,      valuColor: NAVY },
-    { label: 'En Cola',           value: data.cola.toLocaleString('es-CL'),   delta: data.colaD,   accent: NAVY,      valuColor: NAVY },
-    { label: 'A Ejecutivo',       value: data.ejec.toLocaleString('es-CL'),   delta: data.ejecD,   accent: NAVY,      valuColor: NAVY },
-    { label: 'Atendidas',         value: data.atend.toLocaleString('es-CL'),  delta: data.atendD,  accent: GREEN,     valuColor: GREEN_TXT },
-    { label: 'Abandonadas',       value: data.aban.toLocaleString('es-CL'),   delta: data.abanD,   inverted: true, accent: 'C0392B', valuColor: RED_TXT },
-    { label: 'ASA',               value: fmtSecs(data.asaSec),               delta: data.asaD,    inverted: true, accent: NAVY,  valuColor: NAVY },
-    { label: 'ATA',               value: fmtSecs(data.ataSec),               delta: data.ataD,    inverted: true, accent: NAVY,  valuColor: NAVY },
-    { label: 'T. Conversación',   value: fmtSecs(data.tConvSec),             delta: data.tConvD,  accent: NAVY,      valuColor: NAVY },
+    { label: 'Entrantes Totales',  value: data.totIn.toLocaleString('es-CL'),  delta: data.totInD,  accent: NAVY,      valuColor: NAVY },
+    { label: 'Cola Asignada',      value: data.cola.toLocaleString('es-CL'),   delta: data.colaD,   accent: NAVY,      valuColor: NAVY },
+    { label: 'Ejecutivo Asignado', value: data.ejec.toLocaleString('es-CL'),   delta: data.ejecD,   accent: NAVY,      valuColor: NAVY },
+    { label: 'Atendidas',          value: data.atend.toLocaleString('es-CL'),  delta: data.atendD,  accent: GREEN,     valuColor: GREEN_TXT },
+    { label: 'Fuga en cola',       value: data.aban.toLocaleString('es-CL'),   delta: data.abanD,   inverted: true, accent: 'C0392B', valuColor: RED_TXT },
+    { label: 'Tiempo Respuesta',   value: fmtSecs(data.asaSec),               delta: data.asaD,    inverted: true, accent: NAVY,  valuColor: NAVY },
+    { label: 'Paciencia en fuga',  value: fmtSecs(data.ataSec),               delta: data.ataD,    inverted: true, accent: NAVY,  valuColor: NAVY },
+    { label: 'Tiempo Conversación',value: fmtSecs(data.tConvSec),             delta: data.tConvD,  accent: NAVY,      valuColor: NAVY },
   ];
 
   kpis.forEach((kpi, i) => {
@@ -511,7 +511,7 @@ export async function exportPPTX(data: PresentationData): Promise<void> {
     ['#', E_COL_RANK, 0, 'left'],
     ['Ejecutivo', E_COL_NOM, E_COL_RANK, 'left'],
     ['Atendidas', E_COL_CNT, E_COL_RANK + E_COL_NOM, 'right'],
-    ['T. Cola',   E_COL_TMO, E_COL_RANK + E_COL_NOM + E_COL_CNT, 'right'],
+    ['Tiempo Cola', E_COL_TMO, E_COL_RANK + E_COL_NOM + E_COL_CNT, 'right'],
   ].forEach(([hdr, w, ox, align]) => {
     slide.addShape('rect', { x: execX + (ox as number), y: RNK_Y + 0.3, w: w as number, h: E_ROW_H, fill: { color: 'D4EDBA' }, line: { color: BORDER, pt: 0.3 } });
     slide.addText(hdr as string, { x: execX + (ox as number) + 0.04, y: RNK_Y + 0.3, w: (w as number) - 0.08, h: E_ROW_H, fontSize: 7.5, bold: true, color: GREEN_TXT, fontFace: 'Helvetica Neue', valign: 'middle', align: align as 'left' | 'right' });
