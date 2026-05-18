@@ -46,6 +46,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      VITE_SUPABASE_URL: https://placeholder.supabase.co
+      VITE_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-testing
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
