@@ -72,3 +72,90 @@ export function getEffectiveDateRange(filters: FilterState): { start: string; en
   }
   return getDateRangeForRelative(filters.dateRange);
 }
+
+export function formatDateRange(start: string | null, end: string | null): string {
+  if (!start && !end) return '';
+  const fmt = (d: string) =>
+    new Date(d + 'T00:00:00').toLocaleDateString('es-CL', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  if (start && end && start !== end) return `${fmt(start)} — ${fmt(end)}`;
+  return fmt(start ?? end ?? '');
+}
+
+export function isInbound(direction: string): boolean {
+  const d = (direction || '').toLowerCase();
+  return d === 'inbound' || d === 'entrante';
+}
+
+export function isBusinessHours(r: { call_date?: string | null; call_hour?: number | null }): boolean {
+  if (!r.call_date || r.call_hour === null || r.call_hour === undefined) return true;
+  const day = new Date(r.call_date + 'T00:00:00').getDay();
+  if (day === 0 || day === 6) return false;
+  if (day >= 1 && day <= 4) return r.call_hour >= 8 && r.call_hour < 19;
+  if (day === 5) return r.call_hour >= 8 && r.call_hour < 15;
+  return false;
+}
+
+export function applyFilters<T extends {
+  call_date?: string | null;
+  call_hour?: number | null;
+  queue?: string | null;
+  attended?: boolean | null;
+  executive?: string | null;
+  call_direction?: string | null;
+  abandon_type?: string | null;
+}>(records: T[], filters: FilterState, skipDateFilter = false): T[] {
+  const { start, end } = getEffectiveDateRange(filters);
+
+  return records.filter(r => {
+    if (!isBusinessHours(r)) return false;
+    if (!skipDateFilter) {
+      if (start && r.call_date && r.call_date < start) return false;
+      if (end && r.call_date && r.call_date > end) return false;
+    }
+
+    if (filters.departments.length > 0) {
+      const queueUpper = (r.queue || '').toUpperCase();
+      const matchesDept = filters.departments.some(dept => {
+        if (dept === 'BICEHIPOTECARIA') return queueUpper.includes('BICEHIPOTECARIA');
+        if (dept === 'CASANUESTRA') return queueUpper.includes('CN');
+        return false;
+      });
+      if (!matchesDept) return false;
+    }
+
+    if (filters.queues.length > 0 && !filters.queues.includes(r.queue ?? '')) return false;
+    if (filters.executives.length > 0 && !filters.executives.includes(r.executive ?? '')) return false;
+
+    if (filters.attendedStatus.length > 0) {
+      const isUnassigned = !r.queue;
+      const isAttended = r.attended && r.queue;
+      const isUnattended = !r.attended && r.queue;
+
+      let matchesAttendedFilter = false;
+      if (filters.attendedStatus.includes('attended') && isAttended) matchesAttendedFilter = true;
+      if (filters.attendedStatus.includes('unattended') && isUnattended) matchesAttendedFilter = true;
+      if (filters.attendedStatus.includes('unassigned') && isUnassigned) matchesAttendedFilter = true;
+
+      if (!matchesAttendedFilter) return false;
+    }
+
+    if (filters.direction.length > 0) {
+      const dirMatch = filters.direction.some(d => {
+        if (d === 'inbound') return isInbound(r.call_direction ?? '');
+        if (d === 'outbound') return !isInbound(r.call_direction ?? '');
+        return false;
+      });
+      if (!dirMatch) return false;
+    }
+
+    if (filters.abandonType.length > 0) {
+      if (!r.abandon_type || !filters.abandonType.includes(r.abandon_type as 'queue' | 'alert' | 'ivr')) return false;
+    }
+
+    return true;
+  });
+}
