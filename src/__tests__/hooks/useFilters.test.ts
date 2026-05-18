@@ -72,17 +72,13 @@ describe('useFilters', () => {
     const agentRecord: AgentStatusRecord = {
       id: 'a1',
       upload_id: 'u1',
+      agent_id: 'agent-1',
       agent_name: 'Ana García',
       date_range_start: '2026-05-01',
       date_range_end: '2026-05-31',
+      connected_seconds: 150,
       in_queue_seconds: 100,
-      off_queue_seconds: 50,
-      total_seconds: 150,
-      occupancy_percent: 0.5,
-      acw_seconds: 10,
-      in_queue_formatted: '01:40',
-      off_queue_formatted: '00:50',
-      total_formatted: '02:30',
+      out_of_queue_seconds: 50,
     };
 
     const { result } = renderHook(() => useFilters([mondayRecord], [agentRecord]));
@@ -101,17 +97,13 @@ describe('useFilters', () => {
     const agentRecord: AgentStatusRecord = {
       id: 'a1',
       upload_id: 'u1',
+      agent_id: 'agent-1',
       agent_name: 'Ana García',
       date_range_start: '2026-05-01',
       date_range_end: '2026-05-31',
+      connected_seconds: 150,
       in_queue_seconds: 100,
-      off_queue_seconds: 50,
-      total_seconds: 150,
-      occupancy_percent: 0.5,
-      acw_seconds: 10,
-      in_queue_formatted: '01:40',
-      off_queue_formatted: '00:50',
-      total_formatted: '02:30',
+      out_of_queue_seconds: 50,
     };
 
     const { result } = renderHook(() => useFilters([mondayRecord], [agentRecord]));
