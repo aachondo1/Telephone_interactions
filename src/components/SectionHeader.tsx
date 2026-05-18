@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
 type Props = {
@@ -7,7 +8,7 @@ type Props = {
   actions?: React.ReactNode;
 };
 
-export function SectionHeader({ icon: Icon, title, description, actions }: Props) {
+export const SectionHeader = memo(function SectionHeader({ icon: Icon, title, description, actions }: Props) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
       <div className="flex items-center gap-3 min-w-0">
@@ -26,4 +27,4 @@ export function SectionHeader({ icon: Icon, title, description, actions }: Props
       )}
     </div>
   );
-}
+});

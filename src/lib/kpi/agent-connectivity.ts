@@ -1,8 +1,18 @@
 import { supabase } from '../supabase';
 
+const _agentCountCache = new Map<string, Map<string, number>>();
+
+export function clearAgentCountCache(): void {
+  _agentCountCache.clear();
+}
+
 export async function getAgentCountsByHourAndDay(
   dateRange: { start: string; end: string } | null
 ): Promise<Map<string, number>> {
+  const cacheKey = dateRange ? `${dateRange.start}|${dateRange.end}` : '__all__';
+  const cached = _agentCountCache.get(cacheKey);
+  if (cached) return cached;
+
   const agentCountMap = new Map<string, number>();
 
   try {
@@ -25,10 +35,10 @@ export async function getAgentCountsByHourAndDay(
     }
 
     if (!data || data.length === 0) {
+      _agentCountCache.set(cacheKey, agentCountMap);
       return agentCountMap;
     }
 
-    // Count unique agents per hour and weekday
     interface KeyData {
       date: string;
       hour: number;
@@ -54,10 +64,11 @@ export async function getAgentCountsByHourAndDay(
       countMap.get(key)!.add(row.agent_id);
     }
 
-    // Convert sets to counts
     for (const [key, agentSet] of countMap.entries()) {
       agentCountMap.set(key, agentSet.size);
     }
+
+    _agentCountCache.set(cacheKey, agentCountMap);
   } catch (error) {
     console.error('Error in getAgentCountsByHourAndDay:', error);
   }

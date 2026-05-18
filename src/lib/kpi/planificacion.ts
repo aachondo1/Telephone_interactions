@@ -4,6 +4,15 @@ import { getAgentCountsByHourAndDay } from './agent-connectivity';
 
 const MAX_REASONABLE_ALERT_SECONDS = 120;
 
+const _demandCache = new Map<string, HourlyDemandData>();
+
+function buildDemandCacheKey(records: CallRecord[]): string {
+  const attended = records.filter(r => r.attended && r.call_date);
+  if (attended.length === 0) return '__empty__';
+  const dates = attended.map(r => r.call_date!).sort();
+  return `${dates[0]}|${dates[dates.length - 1]}|${attended.length}`;
+}
+
 export async function calculateHourlyDemand(records: CallRecord[]): Promise<HourlyDemandData> {
   const empty: HourlyDemandData = {
     points: [], peakErlangs: 0,
@@ -11,6 +20,10 @@ export async function calculateHourlyDemand(records: CallRecord[]): Promise<Hour
     agentCountsByHour: {},
   };
   if (records.length === 0) return empty;
+
+  const cacheKey = buildDemandCacheKey(records);
+  const cached = _demandCache.get(cacheKey);
+  if (cached) return cached;
 
   const datesByWeekday = new Map<number, Set<string>>();
   for (const r of records) {
@@ -53,7 +66,6 @@ export async function calculateHourlyDemand(records: CallRecord[]): Promise<Hour
   const dayCounts = [weekdayCounts.lun, weekdayCounts.mar, weekdayCounts.mie, weekdayCounts.jue, weekdayCounts.vie];
   let peakErlangs = 0;
 
-  // Fetch real agent counts
   const dateRanges = records
     .filter(r => r.call_date)
     .map(r => new Date(r.call_date! + 'T00:00:00'))
@@ -95,7 +107,6 @@ export async function calculateHourlyDemand(records: CallRecord[]): Promise<Hour
       const erlangs = Math.round((totalSec / hourCapacitySeconds) * 10) / 10;
       point[dayNames[idx]] = erlangs;
 
-      // Add real agent count
       const agentKey = `${dayNames[idx]}|${hour}`;
       const agentCount = agentCountMap.get(agentKey);
       const agentFieldName = `${dayNames[idx]}Agents` as const;
@@ -109,7 +120,9 @@ export async function calculateHourlyDemand(records: CallRecord[]): Promise<Hour
     return point;
   });
 
-  return { points, peakErlangs, weekdayCounts, agentCountsByHour: Object.fromEntries(agentCountMap) };
+  const result: HourlyDemandData = { points, peakErlangs, weekdayCounts, agentCountsByHour: Object.fromEntries(agentCountMap) };
+  _demandCache.set(cacheKey, result);
+  return result;
 }
 
 export function calculateInterventionImpact(
