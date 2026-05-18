@@ -1,3 +1,5 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 export type RawCallRecord = {
   [key: string]: string;
 };
@@ -777,7 +779,7 @@ function calculateIsBounce(
 export async function saveImportAudit(
   uploadId: string,
   anomaliesToSave: AnomalyEntry[],
-  supabaseClient: any
+  supabaseClient: SupabaseClient
 ): Promise<void> {
   if (anomaliesToSave.length === 0) {
     return;

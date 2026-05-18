@@ -124,7 +124,7 @@ export function AgentGanttChart({ agents, demandData, averageRow }: Props) {
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} height={18} interval={0} />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', fontSize: 12 }}
-                        formatter={(v: any, name: any) => [
+                        formatter={(v: number | undefined, name: string) => [
                           `${typeof v === 'number' ? v : 0} llamadas/día`,
                           name === 'answered'
                             ? 'Contestadas'
