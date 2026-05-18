@@ -15,6 +15,7 @@ export interface CallRecord {
   customer_id: string
   status: 'completed' | 'abandoned' | 'transferred' | 'failed'
   direction: 'inbound' | 'outbound'
+  attended: boolean
   acd: boolean
   created_at: string
   updated_at: string
@@ -64,6 +65,7 @@ export const SAMPLE_CALLS: CallRecord[] = [
     customer_id: 'CUST-001',
     status: 'completed',
     direction: 'inbound',
+    attended: true,
     acd: true,
     created_at: '2026-05-18T09:15:00Z',
     updated_at: '2026-05-18T09:22:30Z',
@@ -80,6 +82,7 @@ export const SAMPLE_CALLS: CallRecord[] = [
     customer_id: 'CUST-002',
     status: 'completed',
     direction: 'inbound',
+    attended: true,
     acd: true,
     created_at: '2026-05-18T09:20:00Z',
     updated_at: '2026-05-18T09:30:00Z',
@@ -96,6 +99,7 @@ export const SAMPLE_CALLS: CallRecord[] = [
     customer_id: 'CUST-003',
     status: 'abandoned',
     direction: 'inbound',
+    attended: false,
     acd: true,
     created_at: '2026-05-18T09:35:00Z',
     updated_at: '2026-05-18T09:37:00Z',
@@ -112,6 +116,7 @@ export const SAMPLE_CALLS: CallRecord[] = [
     customer_id: 'CUST-004',
     status: 'completed',
     direction: 'inbound',
+    attended: true,
     acd: true,
     created_at: '2026-05-18T10:00:00Z',
     updated_at: '2026-05-18T10:20:00Z',
@@ -128,6 +133,7 @@ export const SAMPLE_CALLS: CallRecord[] = [
     customer_id: 'CUST-005',
     status: 'transferred',
     direction: 'inbound',
+    attended: true,
     acd: true,
     created_at: '2026-05-18T10:15:00Z',
     updated_at: '2026-05-18T10:20:00Z',
@@ -243,6 +249,7 @@ export function createMockCallRecord(overrides?: Partial<CallRecord>): CallRecor
     customer_id: 'CUST-TEST',
     status: 'completed',
     direction: 'inbound',
+    attended: true,
     acd: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
