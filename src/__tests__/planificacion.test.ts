@@ -11,6 +11,7 @@ import { getAgentCountsByHourAndDay } from '../lib/kpi/agent-connectivity';
 
 beforeEach(() => {
   clearDemandCache();
+  vi.clearAllMocks();
   vi.mocked(getAgentCountsByHourAndDay).mockResolvedValue(new Map());
 });
 
