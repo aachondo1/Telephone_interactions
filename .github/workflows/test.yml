@@ -17,8 +17,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-      - run: npm ci
-      - run: npm run lint
+      - uses: pnpm/action-setup@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
 
   unit-tests:
     name: Unit Tests
@@ -30,8 +31,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-      - run: npm ci
-      - run: npm run test
+      - uses: pnpm/action-setup@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
@@ -49,9 +51,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-      - run: npm ci
-      - run: npx playwright install
-      - run: npm run test:e2e
+      - uses: pnpm/action-setup@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install
+      - run: pnpm test:e2e
       - uses: actions/upload-artifact@v4
         if: always()
         with:
