@@ -46,7 +46,7 @@ export function AgentPerformanceMatrix({ data }: Props) {
   const avgOccupancy = data.reduce((sum, d) => sum + d.occupancy, 0) / data.length;
   const avgHours = data.reduce((sum, d) => sum + d.activeHours, 0) / data.length;
 
-  const CustomTooltip = ({ active, payload }: unknown) => {
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: { name: string; occupancy: number; activeHours: number } }> } = {}) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
@@ -120,8 +120,8 @@ export function AgentPerformanceMatrix({ data }: Props) {
             name="Agentes"
             data={data}
             fill="#06b6d4"
-            shape={({ cx, cy, payload }: unknown) => {
-              const color = quadrantColors[payload.quadrant];
+            shape={({ cx, cy, payload }: { cx?: number; cy?: number; payload?: { quadrant: string } }) => {
+              const color = quadrantColors[payload?.quadrant ?? 'default'];
               return (
                 <circle
                   cx={cx}

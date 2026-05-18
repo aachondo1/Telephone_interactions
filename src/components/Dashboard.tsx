@@ -117,7 +117,7 @@ function applyFilters(records: CallRecord[], filters: FilterState, skipDateFilte
     }
 
     if (filters.abandonType.length > 0) {
-      if (!r.abandon_type || !filters.abandonType.includes(r.abandon_type as unknown)) return false;
+      if (!r.abandon_type || !filters.abandonType.includes(r.abandon_type as 'queue' | 'alert' | 'ivr')) return false;
     }
 
     return true;

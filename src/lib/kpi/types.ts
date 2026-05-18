@@ -45,6 +45,7 @@ export type ExecutiveStat = {
   completenessRate: number;
   avgHandleTimeSeconds: number;
   avgQueueTimeSeconds: number;
+  avgQueueTimeFormatted: string;
   avgAlertTimeSeconds: number;
   avgAlertSegments: number;
   bounceCount: number;

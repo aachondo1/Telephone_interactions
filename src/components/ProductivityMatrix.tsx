@@ -60,9 +60,9 @@ export function ProductivityMatrix({ data }: Props) {
     ...getQuadrantInfo(d.connectionRatio, d.workQueueHours, avgConnectionRatio, avgWorkQueueHours),
   }));
 
-  const CustomTooltip = ({ active, payload }: unknown) => {
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: Record<string, unknown> }> } = {}) => {
     if (!active || !payload || !payload.length) return null;
-    const d = payload[0].payload;
+    const d = payload[0].payload as Record<string, unknown>;
     return (
       <div className="bg-white border border-slate-300 rounded p-3 shadow-lg min-w-[200px]">
         <p className="font-semibold text-sm text-slate-900 mb-1">{d.name}</p>
@@ -148,14 +148,14 @@ export function ProductivityMatrix({ data }: Props) {
           <Scatter
             name="Agentes"
             data={enrichedData}
-            shape={({ cx, cy, payload }: unknown) => (
+            shape={({ cx, cy, payload }: { cx?: number; cy?: number; payload?: { color: string } }) => (
               <circle
                 cx={cx}
                 cy={cy}
                 r={7}
-                fill={payload.color}
+                fill={payload?.color ?? '#999'}
                 opacity={0.85}
-                stroke={payload.color}
+                stroke={payload?.color ?? '#999'}
                 strokeWidth={1.5}
               />
             )}

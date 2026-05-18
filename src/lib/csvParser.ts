@@ -327,8 +327,8 @@ export function calculateDateRangeFromRecords(
   records: unknown[]
 ): { start: string | null; end: string | null } {
   const dates = records
-    .map((r: unknown) => r.call_date)
-    .filter((d: unknown): d is string => d !== null)
+    .map((r: unknown) => (r as Record<string, unknown>)?.call_date)
+    .filter((d: unknown): d is string => typeof d === 'string')
     .sort();
 
   if (dates.length === 0) {
@@ -777,7 +777,7 @@ function calculateIsBounce(
 export async function saveImportAudit(
   uploadId: string,
   anomaliesToSave: AnomalyEntry[],
-  supabaseClient: unknown
+  supabaseClient: any
 ): Promise<void> {
   if (anomaliesToSave.length === 0) {
     return;
