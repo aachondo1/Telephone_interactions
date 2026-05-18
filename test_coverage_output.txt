@@ -1,0 +1,122 @@
+
+> vite-react-typescript-starter@0.0.0 test:coverage
+> vitest --coverage
+
+2:22:52 AM [vite] warning: `esbuild` option was specified by "vite:react-babel" plugin. This option is deprecated, please use `oxc` instead.
+2:22:52 AM [vite] warning: `optimizeDeps.esbuildOptions` option was specified by "vite:react-babel" plugin. This option is deprecated, please use `optimizeDeps.rolldownOptions` instead.
+Both esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored. The following esbuild options were set: `{ jsx: 'automatic', jsxImportSource: undefined }`
+
+ RUN  v4.1.6 /home/user/telephone_interactions
+      Coverage enabled with v8
+
+ ❯ src/__tests__/dataAudit.test.ts (31 tests | 1 failed) 25ms
+       × should detect unusually long calls 9ms
+(node:27658) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ❯ src/__tests__/kpi.test.ts (0 test)
+ ❯ src/__tests__/agentStatusParser.test.ts (33 tests | 2 failed) 28ms
+       × should parse "Xd Xh Xm Xs" format 13ms
+       × should handle various spacing 1ms
+ ❯ src/__tests__/supabaseService.test.ts (34 tests | 1 failed) 25ms
+       × should validate call record structure 8ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/kpi.test.ts [ src/__tests__/kpi.test.ts ]
+Error: supabaseUrl is required.
+ ❯ validateSupabaseUrl node_modules/@supabase/supabase-js/src/lib/helpers.ts:86:10
+ ❯ new SupabaseClient node_modules/@supabase/supabase-js/src/SupabaseClient.ts:104:40
+ ❯ createClient node_modules/@supabase/supabase-js/src/index.ts:46:9
+ ❯ src/lib/supabase.ts:6:25
+      4| const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      5|
+      6| export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+       |                         ^
+      7|
+      8| export type CallUpload = {
+ ❯ src/lib/kpi/agent-connectivity.ts:1:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/agentStatusParser.test.ts > AgentStatusParser: Duration Parsing > parseAgentDuration > should parse "Xd Xh Xm Xs" format
+AssertionError: expected 302262 to be 318882 // Object.is equality
+
+- Expected
++ Received
+
+- 318882
++ 302262
+
+ ❯ src/__tests__/agentStatusParser.test.ts:18:52
+     16|   describe('parseAgentDuration', () => {
+     17|     it('should parse "Xd Xh Xm Xs" format', () => {
+     18|       expect(parseAgentDuration('3d 11h 57m 42s')).toBe(318882)
+       |                                                    ^
+     19|       expect(parseAgentDuration('1d')).toBe(86400)
+     20|     })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  src/__tests__/agentStatusParser.test.ts > AgentStatusParser: Duration Parsing > parseAgentDuration > should handle various spacing
+AssertionError: expected 302262 to be 318882 // Object.is equality
+
+- Expected
++ Received
+
+- 318882
++ 302262
+
+ ❯ src/__tests__/agentStatusParser.test.ts:58:49
+     56|
+     57|     it('should handle various spacing', () => {
+     58|       expect(parseAgentDuration('3d11h57m42s')).toBe(318882)
+       |                                                 ^
+     59|       expect(parseAgentDuration('3d 11h57m 42s')).toBe(318882)
+     60|     })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  src/__tests__/dataAudit.test.ts > Data Audit: Record Validation > Anomaly detection > should detect unusually long calls
+AssertionError: expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ src/__tests__/dataAudit.test.ts:225:32
+    223|       const anomalies = calls.filter(c => c.duration_seconds > avgDura…
+    224|
+    225|       expect(anomalies.length).toBe(1)
+       |                                ^
+    226|       expect(anomalies[0].duration_seconds).toBe(15000)
+    227|     })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  src/__tests__/supabaseService.test.ts > SupabaseService: Data Operations > Call record handling > should validate call record structure
+AssertionError: expected 'undefined' to be 'boolean' // Object.is equality
+
+Expected: "boolean"
+Received: "undefined"
+
+ ❯ src/__tests__/supabaseService.test.ts:51:36
+     49|       expect(typeof call.call_id).toBe('string')
+     50|       expect(typeof call.duration_seconds).toBe('number')
+     51|       expect(typeof call.attended).toBe('boolean')
+       |                                    ^
+     52|       expect(call.call_direction).toMatch(/inbound|outbound/)
+     53|     })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  4 failed | 1 passed (5)
+      Tests  4 failed | 190 passed (194)
+   Start at  02:22:52
+   Duration  3.45s (transform 497ms, setup 878ms, import 266ms, tests 127ms, environment 3.78s)
+
