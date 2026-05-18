@@ -8,7 +8,6 @@ import { describe, it, expect, } from 'vitest'
 import {
   SAMPLE_CALLS,
   createMockCallRecord,
-  createMockAgentRecord,
 } from './fixtures/sampleCallData'
 
 import type { CallRecord } from '../lib/supabase'
@@ -26,7 +25,7 @@ describe('SupabaseService: Data Operations', () => {
       } as CallRecord
 
       expect(call.id).toBeDefined()
-      expect(call.call_id).toBeDefined()
+      expect(call.original_call_id).toBeDefined()
       expect(call.call_date).toBeDefined()
       expect(call.duration_seconds).toBeGreaterThanOrEqual(0)
     })
@@ -39,17 +38,17 @@ describe('SupabaseService: Data Operations', () => {
         abandon_type: null,
       } as unknown as CallRecord
 
-      expect(call.call_id).toBeDefined()
+      expect(call.original_call_id).toBeDefined()
       expect(call.duration_seconds).toBeDefined()
     })
 
     it('should validate call record structure', () => {
       const call = createMockCallRecord()
 
-      expect(typeof call.call_id).toBe('string')
+      expect(typeof call.original_call_id).toBe('string')
       expect(typeof call.duration_seconds).toBe('number')
-      expect(call.direction).toMatch(/inbound|outbound/)
-      expect(call.status).toMatch(/completed|abandoned|transferred|failed/)
+      expect(call.call_direction).toMatch(/inbound|outbound/)
+      expect(typeof call.attended).toBe('boolean')
     })
 
     it('should handle bulk call records', () => {
@@ -61,52 +60,51 @@ describe('SupabaseService: Data Operations', () => {
       )
 
       expect(calls).toHaveLength(1000)
-      expect(calls[999].call_id).toBe('CALL-999')
+      expect(calls[999].original_call_id).toBe('CALL-999')
     })
   })
 
-  describe('Agent record handling', () => {
-    it('should process agent records with connectivity data', () => {
-      const agent = createMockAgentRecord()
+  describe('Executive information handling', () => {
+    it('should track executive names across calls', () => {
+      const calls = [
+        createMockCallRecord({ executive: 'John Doe' }),
+        createMockCallRecord({ executive: 'Jane Smith' }),
+        createMockCallRecord({ executive: 'John Doe' }),
+      ]
 
-      expect(agent.agent_id).toBeDefined()
-      expect(agent.agent_name).toBeDefined()
-      expect(agent.total_calls).toBeGreaterThanOrEqual(0)
-      expect(agent.available_seconds).toBeGreaterThanOrEqual(0)
+      const executives = [...new Set(calls.map(c => c.executive))]
+      expect(executives).toHaveLength(2)
+      expect(executives).toContain('John Doe')
     })
 
-    it('should handle agent status values', () => {
-      const validStatuses = ['available', 'busy', 'away', 'break', 'offline']
+    it('should handle calls without executive assignment', () => {
+      const call = createMockCallRecord({ executive: '' })
 
-      for (const status of validStatuses) {
-        const agent = createMockAgentRecord({ status: status as unknown })
-        expect(validStatuses).toContain(agent.status)
+      expect(call.executive).toBeDefined()
+    })
+
+    it('should validate executive names in call records', () => {
+      const calls = SAMPLE_CALLS
+
+      for (const call of calls) {
+        expect(typeof call.executive).toBe('string')
       }
     })
 
-    it('should calculate agent time allocation', () => {
-      const agent = createMockAgentRecord({
-        available_seconds: 1800,
-        busy_seconds: 2400,
-        away_seconds: 300,
-        break_seconds: 600,
-      })
+    it('should count calls per executive', () => {
+      const calls = [
+        createMockCallRecord({ executive: 'John Doe' }),
+        createMockCallRecord({ executive: 'Jane Smith' }),
+        createMockCallRecord({ executive: 'John Doe' }),
+      ]
 
-      const totalSeconds = agent.available_seconds + agent.busy_seconds + agent.away_seconds + agent.break_seconds
-      expect(totalSeconds).toBe(5100)
-    })
+      const executiveCounts: Record<string, number> = {}
+      for (const call of calls) {
+        executiveCounts[call.executive] = (executiveCounts[call.executive] || 0) + 1
+      }
 
-    it('should handle agents with zero activity', () => {
-      const agent = createMockAgentRecord({
-        available_seconds: 0,
-        busy_seconds: 0,
-        away_seconds: 0,
-        break_seconds: 0,
-        total_calls: 0,
-      })
-
-      expect(agent.available_seconds).toBe(0)
-      expect(agent.total_calls).toBe(0)
+      expect(executiveCounts['John Doe']).toBe(2)
+      expect(executiveCounts['Jane Smith']).toBe(1)
     })
   })
 
@@ -279,23 +277,32 @@ describe('SupabaseService: Data Operations', () => {
   })
 
   describe('Phone number handling', () => {
-    it('should store both raw and masked phone numbers', () => {
+    it('should store masked phone numbers', () => {
       const call = createMockCallRecord({
-        raw_phone: '(56) 9 1234-5678',
-        ani_masked: 'XXX5678',
-      } as unknown)
+        ani_masked: '+XX XXX XXXX01',
+      })
 
-      expect(call.raw_phone).toMatch(/\D/)
-      expect(call.ani_masked).toMatch(/X/)
+      expect(call.ani_masked).toBeDefined()
+      expect(call.ani_masked.includes('X')).toBe(true)
     })
 
     it('should store phone hash for deduplication', () => {
       const call = createMockCallRecord({
         ani_hash: 'abc123def456',
-      } as unknown)
+      })
 
       expect(call.ani_hash).toBeDefined()
       expect(call.ani_hash.length).toBeGreaterThan(0)
+    })
+
+    it('should handle null phone fields', () => {
+      const call = createMockCallRecord({
+        ani_masked: null as unknown as string,
+        ani_hash: null as unknown as string,
+      })
+
+      expect(call.ani_masked).toBeNull()
+      expect(call.ani_hash).toBeNull()
     })
   })
 
@@ -305,7 +312,7 @@ describe('SupabaseService: Data Operations', () => {
         call_direction: 'inbound',
       })
 
-      expect(['inbound', 'entrante']).toContain(call.call_direction)
+      expect(['inbound']).toContain(call.call_direction)
     })
 
     it('should classify outbound calls', () => {
@@ -313,7 +320,7 @@ describe('SupabaseService: Data Operations', () => {
         call_direction: 'outbound',
       })
 
-      expect(['outbound', 'saliente']).toContain(call.call_direction)
+      expect(['outbound']).toContain(call.call_direction)
     })
 
     it('should store queue information', () => {
@@ -324,12 +331,20 @@ describe('SupabaseService: Data Operations', () => {
       expect(call.queue).toBeTruthy()
     })
 
-    it('should handle IVR queue designation', () => {
+    it('should handle customer service queue', () => {
       const call = createMockCallRecord({
-        queue: 'IVR',
+        queue: 'Customer Service',
       })
 
-      expect(call.queue).toBe('IVR')
+      expect(call.queue).toBe('Customer Service')
+    })
+
+    it('should extract queue from all records', () => {
+      const calls = SAMPLE_CALLS
+      const queues = [...new Set(calls.map(c => c.queue).filter(Boolean))]
+
+      expect(queues.length).toBeGreaterThan(0)
+      expect(queues).toContain('Customer Service')
     })
   })
 

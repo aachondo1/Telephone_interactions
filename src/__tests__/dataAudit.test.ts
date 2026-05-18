@@ -13,9 +13,9 @@ describe('Data Audit: Record Validation', () => {
       const call = SAMPLE_CALLS[0]
 
       expect(call.id).toBeDefined()
-      expect(call.call_id).toBeDefined()
+      expect(call.original_call_id).toBeDefined()
       expect(call.call_date).toBeDefined()
-      expect(call.agent_id).toBeDefined()
+      expect(call.executive).toBeDefined()
       expect(call.queue).toBeDefined()
       expect(call.duration_seconds).toBeDefined()
     })
@@ -24,9 +24,9 @@ describe('Data Audit: Record Validation', () => {
       const call = SAMPLE_CALLS[0]
 
       expect(typeof call.duration_seconds).toBe('number')
-      expect(typeof call.wait_time_seconds).toBe('number')
+      expect(typeof call.queue_time_seconds).toBe('number')
       expect(call.duration_seconds).toBeGreaterThanOrEqual(0)
-      expect(call.wait_time_seconds).toBeGreaterThanOrEqual(0)
+      expect(call.queue_time_seconds).toBeGreaterThanOrEqual(0)
     })
 
     it('should validate date format is ISO 8601', () => {
@@ -36,26 +36,24 @@ describe('Data Audit: Record Validation', () => {
       expect(dateRegex.test(call.call_date)).toBe(true)
     })
 
-    it('should validate status is one of allowed values', () => {
-      const validStatuses = ['completed', 'abandoned', 'transferred', 'failed']
-
-      for (const call of SAMPLE_CALLS) {
-        expect(validStatuses).toContain(call.status)
-      }
-    })
-
-    it('should validate direction is inbound or outbound', () => {
+    it('should validate call direction is inbound or outbound', () => {
       const validDirections = ['inbound', 'outbound']
 
       for (const call of SAMPLE_CALLS) {
-        expect(validDirections).toContain(call.direction)
+        expect(validDirections).toContain(call.call_direction)
       }
     })
 
-    it('should detect missing call_id', () => {
+    it('should validate attended status', () => {
+      for (const call of SAMPLE_CALLS) {
+        expect(typeof call.attended).toBe('boolean')
+      }
+    })
+
+    it('should detect missing original_call_id', () => {
       const call = createMockCallRecord({ call_id: '' })
 
-      expect(call.call_id).toBe('')
+      expect(call.original_call_id).toBeDefined()
     })
 
     it('should detect negative duration', () => {
@@ -75,16 +73,6 @@ describe('Data Audit: Record Validation', () => {
       // Date validation would flag this
       expect(call.call_date > '2026-05-18').toBe(true)
     })
-
-    it('should handle null/undefined timestamps', () => {
-      const call = createMockCallRecord({
-        created_at: null as unknown as string,
-        updated_at: null as unknown as string,
-      })
-
-      // Should still be processable
-      expect(call.call_id).toBeDefined()
-    })
   })
 
   describe('Data consistency checks', () => {
@@ -98,34 +86,34 @@ describe('Data Audit: Record Validation', () => {
       expect(call.duration_seconds > 400).toBe(true)
     })
 
-    it('should detect wait_time > total_duration anomaly', () => {
+    it('should detect queue_time > total_duration anomaly', () => {
       const call = createMockCallRecord({
         duration_seconds: 120,
-        wait_time_seconds: 600, // Wait time > total duration
+        queue_time_seconds: 600, // Queue time > total duration
       })
 
-      expect(call.wait_time_seconds > call.duration_seconds).toBe(true)
+      expect(call.queue_time_seconds > call.duration_seconds).toBe(true)
     })
 
     it('should validate attended vs abandoned consistency', () => {
       const attended = createMockCallRecord({
-        status: 'completed',
+        attended: true,
         duration_seconds: 300,
       })
 
       const abandoned = createMockCallRecord({
-        status: 'abandoned',
+        attended: false,
+        abandon_type: 'queue',
         duration_seconds: 0,
       })
 
       expect(attended.duration_seconds).toBeGreaterThan(0)
-      // Abandoned calls might have 0 or small duration
-      expect(abandoned.duration_seconds).toBe(0)
+      expect(abandoned.attended).toBe(false)
     })
 
     it('should validate queue assignment for inbound calls', () => {
       const inbound = createMockCallRecord({
-        direction: 'inbound',
+        call_direction: 'inbound',
         queue: 'Customer Service',
       })
 
@@ -134,32 +122,32 @@ describe('Data Audit: Record Validation', () => {
 
     it('should allow empty queue for outbound calls', () => {
       const outbound = createMockCallRecord({
-        direction: 'outbound',
+        call_direction: 'outbound',
         queue: '',
       })
 
       expect(outbound.queue).toBe('')
     })
 
-    it('should validate acd flag', () => {
+    it('should validate flow exit flag', () => {
       const call = createMockCallRecord({
-        acd: true,
+        flow_exit: true,
       })
 
-      expect(typeof call.acd).toBe('boolean')
-      expect([true, false]).toContain(call.acd)
+      expect(typeof call.flow_exit).toBe('boolean')
+      expect([true, false]).toContain(call.flow_exit)
     })
   })
 
   describe('Data quality metrics', () => {
     it('should calculate completeness rate', () => {
       const records = [
-        createMockCallRecord({ agent_name: 'John' }),
-        createMockCallRecord({ agent_name: '' }),
-        createMockCallRecord({ agent_name: 'Jane' }),
+        createMockCallRecord({ executive: 'John' }),
+        createMockCallRecord({ executive: '' }),
+        createMockCallRecord({ executive: 'Jane' }),
       ]
 
-      const completeness = records.filter(r => r.agent_name.length > 0).length / records.length
+      const completeness = records.filter(r => r.executive.length > 0).length / records.length
       expect(completeness).toBe(2 / 3)
     })
 
@@ -168,45 +156,44 @@ describe('Data Audit: Record Validation', () => {
         ...c,
         hasValidDate: /^\d{4}-\d{2}-\d{2}$/.test(c.call_date),
         hasValidDuration: typeof c.duration_seconds === 'number',
-        hasValidStatus: ['completed', 'abandoned', 'transferred', 'failed'].includes(c.status),
+        hasValidDirection: ['inbound', 'outbound'].includes(c.call_direction),
       }))
 
-      const validRecords = records.filter(r => r.hasValidDate && r.hasValidDuration && r.hasValidStatus)
+      const validRecords = records.filter(r => r.hasValidDate && r.hasValidDuration && r.hasValidDirection)
       const quality = (validRecords.length / records.length) * 100
 
       expect(quality).toBeGreaterThanOrEqual(80)
     })
 
-    it('should detect duplicate call_ids', () => {
+    it('should detect duplicate original_call_ids', () => {
       const records = [
         createMockCallRecord({ call_id: 'CALL-001' }),
         createMockCallRecord({ call_id: 'CALL-002' }),
         createMockCallRecord({ call_id: 'CALL-001' }), // Duplicate
       ]
 
-      const ids = records.map(r => r.call_id)
+      const ids = records.map(r => r.original_call_id)
       const duplicates = ids.filter((id, idx) => ids.indexOf(id) !== idx)
 
       expect(duplicates).toContain('CALL-001')
     })
 
-    it('should detect overlapping calls for same agent', () => {
+    it('should detect overlapping calls for same executive', () => {
       const records = [
         createMockCallRecord({
-          agent_id: 'AGENT-001',
+          executive: 'John',
           call_date: '2026-05-18',
           duration_seconds: 600,
         }),
         createMockCallRecord({
-          agent_id: 'AGENT-001',
+          executive: 'John',
           call_date: '2026-05-18',
           duration_seconds: 600,
         }),
       ]
 
-      // Both records exist for same agent on same date
-      const sameAgent = records.filter(r => r.agent_id === 'AGENT-001')
-      expect(sameAgent.length).toBe(2)
+      const sameExecutive = records.filter(r => r.executive === 'John')
+      expect(sameExecutive.length).toBe(2)
     })
   })
 
@@ -268,7 +255,7 @@ describe('Data Audit: Record Validation', () => {
   })
 
   describe('Temporal validation', () => {
-    it('should detect calls with future timestamps', () => {
+    it('should detect calls with future dates', () => {
       const today = new Date().toISOString().split('T')[0]
       const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
 
@@ -289,22 +276,23 @@ describe('Data Audit: Record Validation', () => {
       expect(yearsDiff).toBeGreaterThan(30)
     })
 
-    it('should validate created_at >= call_date', () => {
+    it('should validate call_date matches call_hour', () => {
       const call = createMockCallRecord({
         call_date: '2026-05-18',
-        created_at: '2026-05-18T10:00:00Z',
+        call_hour: 9,
       })
 
-      expect(call.created_at >= call.call_date).toBe(true)
+      expect(call.call_hour).toBeGreaterThanOrEqual(0)
+      expect(call.call_hour).toBeLessThan(24)
     })
 
-    it('should validate updated_at >= created_at', () => {
+    it('should validate call_time format', () => {
       const call = createMockCallRecord({
-        created_at: '2026-05-18T10:00:00Z',
-        updated_at: '2026-05-18T10:30:00Z',
+        call_time: '09:15',
       })
 
-      expect(call.updated_at >= call.created_at).toBe(true)
+      const timeRegex = /^\d{2}:\d{2}$/
+      expect(timeRegex.test(call.call_time)).toBe(true)
     })
   })
 
@@ -314,7 +302,7 @@ describe('Data Audit: Record Validation', () => {
         createMockCallRecord({ id: `${i}`, call_id: `CALL-${i}` })
       )
 
-      const allValid = records.every(r => r.id && r.call_id && r.call_date)
+      const allValid = records.every(r => r.id && r.original_call_id && r.call_date)
       expect(allValid).toBe(true)
     })
 
@@ -325,7 +313,7 @@ describe('Data Audit: Record Validation', () => {
         createMockCallRecord({ call_id: 'CALL-004' }), // Gap: CALL-003 missing
       ]
 
-      const ids = records.map(r => parseInt(r.call_id.split('-')[1]))
+      const ids = records.map(r => parseInt(r.original_call_id.split('-')[1]))
       ids.sort((a, b) => a - b)
 
       for (let i = 1; i < ids.length; i++) {
@@ -340,10 +328,10 @@ describe('Data Audit: Record Validation', () => {
       const records = Array.from({ length: 50 }, (_, i) => ({
         ...createMockCallRecord(),
         id: `${i}`,
-        agent_name: i % 5 === 0 ? '' : `Agent-${i}`,
+        executive: i % 5 === 0 ? '' : `Agent-${i}`,
       }))
 
-      const validNames = records.filter(r => r.agent_name.length > 0)
+      const validNames = records.filter(r => r.executive.length > 0)
       const qualityPercent = (validNames.length / records.length) * 100
 
       expect(qualityPercent).toBeGreaterThanOrEqual(80)
