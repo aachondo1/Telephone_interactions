@@ -4,7 +4,7 @@
  * Target: 30-40 tests covering all major functions
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   detectColumns,
   validateColumns,
@@ -14,7 +14,6 @@ import {
   parseDateTime,
   cleanPhoneNumber,
   hashPhone,
-  generateUniqueCallId,
   maskPhone,
   parseExecutives,
   isExportComplete,
@@ -439,8 +438,8 @@ describe('csvParser: Phone Number Processing', () => {
     })
 
     it('should handle null/undefined gracefully', () => {
-      expect(cleanPhoneNumber(null as any)).toBe('')
-      expect(cleanPhoneNumber(undefined as any)).toBe('')
+      expect(cleanPhoneNumber(null as unknown as string)).toBe('')
+      expect(cleanPhoneNumber(undefined as unknown as string)).toBe('')
     })
   })
 

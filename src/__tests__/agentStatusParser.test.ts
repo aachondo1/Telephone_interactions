@@ -4,12 +4,10 @@
  * Target: 15-20 tests covering all major functions
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   parseAgentDuration,
   parseAgentStatusCSV,
-  type AgentStatusRow,
-  type AgentStatusParseResult,
 } from '../lib/agentStatusParser'
 
 describe('AgentStatusParser: Duration Parsing', () => {

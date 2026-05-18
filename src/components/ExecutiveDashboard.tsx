@@ -413,7 +413,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
     const endDate = new Date(dateRanges.current.end + 'T23:59:59');
     const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
     return getGranularity(Math.max(1, days));
-  }, [dateRanges.current]);
+  }, [dateRanges]);
 
   const compareLabel = useMemo(() => {
     const { start, end } = dateRanges.previous;
@@ -425,7 +425,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
       return `vs ${sDate.getDate()}-${fmt(end)}`;
     }
     return `vs ${fmt(start)} – ${fmt(end)}`;
-  }, [dateRanges.previous]);
+  }, [dateRanges]);
 
   const funnelData = useMemo(() => calcFunnelByGranularity(currentRecords, granularity), [currentRecords, granularity]);
   const outboundData = useMemo(() => calcOutboundByGranularity(currentRecords, granularity), [currentRecords, granularity]);
@@ -458,7 +458,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
     import('../lib/supabaseService').then(({ getHourlyInQueueByAgent }) =>
       getHourlyInQueueByAgent(start, end).then(setHourlyQueueMap)
     );
-  }, [dateRanges.current.start, dateRanges.current.end]);
+  }, [dateRanges]);
 
   const top10Executives = useMemo(() => {
     const useHourly = hourlyQueueMap.size > 0;
@@ -499,8 +499,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
           : null;
         return { executive: e.executive, attended: e.inboundCount, queuePct, tmo: e.avgDurationFormatted, avgQueueTimeFormatted: e.avgQueueTimeFormatted };
       });
-  }, [kpis.executiveStats, agentStatusRecords, hourlyQueueMap,
-      dateRanges.current.start, dateRanges.current.end]);
+  }, [kpis.executiveStats, agentStatusRecords, hourlyQueueMap, dateRanges]);
 
   const hasPrev = prevRecords.length > 0;
 
@@ -512,7 +511,7 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
     const { start, end } = dateRanges.current;
     if (start === end) return fmt(start);
     return `${fmt(start)} – ${fmt(end)}`;
-  }, [dateRanges.current]);
+  }, [dateRanges]);
 
   const [exportState, setExportState] = useState<'idle' | 'building' | 'exporting'>('idle');
   const [exportError, setExportError] = useState<string | null>(null);

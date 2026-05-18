@@ -5,8 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { SAMPLE_CALLS, createMockCallRecord } from './fixtures/sampleCallData'
-import type { CallRecord } from '../lib/supabase'
+import { SAMPLE_CALLS } from './fixtures/sampleCallData'
 
 describe('Data Audit: Record Validation', () => {
   describe('Call record integrity', () => {
