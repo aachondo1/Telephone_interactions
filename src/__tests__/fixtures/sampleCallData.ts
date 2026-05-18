@@ -207,19 +207,29 @@ export const SAMPLE_CALLS: CallRecord[] = [
 
 /**
  * Create a mock call record with default values
+ * Note: Some properties below are test-only helpers and won't appear in the actual type
  */
-export function createMockCallRecord(overrides?: Partial<CallRecord>): CallRecord {
-  return {
+export function createMockCallRecord(overrides?: Partial<CallRecord> & {
+  // Test-friendly aliases for backward compatibility
+  call_id?: string;
+  agent_id?: string;
+  status?: string;
+  direction?: string;
+  wait_time_seconds?: number;
+  agent_name?: string;
+  acd?: boolean;
+}): CallRecord {
+  const record: CallRecord = {
     id: '1',
     upload_id: 'upload-test',
     call_date: new Date().toISOString().split('T')[0],
     call_time: '09:00',
     call_hour: 9,
-    executive: 'Test Agent',
-    original_call_id: 'CALL-TEST',
+    executive: overrides?.agent_name || overrides?.executive || 'Test Agent',
+    original_call_id: overrides?.call_id || 'CALL-TEST',
     ani_hash: 'hash-test',
     ani_masked: '+XX XXX XXXTEST',
-    call_direction: 'inbound',
+    call_direction: overrides?.direction || 'inbound',
     queue: 'Test Queue',
     duration_seconds: 300,
     duration_formatted: '5m 0s',
@@ -227,7 +237,7 @@ export function createMockCallRecord(overrides?: Partial<CallRecord>): CallRecor
     export_complete: true,
     is_overlapping: false,
     unique_call_identifier: 'UC-TEST',
-    queue_time_seconds: 30,
+    queue_time_seconds: overrides?.wait_time_seconds ?? 30,
     handle_time_seconds: 300,
     alert_segments: 0,
     alert_time_seconds: 0,
@@ -247,6 +257,12 @@ export function createMockCallRecord(overrides?: Partial<CallRecord>): CallRecor
     transfers: 0,
     partial_result_timestamp: null,
     filters: null,
-    ...overrides,
   };
+
+  // Apply overrides
+  if (overrides) {
+    Object.assign(record, overrides);
+  }
+
+  return record;
 }
