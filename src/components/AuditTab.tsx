@@ -2,8 +2,18 @@ import { useState, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
+type AuditLogEntry = {
+  id: string;
+  upload_id: string;
+  created_at: string;
+  critical_count: number;
+  warning_count: number;
+  total_anomalies: number;
+  anomaly_breakdown: Record<string, number> | null;
+};
+
 export function AuditTab() {
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

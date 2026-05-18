@@ -1,3 +1,5 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 export type RawCallRecord = {
   [key: string]: string;
 };
@@ -242,7 +244,8 @@ export function parseDateTime(raw: string): { callDate: string | null; callTime:
   const dateBits = datePart.split('/');
   if (dateBits.length !== 3) return { callDate: null, callTime: null, callHour: null };
 
-  let [dd, mm, yy] = dateBits;
+  const [dd, mm] = dateBits;
+  let yy = dateBits[2];
   if (yy.length === 2) {
     const yr = parseInt(yy);
     yy = yr > 50 ? `19${yy}` : `20${yy}`;
@@ -323,11 +326,11 @@ const VALID_QUEUES = new Set([
 ]);
 
 export function calculateDateRangeFromRecords(
-  records: any[]
+  records: unknown[]
 ): { start: string | null; end: string | null } {
   const dates = records
-    .map((r: any) => r.call_date)
-    .filter((d: any): d is string => d !== null)
+    .map((r: unknown) => (r as Record<string, unknown>)?.call_date)
+    .filter((d: unknown): d is string => typeof d === 'string')
     .sort();
 
   if (dates.length === 0) {
@@ -358,7 +361,7 @@ export async function transformRows(
     timestamp: Date;
   }> = [];
   const results: ParsedCallRecord[] = [];
-  let duplicateCount = 0;
+  const duplicateCount = 0;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -390,7 +393,7 @@ export async function transformRows(
       ? parseNumericField(row[columnMap.conversationTotal] ?? '0')
       : durationSeconds;
 
-    let attended = conversationTotalSeconds > 0;
+    const attended = conversationTotalSeconds > 0;
 
     const rawPhone = columnMap.phone ? (row[columnMap.phone] ?? '') : '';
     const cleanPhone = cleanPhoneNumber(rawPhone);
@@ -776,7 +779,7 @@ function calculateIsBounce(
 export async function saveImportAudit(
   uploadId: string,
   anomaliesToSave: AnomalyEntry[],
-  supabaseClient: any
+  supabaseClient: SupabaseClient
 ): Promise<void> {
   if (anomaliesToSave.length === 0) {
     return;

@@ -45,11 +45,12 @@ type ChartRow = {
   talkTimeSeconds: number;
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: ChartRow; name?: string }> } = {}) => {
   if (!active || !payload?.length) return null;
 
   const row: ChartRow = payload[0]?.payload;
   const connected = row.connectedSeconds;
+  const label = payload[0]?.name || 'Datos';
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-4 text-xs space-y-2 min-w-52">

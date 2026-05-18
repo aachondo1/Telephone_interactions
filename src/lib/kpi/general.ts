@@ -312,6 +312,7 @@ export async function calculateKPIs(records: CallRecord[]): Promise<KPISummary> 
         completenessRate: Math.round((d.complete / d.count) * 100),
         avgHandleTimeSeconds: avgHandleTime,
         avgQueueTimeSeconds: avgQueueTime,
+        avgQueueTimeFormatted: formatDuration(avgQueueTime),
         avgAlertTimeSeconds: avgAlertTime,
         avgAlertSegments: avgAlertSegments,
         bounceCount: d.bounceCount,

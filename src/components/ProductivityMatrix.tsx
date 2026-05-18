@@ -60,7 +60,7 @@ export function ProductivityMatrix({ data }: Props) {
     ...getQuadrantInfo(d.connectionRatio, d.workQueueHours, avgConnectionRatio, avgWorkQueueHours),
   }));
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: ProductivityPoint & { color: string; label: string; disconnectedSeconds: number; workQueueSeconds: number } }> } = {}) => {
     if (!active || !payload || !payload.length) return null;
     const d = payload[0].payload;
     return (
@@ -148,14 +148,14 @@ export function ProductivityMatrix({ data }: Props) {
           <Scatter
             name="Agentes"
             data={enrichedData}
-            shape={({ cx, cy, payload }: any) => (
+            shape={({ cx, cy, payload }: { cx?: number; cy?: number; payload?: { color: string } }) => (
               <circle
                 cx={cx}
                 cy={cy}
                 r={7}
-                fill={payload.color}
+                fill={payload?.color ?? '#999'}
                 opacity={0.85}
-                stroke={payload.color}
+                stroke={payload?.color ?? '#999'}
                 strokeWidth={1.5}
               />
             )}

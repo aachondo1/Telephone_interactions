@@ -164,11 +164,6 @@ function parseTimelineFormat(
     maxDate: string | null;
   }>();
 
-  let processedCount = 0;
-  let skippedMissingData = 0;
-  let skippedInvalidDates = 0;
-  let skippedZeroDuration = 0;
-
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const agentName = colAgentName ? (row[colAgentName] ?? '').trim() : '';
@@ -179,7 +174,6 @@ function parseTimelineFormat(
     const endStr = (row[colEnd] ?? '').trim();
 
     if (!agentName || !startStr || !endStr) {
-      skippedMissingData++;
       continue;
     }
 
@@ -190,13 +184,11 @@ function parseTimelineFormat(
     const endInvalid   = !endTime   || isNaN(endTime.getTime());
 
     if (startInvalid || endInvalid) {
-      skippedInvalidDates++;
       continue;
     }
 
     const totalDurationSeconds = Math.max(0, (endTime.getTime() - startTime.getTime()) / 1000);
     if (totalDurationSeconds === 0) {
-      skippedZeroDuration++;
       continue;
     }
 
@@ -216,8 +208,6 @@ function parseTimelineFormat(
     if (!overlap) continue;
 
     const durationSeconds = Math.max(0, (overlap.end.getTime() - overlap.start.getTime()) / 1000);
-
-    processedCount++;
 
     if (!agentMap.has(agentId)) {
       agentMap.set(agentId, {
