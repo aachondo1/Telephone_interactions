@@ -27,7 +27,6 @@ beforeEach(() => {
   clearAgentCountCache();
   _mockRows = [];
   _mockError = null;
-  vi.mocked(supabase.from).mockReturnValue(buildChain() as ReturnType<typeof supabase.from>);
   vi.clearAllMocks();
   vi.mocked(supabase.from).mockReturnValue(buildChain() as ReturnType<typeof supabase.from>);
 });
