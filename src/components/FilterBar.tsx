@@ -1,10 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Filter, X, ChevronDown, ChevronRight, Calendar } from 'lucide-react';
 import type { CallRecord } from '../lib/supabase';
-import { getDateRangeForRelative, getEffectiveDateRange, DEFAULT_FILTERS, type FilterState } from '../lib/filterUtils';
-
-export { getDateRangeForRelative, getEffectiveDateRange, DEFAULT_FILTERS };
-export type { FilterState };
+import { type FilterState } from '../lib/filterUtils';
 
 type Props = {
   records: CallRecord[];

@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect } from 'react';
 import type { CallRecord, AgentConnectivityHourly, AgentStatusRecord } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
-import type { FilterState } from './FilterBar';
-import { getEffectiveDateRange } from './FilterBar';
+import type { FilterState } from '../lib/filterUtils';
+import { getEffectiveDateRange } from '../lib/filterUtils';
 import { identifyChronicOffenders } from '../lib/kpi/chronic-offenders';
 import { SectionHeader } from './SectionHeader';
 import { BarChart3 } from 'lucide-react';
@@ -46,23 +46,6 @@ type Props = {
   executiveFilter?: string[];
   filters: FilterState;
 };
-
-// Maps Genesys Cloud status strings to Gantt status categories
-function mapConnectivityStatus(
-  status: string
-): 'productivo' | 'ocioso' | 'pausa' | 'no_responde' {
-  const s = status.toLowerCase();
-  if (s.includes('cola') || s.includes('queue') || s.includes('disponible') || s.includes('available')) {
-    return 'ocioso';
-  }
-  if (s.includes('pausa') || s.includes('break') || s.includes('comida') || s.includes('meal') || s.includes('reunión') || s.includes('meeting') || s.includes('capacitación') || s.includes('training')) {
-    return 'pausa';
-  }
-  if (s.includes('no responde') || s.includes('not responding') || s.includes('away') || s.includes('ausente')) {
-    return 'no_responde';
-  }
-  return 'ocioso';
-}
 
 function formatHHMM(totalSeconds: number): { hours: number; minutes: number } {
   const hours = Math.floor(totalSeconds / 3600);

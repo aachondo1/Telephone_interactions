@@ -14,10 +14,10 @@ import {
 import type { KPISummary } from '../lib/kpi';
 import { calculateQueueHealthMetrics, calculateOperationalKPIs, formatDuration } from '../lib/kpi';
 import type { CallRecord, AgentStatusRecord } from '../lib/supabase';
-import type { FilterState } from './FilterBar';
+import type { FilterState } from '../lib/filterUtils';
 import { STANDARD_BUSINESS_HOURS } from '../lib/businessHours';
 import type { DayOfWeek } from '../lib/businessHours';
-import { getDateRangeForRelative } from './FilterBar';
+import { getDateRangeForRelative } from '../lib/filterUtils';
 import { getMondayKey, weekLabel, monthLabel, isInbound } from '../lib/kpi/shared';
 import { isCorruptedTechnicalCall } from '../lib/kpi/calidad';
 import { SectionHeader } from './SectionHeader';
@@ -379,11 +379,11 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
   // Filtrar records para período actual y anterior (aplicando horario laboral)
   const currentRecords = useMemo(() =>
     filterRecordsByDateRange(records, dateRanges.current.start, dateRanges.current.end),
-    [records, dateRanges.current]
+    [records, dateRanges]
   );
   const prevRecords = useMemo(() =>
     filterRecordsByDateRange(records, dateRanges.previous.start, dateRanges.previous.end),
-    [records, dateRanges.previous]
+    [records, dateRanges]
   );
 
   const curr = useMemo(() => countHalfPeriodMetrics(currentRecords), [currentRecords]);

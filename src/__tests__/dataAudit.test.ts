@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { SAMPLE_CALLS } from './fixtures/sampleCallData'
+import { SAMPLE_CALLS, createMockCallRecord } from './fixtures/sampleCallData'
 
 describe('Data Audit: Record Validation', () => {
   describe('Call record integrity', () => {
@@ -59,7 +59,7 @@ describe('Data Audit: Record Validation', () => {
     })
 
     it('should detect negative duration', () => {
-      const call = createMockCallRecord({ duration_seconds: -100 } as any)
+      const call = createMockCallRecord({ duration_seconds: -100 })
 
       // Should be caught by validation
       expect(call.duration_seconds).toBeLessThan(0)
@@ -78,8 +78,8 @@ describe('Data Audit: Record Validation', () => {
 
     it('should handle null/undefined timestamps', () => {
       const call = createMockCallRecord({
-        created_at: null as any,
-        updated_at: null as any,
+        created_at: null as unknown as string,
+        updated_at: null as unknown as string,
       })
 
       // Should still be processable
@@ -92,7 +92,7 @@ describe('Data Audit: Record Validation', () => {
       const call = createMockCallRecord({
         duration_seconds: 600,
         handle_time_seconds: 400, // Invalid: handle_time < duration
-      } as any)
+      })
 
       // This is an anomaly that should be flagged
       expect(call.duration_seconds > 400).toBe(true)
@@ -218,9 +218,8 @@ describe('Data Audit: Record Validation', () => {
         createMockCallRecord({ duration_seconds: 1000 }), // Unusually long
       ]
 
-      const avgDuration = calls.reduce((sum, c) => sum + c.duration_seconds, 0) / calls.length
-      // avgDuration = 400, anomaly threshold = 1200, so 1000 won't be caught
-      // Let's use a more realistic threshold
+      // Calculate average: (100 + 100 + 1000) / 3 = 400
+      // Anomaly threshold = 500, so 1000 will be caught
       const anomalies = calls.filter(c => c.duration_seconds > 500)
 
       expect(anomalies.length).toBe(1)

@@ -87,9 +87,9 @@ export const mockCreateClient = vi.fn(() => mockSupabaseClient)
  */
 export function setupMockSupabaseQuery(
   tableName: string,
-  response: { data?: any; error?: any } = { data: [], error: null },
+  response: { data?: unknown; error?: unknown } = { data: [], error: null },
 ) {
-  const mockFrom = mockSupabaseClient.from as any
+  const mockFrom = mockSupabaseClient.from as unknown
   mockFrom.mockImplementation((table: string) => {
     if (table === tableName) {
       return {

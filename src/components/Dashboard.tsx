@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
-import { FilterBar, DEFAULT_FILTERS, getEffectiveDateRange } from './FilterBar';
-import type { FilterState } from './FilterBar';
+import { FilterBar } from './FilterBar';
+import { DEFAULT_FILTERS, getEffectiveDateRange, type FilterState } from '../lib/filterUtils';
 import { QueueKPICards } from './QueueKPICards';
 import { QueueBarChart } from './QueueBarChart';
 import QueuePerformanceHeatmap from './QueuePerformanceHeatmap';
@@ -117,7 +117,7 @@ function applyFilters(records: CallRecord[], filters: FilterState, skipDateFilte
     }
 
     if (filters.abandonType.length > 0) {
-      if (!r.abandon_type || !filters.abandonType.includes(r.abandon_type as any)) return false;
+      if (!r.abandon_type || !filters.abandonType.includes(r.abandon_type as unknown)) return false;
     }
 
     return true;
@@ -164,7 +164,7 @@ export function Dashboard({ records, upload, agentStatusRecords, activeSection, 
 
       return dateMatch && execMatch;
     });
-  }, [agentStatusRecords, filters.dateStart, filters.dateEnd, filters.executives]);
+  }, [agentStatusRecords, filters]);
 
   const agentAuditFlags = useMemo(() => calculateAgentAuditFlags(filteredAgentStatusRecords), [filteredAgentStatusRecords]);
 

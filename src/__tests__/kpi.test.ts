@@ -4,7 +4,7 @@
  * Target: 40-50 tests covering all major KPI functions
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   calculateServiceLevel,
   calculateServiceLevelPerceptual,
@@ -14,13 +14,12 @@ import {
 } from '../lib/kpi'
 import { createMockCallRecord } from './fixtures/sampleCallData'
 
-// Type definition for testing - avoiding direct supabase import
 type CallRecord = ReturnType<typeof createMockCallRecord>
 
 describe('KPI: Service Level Calculations', () => {
   describe('calculateServiceLevelPerceptual', () => {
     it('should calculate service level for inbound calls', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: true,
@@ -40,7 +39,7 @@ describe('KPI: Service Level Calculations', () => {
     })
 
     it('should return 0 service level when no calls answered within 20 seconds', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: true,
@@ -58,7 +57,7 @@ describe('KPI: Service Level Calculations', () => {
     })
 
     it('should return 100 service level when all calls answered within 20 seconds', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: true,
@@ -85,7 +84,7 @@ describe('KPI: Service Level Calculations', () => {
     })
 
     it('should ignore unattended calls', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: false,
@@ -103,7 +102,7 @@ describe('KPI: Service Level Calculations', () => {
     })
 
     it('should ignore outbound calls', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: true,
@@ -121,7 +120,7 @@ describe('KPI: Service Level Calculations', () => {
     })
 
     it('should ignore calls that did not exit flow', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: true,
@@ -139,7 +138,7 @@ describe('KPI: Service Level Calculations', () => {
     })
 
     it('should distribute calls across 24 hours', () => {
-      const records: any[] = Array.from({ length: 24 }, (_, i) => ({
+      const records: CallRecord[] = Array.from({ length: 24 }, (_, i) => ({
         ...createMockCallRecord(),
         attended: true,
         call_direction: 'inbound',
@@ -156,7 +155,7 @@ describe('KPI: Service Level Calculations', () => {
     })
 
     it('should handle null call hour gracefully', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: true,
@@ -174,7 +173,7 @@ describe('KPI: Service Level Calculations', () => {
     })
 
     it('should handle undefined call hour gracefully', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: true,
@@ -202,7 +201,7 @@ describe('KPI: Service Level Calculations', () => {
 
   describe('calculateServiceLevel', () => {
     it('should delegate to calculateServiceLevelPerceptual', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: true,
@@ -225,7 +224,7 @@ describe('KPI: Service Level Calculations', () => {
 describe('KPI: Abandonment Statistics', () => {
   describe('calculateAbandonStats', () => {
     it('should count unattended inbound calls', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: false,
@@ -248,7 +247,7 @@ describe('KPI: Abandonment Statistics', () => {
     })
 
     it('should not count outbound unattended calls', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: false,
@@ -263,7 +262,7 @@ describe('KPI: Abandonment Statistics', () => {
     })
 
     it('should categorize IVR abandonments', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: false,
@@ -287,7 +286,7 @@ describe('KPI: Abandonment Statistics', () => {
     })
 
     it('should include reentry rate in result', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: true,
@@ -301,7 +300,7 @@ describe('KPI: Abandonment Statistics', () => {
     })
 
     it('should handle null abandon_type', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: false,
@@ -318,10 +317,7 @@ describe('KPI: Abandonment Statistics', () => {
 
   describe('calculateRentryRate', () => {
     it('should identify calls from same ANI within time window', () => {
-      const now = new Date()
-      const laterToday = new Date(now.getTime() + 1800000) // 30 mins later
-
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           ani_hash: 'hash123',
@@ -347,7 +343,7 @@ describe('KPI: Abandonment Statistics', () => {
     })
 
     it('should not count calls outside time window', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           ani_hash: 'hash123',
@@ -373,7 +369,7 @@ describe('KPI: Abandonment Statistics', () => {
     })
 
     it('should handle missing call_date and call_time', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           ani_hash: 'hash123',
@@ -390,7 +386,7 @@ describe('KPI: Abandonment Statistics', () => {
     })
 
     it('should handle multiple different ANI hashes', () => {
-      const records: any[] = [
+      const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           ani_hash: 'hash1',
@@ -415,7 +411,7 @@ describe('KPI: Abandonment Statistics', () => {
     })
 
     it('should respect hours parameter', () => {
-      const records: any[] = []
+      const records: CallRecord[] = []
 
       const result24 = calculateRentryRate(records, 24)
       const result1 = calculateRentryRate(records, 1)

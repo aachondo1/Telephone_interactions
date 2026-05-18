@@ -185,7 +185,7 @@ export function waitFor(callback: () => void, options?: { timeout?: number }): P
  * Helper to create mock fetch responses
  */
 export function createMockFetchResponse(
-  data: any,
+  data: unknown,
   options?: {
     status?: number
     statusText?: string
@@ -215,7 +215,7 @@ export function isValidISO8601Date(dateString: string): boolean {
 /**
  * Helper to validate call records
  */
-export function validateCallRecord(call: any): call is CallRecord {
+export function validateCallRecord(call: unknown): call is CallRecord {
   const requiredFields = [
     'id',
     'call_id',

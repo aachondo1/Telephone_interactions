@@ -44,7 +44,7 @@ const localStorageMock = {
   removeItem: vi.fn(),
   clear: vi.fn(),
 }
-global.localStorage = localStorageMock as any
+global.localStorage = localStorageMock as unknown
 
 // Mock sessionStorage
 const sessionStorageMock = {
@@ -53,7 +53,7 @@ const sessionStorageMock = {
   removeItem: vi.fn(),
   clear: vi.fn(),
 }
-global.sessionStorage = sessionStorageMock as any
+global.sessionStorage = sessionStorageMock as unknown
 
 // Extend expect with custom matchers if needed
 expect.extend({})

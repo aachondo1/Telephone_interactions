@@ -4,13 +4,13 @@
  * Target: 20-30 tests covering all major functions
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, } from 'vitest'
 import {
   SAMPLE_CALLS,
   createMockCallRecord,
   createMockAgentRecord,
 } from './fixtures/sampleCallData'
-import type { ParsedCallRecord } from '../lib/csvParser'
+
 import type { CallRecord } from '../lib/supabase'
 
 describe('SupabaseService: Data Operations', () => {
@@ -37,7 +37,7 @@ describe('SupabaseService: Data Operations', () => {
         ani_masked: null,
         alerted_users: null,
         abandon_type: null,
-      } as any as CallRecord
+      } as unknown as CallRecord
 
       expect(call.call_id).toBeDefined()
       expect(call.duration_seconds).toBeDefined()
@@ -79,7 +79,7 @@ describe('SupabaseService: Data Operations', () => {
       const validStatuses = ['available', 'busy', 'away', 'break', 'offline']
 
       for (const status of validStatuses) {
-        const agent = createMockAgentRecord({ status: status as any })
+        const agent = createMockAgentRecord({ status: status as unknown })
         expect(validStatuses).toContain(agent.status)
       }
     })
@@ -112,15 +112,15 @@ describe('SupabaseService: Data Operations', () => {
 
   describe('Deduplication handling', () => {
     it('should identify duplicate records by unique call identifier', () => {
-      const call1 = createMockCallRecord({ unique_call_identifier: 'id-123' } as any)
-      const call2 = createMockCallRecord({ unique_call_identifier: 'id-123' } as any)
+      const call1 = createMockCallRecord({ unique_call_identifier: 'id-123' } as unknown)
+      const call2 = createMockCallRecord({ unique_call_identifier: 'id-123' } as unknown)
 
       expect(call1.unique_call_identifier).toBe(call2.unique_call_identifier)
     })
 
     it('should distinguish different call identifiers', () => {
-      const call1 = createMockCallRecord({ unique_call_identifier: 'id-123' } as any)
-      const call2 = createMockCallRecord({ unique_call_identifier: 'id-456' } as any)
+      const call1 = createMockCallRecord({ unique_call_identifier: 'id-123' } as unknown)
+      const call2 = createMockCallRecord({ unique_call_identifier: 'id-456' } as unknown)
 
       expect(call1.unique_call_identifier).not.toBe(call2.unique_call_identifier)
     })
@@ -283,7 +283,7 @@ describe('SupabaseService: Data Operations', () => {
       const call = createMockCallRecord({
         raw_phone: '(56) 9 1234-5678',
         ani_masked: 'XXX5678',
-      } as any)
+      } as unknown)
 
       expect(call.raw_phone).toMatch(/\D/)
       expect(call.ani_masked).toMatch(/X/)
@@ -292,7 +292,7 @@ describe('SupabaseService: Data Operations', () => {
     it('should store phone hash for deduplication', () => {
       const call = createMockCallRecord({
         ani_hash: 'abc123def456',
-      } as any)
+      } as unknown)
 
       expect(call.ani_hash).toBeDefined()
       expect(call.ani_hash.length).toBeGreaterThan(0)

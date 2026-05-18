@@ -45,7 +45,7 @@ type ChartRow = {
   talkTimeSeconds: number;
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: unknown) => {
   if (!active || !payload?.length) return null;
 
   const row: ChartRow = payload[0]?.payload;
