@@ -1,17 +1,21 @@
-import { expect, afterEach, vi, beforeAll } from 'vitest'
+import { expect, afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import 'vitest-canvas-mock'
 
-// Set up environment variables for testing before anything imports them
-beforeAll(() => {
-  // Mock Supabase environment variables to prevent initialization errors
-  if (!import.meta.env.VITE_SUPABASE_URL) {
-    import.meta.env.VITE_SUPABASE_URL = 'https://mock.supabase.co'
-  }
-  if (!import.meta.env.VITE_SUPABASE_ANON_KEY) {
-    import.meta.env.VITE_SUPABASE_ANON_KEY = 'mock-anon-key'
-  }
-})
+// Set up environment variables for testing BEFORE any module imports them
+// This must happen at module level, not in beforeAll
+if (!process.env.VITE_SUPABASE_URL) {
+  process.env.VITE_SUPABASE_URL = 'https://mock.supabase.co'
+}
+if (!process.env.VITE_SUPABASE_ANON_KEY) {
+  process.env.VITE_SUPABASE_ANON_KEY = 'mock-anon-key'
+}
+if (!import.meta.env.VITE_SUPABASE_URL) {
+  import.meta.env.VITE_SUPABASE_URL = 'https://mock.supabase.co'
+}
+if (!import.meta.env.VITE_SUPABASE_ANON_KEY) {
+  import.meta.env.VITE_SUPABASE_ANON_KEY = 'mock-anon-key'
+}
 
 // Cleanup after each test
 afterEach(() => {
