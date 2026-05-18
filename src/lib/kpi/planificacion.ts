@@ -6,6 +6,10 @@ const MAX_REASONABLE_ALERT_SECONDS = 120;
 
 const _demandCache = new Map<string, HourlyDemandData>();
 
+export function clearDemandCache(): void {
+  _demandCache.clear();
+}
+
 function buildDemandCacheKey(records: CallRecord[]): string {
   const attended = records.filter(r => r.attended && r.call_date);
   if (attended.length === 0) return '__empty__';
