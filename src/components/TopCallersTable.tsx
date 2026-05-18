@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { Phone, Filter } from 'lucide-react';
 import type { TopCallerEntry } from '../lib/kpi';
 import { calculateTopCallers } from '../lib/kpi';
@@ -32,7 +32,7 @@ function queueColor(queue: string): string {
   return QUEUE_COLORS[queue] ?? 'bg-slate-100 text-slate-600';
 }
 
-export function TopCallersTable({ records }: Props) {
+export const TopCallersTable = memo(function TopCallersTable({ records }: Props) {
   const [mobileOnly, setMobileOnly] = useState(false);
   const [inboundOnly, setInboundOnly] = useState(false);
 
@@ -95,7 +95,6 @@ export function TopCallersTable({ records }: Props) {
             <tbody className="divide-y divide-slate-50">
               {data.map((caller, i) => (
                 <tr key={caller.aniMasked + i} className="hover:bg-slate-50 transition-colors align-top">
-                  {/* Rank */}
                   <td className="px-4 py-3 text-center">
                     <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
                       i === 0 ? 'bg-amber-100 text-amber-700' :
@@ -106,28 +105,20 @@ export function TopCallersTable({ records }: Props) {
                       {i + 1}
                     </span>
                   </td>
-
-                  {/* Phone */}
                   <td className="px-4 py-3">
                     <code className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
                       {caller.aniMasked || '—'}
                     </code>
                   </td>
-
-                  {/* Total calls */}
                   <td className="px-4 py-3 text-center font-bold text-slate-800">
                     {caller.callCount}
                   </td>
-
-                  {/* Attended */}
                   <td className="px-4 py-3 text-center">
                     <span className="text-emerald-600 font-semibold">{caller.attendedCount}</span>
                     <span className="text-slate-300 text-xs ml-1">
                       ({Math.round((caller.attendedCount / caller.callCount) * 100)}%)
                     </span>
                   </td>
-
-                  {/* Unattended */}
                   <td className="px-4 py-3 text-center">
                     {caller.unattendedCount > 0 ? (
                       <span className="text-red-500 font-semibold">{caller.unattendedCount}</span>
@@ -135,8 +126,6 @@ export function TopCallersTable({ records }: Props) {
                       <span className="text-slate-300">—</span>
                     )}
                   </td>
-
-                  {/* Queues */}
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {caller.queues.slice(0, 3).map(q => (
@@ -152,8 +141,6 @@ export function TopCallersTable({ records }: Props) {
                       )}
                     </div>
                   </td>
-
-                  {/* Executives */}
                   <td className="px-4 py-3">
                     {caller.executives.length === 0 ? (
                       <span className="text-xs text-slate-300">Sin atender</span>
@@ -187,4 +174,4 @@ export function TopCallersTable({ records }: Props) {
       </div>
     </div>
   );
-}
+});

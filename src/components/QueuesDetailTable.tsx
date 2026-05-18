@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import type { QueueStat } from '../lib/kpi';
 import { formatDuration } from '../lib/kpi';
@@ -16,7 +16,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
     : <ChevronDown size={13} className="text-sky-500 ml-1 inline" />;
 }
 
-export function QueuesDetailTable({ stats }: Props) {
+export const QueuesDetailTable = memo(function QueuesDetailTable({ stats }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('count');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -29,15 +29,20 @@ export function QueuesDetailTable({ stats }: Props) {
     }
   }
 
-  const filtered = stats.filter(q => q.queue !== 'Sin cola');
-  const sorted = [...filtered].sort((a, b) => {
-    const av = a[sortKey];
-    const bv = b[sortKey];
-    if (typeof av === 'string' && typeof bv === 'string') {
-      return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-    }
-    return sortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
-  });
+  const sorted = useMemo(
+    () =>
+      stats
+        .filter(q => q.queue !== 'Sin cola')
+        .sort((a, b) => {
+          const av = a[sortKey];
+          const bv = b[sortKey];
+          if (typeof av === 'string' && typeof bv === 'string') {
+            return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+          }
+          return sortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
+        }),
+    [stats, sortKey, sortDir]
+  );
 
   const cols: { label: string; key: SortKey; align: string }[] = [
     { label: 'Cola', key: 'queue', align: 'text-left' },
@@ -171,4 +176,4 @@ export function QueuesDetailTable({ stats }: Props) {
       </div>
     </div>
   );
-}
+});

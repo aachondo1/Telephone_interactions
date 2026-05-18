@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import type { ExecutiveStat } from '../lib/kpi';
 import { formatDuration } from '../lib/kpi';
@@ -16,7 +16,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
     : <ChevronDown size={13} className="text-emerald-500 ml-1 inline" />;
 }
 
-export function ExecutivesDetailTable({ stats }: Props) {
+export const ExecutivesDetailTable = memo(function ExecutivesDetailTable({ stats }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('count');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -29,14 +29,18 @@ export function ExecutivesDetailTable({ stats }: Props) {
     }
   }
 
-  const sorted = [...stats].sort((a, b) => {
-    const av = a[sortKey];
-    const bv = b[sortKey];
-    if (typeof av === 'string' && typeof bv === 'string') {
-      return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-    }
-    return sortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
-  });
+  const sorted = useMemo(
+    () =>
+      [...stats].sort((a, b) => {
+        const av = a[sortKey];
+        const bv = b[sortKey];
+        if (typeof av === 'string' && typeof bv === 'string') {
+          return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+        }
+        return sortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
+      }),
+    [stats, sortKey, sortDir]
+  );
 
   const cols: { label: string; key: SortKey; align: string }[] = [
     { label: 'Ejecutivo', key: 'executive', align: 'text-left' },
@@ -155,4 +159,4 @@ export function ExecutivesDetailTable({ stats }: Props) {
       </div>
     </div>
   );
-}
+});
