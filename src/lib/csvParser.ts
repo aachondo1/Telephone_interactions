@@ -113,33 +113,15 @@ function findColumn(headers: string[], aliases: string[]): string | null {
   return null;
 }
 
-/**
- * Detecta y mapea columnas del CSV exportado desde Genesys usando aliases conocidos.
- * @param headers - Cabeceras tal como aparecen en el archivo CSV.
- * @returns Mapa de clave interna → nombre real de columna en el CSV.
- * @example
- * detectColumns(['Fecha', 'Cola', 'Duración'])
- * // → { startTime: 'Fecha', queue: 'Cola', duration: 'Duración' }
- */
 export function detectColumns(headers: string[]): Record<string, string> {
   const map: Record<string, string> = {};
   for (const [key, aliases] of Object.entries(COLUMN_ALIASES)) {
     const found = findColumn(headers, aliases);
     if (found) map[key] = found;
-
   }
-
   return map;
 }
 
-/**
- * Valida que el mapa de columnas contenga las columnas mínimas requeridas.
- * @param columnMap - Resultado de `detectColumns`.
- * @returns Lista de claves faltantes. Array vacío si el CSV es válido.
- * @example
- * validateColumns({ startTime: 'Fecha', queue: 'Cola' })
- * // → ['direction', 'duration']  ← faltan dos columnas
- */
 export function validateColumns(columnMap: Record<string, string>): string[] {
   const required = ['startTime', 'direction', 'queue', 'duration'];
   const missing: string[] = [];
@@ -156,14 +138,6 @@ function detectDelimiter(firstLine: string): string {
   return tabCount > semiCount ? '\t' : ';';
 }
 
-/**
- * Parsea texto CSV o TSV (detecta delimitador automáticamente) respetando campos entre comillas.
- * @param text - Contenido completo del archivo como string.
- * @returns Cabeceras y filas como objetos `{ header → valor }`.
- * @example
- * parseCSVText('Fecha;Cola\n01/05/26;BiceHipotecaria')
- * // → { headers: ['Fecha', 'Cola'], rows: [{ Fecha: '01/05/26', Cola: 'BiceHipotecaria' }] }
- */
 export function parseCSVText(text: string): { headers: string[]; rows: RawCallRecord[] } {
   const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
   if (lines.length === 0) return { headers: [], rows: [] };
@@ -210,16 +184,6 @@ export function parseCSVText(text: string): { headers: string[]; rows: RawCallRe
   return { headers, rows };
 }
 
-/**
- * Normaliza una duración en texto a segundos. Soporta los formatos exportados por Genesys:
- * `"19m 10s"`, `"38s"`, `"00:01:31"`, `"1:05"`, `"90"` (segundos planos).
- * @param raw - Cadena de duración tal como viene del CSV.
- * @returns Número de segundos. Retorna `0` si el valor es vacío o no reconocido.
- * @example
- * parseDurationToSeconds('19m 10s') // → 1150
- * parseDurationToSeconds('00:01:31') // → 91
- * parseDurationToSeconds('38s')      // → 38
- */
 export function parseDurationToSeconds(raw: string): number {
   if (!raw || raw.trim() === '') return 0;
   const s = raw.trim();
@@ -249,14 +213,6 @@ export function parseDurationToSeconds(raw: string): number {
   return 0;
 }
 
-/**
- * Formatea segundos a string legible `MM:SS` o `HH:MM:SS`.
- * @param seconds - Duración en segundos (negativo se trata como 0).
- * @returns String con formato `"MM:SS"` o `"HH:MM:SS"`.
- * @example
- * formatDuration(91)   // → "01:31"
- * formatDuration(3661) // → "01:01:01"
- */
 export function formatDuration(seconds: number): string {
   if (seconds < 0) seconds = 0;
   const h = Math.floor(seconds / 3600);
@@ -268,27 +224,16 @@ export function formatDuration(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-/**
- * Parsea la fecha-hora de Genesys en formato `"DD/MM/YY HH:MM"` o `"DD/MM/YYYY HH:MM:SS"`.
- * @param raw - Cadena de fecha-hora del CSV.
- * @returns `callDate` en formato ISO `YYYY-MM-DD`, `callTime` como `HH:MM:SS`, `callHour` como entero.
- * Todos son `null` si el valor es vacío o no parseable.
- * @example
- * parseDateTime('01/05/26 09:35')
- * // → { callDate: '2026-05-01', callTime: '09:35', callHour: 9 }
- */
 export function parseDateTime(raw: string): { callDate: string | null; callTime: string | null; callHour: number | null } {
   if (!raw || raw.trim() === '') return { callDate: null, callTime: null, callHour: null };
 
   const s = raw.trim();
-  // Split on space — first part is date, rest is time
   const spaceIdx = s.indexOf(' ');
   if (spaceIdx === -1) return { callDate: null, callTime: null, callHour: null };
 
   const datePart = s.substring(0, spaceIdx);
   const timePart = s.substring(spaceIdx + 1);
 
-  // Parse date DD/MM/YY or DD/MM/YYYY
   const dateBits = datePart.split('/');
   if (dateBits.length !== 3) return { callDate: null, callTime: null, callHour: null };
 
@@ -300,39 +245,24 @@ export function parseDateTime(raw: string): { callDate: string | null; callTime:
   }
   const callDate = `${yy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
 
-  // Parse time HH:MM or HH:MM:SS
   const timeBits = timePart.split(':');
-  const callTime = timePart.substring(0, 8); // take up to HH:MM:SS
+  const callTime = timePart.substring(0, 8);
   const callHour = timeBits.length >= 1 ? parseInt(timeBits[0]) : null;
 
   return { callDate, callTime, callHour: isNaN(callHour ?? NaN) ? null : callHour };
 }
 
-/**
- * Normaliza un número de teléfono eliminando prefijos SIP/TEL y caracteres no numéricos.
- * @param raw - Teléfono tal como llega del CSV (puede incluir `sip:`, `tel:`, `+`, guiones).
- * @returns Sólo dígitos, sin prefijo `+`. String vacío si el input es vacío.
- * @example
- * cleanPhoneNumber('sip:56912345678@domain.com') // → '56912345678'
- * cleanPhoneNumber('+56 9 1234-5678')             // → '56912345678'
- */
 export function cleanPhoneNumber(raw: string): string {
   if (!raw || raw.trim() === '') return '';
   return raw
     .replace(/^tel:/i, '')
-    .replace(/^sip:([^@]*)@.*$/i, '$1')  // sip:1234@domain → 1234
-    .replace(/^sip:/i, '')               // sip:1234 → 1234
-    .replace(/@.*$/, '')                 // remove domain part if any
+    .replace(/^sip:([^@]*)@.*$/i, '$1')
+    .replace(/^sip:/i, '')
+    .replace(/@.*$/, '')
     .replace(/[^0-9+]/g, '')
     .replace(/^\+/, '');
 }
 
-/**
- * Genera un hash SHA-256 truncado (16 hex chars) del número de teléfono, con salt fijo.
- * Usado para construir `unique_call_id` sin exponer el número real.
- * @param phone - Número limpio (solo dígitos, resultado de `cleanPhoneNumber`).
- * @returns Hash de 16 caracteres hexadecimales. String vacío si `phone` es vacío.
- */
 export async function hashPhone(phone: string): Promise<string> {
   if (!phone) return '';
   const encoder = new TextEncoder();
@@ -342,15 +272,6 @@ export async function hashPhone(phone: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
 }
 
-/**
- * Genera un ID único por llamada (SHA-256 de 64 hex chars) combinando hash del teléfono,
- * fecha, hora y duración. Permite deduplicación al reimportar el mismo CSV.
- * @param aniHash - Hash del teléfono (resultado de `hashPhone`).
- * @param callDate - Fecha en formato `YYYY-MM-DD`.
- * @param callTime - Hora en formato `HH:MM:SS`.
- * @param durationSeconds - Duración de la llamada en segundos.
- * @returns Hash SHA-256 de 64 hex chars. String vacío si algún parámetro clave es nulo.
- */
 export async function generateUniqueCallId(
   aniHash: string,
   callDate: string | null,
@@ -366,13 +287,6 @@ export async function generateUniqueCallId(
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/**
- * Enmascara un número de teléfono mostrando solo los últimos 4 dígitos.
- * @param phone - Número limpio (solo dígitos).
- * @returns Teléfono enmascarado, ej. `"XXXXXXX4567"`. `"XXXX"` si tiene menos de 4 dígitos.
- * @example
- * maskPhone('56912345678') // → 'XXXXXXX5678'
- */
 export function maskPhone(phone: string): string {
   if (!phone || phone.length < 4) return phone ? 'XXXX' : '';
   const last4 = phone.slice(-4);
@@ -380,24 +294,11 @@ export function maskPhone(phone: string): string {
   return masked + last4;
 }
 
-/**
- * Parsea la lista de ejecutivos separados por punto y coma del campo "Usuarios".
- * @param raw - Valor crudo del campo (ej. `"Ana García;Pedro López"`).
- * @returns Array de nombres de ejecutivos con espacios recortados. Array vacío si el input es vacío.
- * @example
- * parseExecutives('Ana García;Pedro López') // → ['Ana García', 'Pedro López']
- */
 export function parseExecutives(raw: string): string[] {
   if (!raw || raw.trim() === '') return [];
   return raw.split(';').map(e => e.trim()).filter(e => e !== '');
 }
 
-/**
- * Determina si la exportación Genesys es completa (no parcial).
- * Acepta variantes en español e inglés: `"sí"`, `"si"`, `"yes"`, `"1"`, `"true"`, `"completa"`.
- * @param raw - Valor del campo "Exportación completa" del CSV.
- * @returns `true` si la exportación es completa, `false` en caso contrario.
- */
 export function isExportComplete(raw: string): boolean {
   const s = (raw ?? '').trim().toLowerCase();
   return s === 'sí' || s === 'si' || s === 'yes' || s === '1' || s === 'true' || s === 'completa';
@@ -413,11 +314,6 @@ const VALID_QUEUES = new Set([
   'CN - Cobranza judicial',
 ]);
 
-/**
- * Calcula el rango de fechas mínimo y máximo a partir de los registros importados.
- * @param records - Array de registros con campo `call_date` (formato `YYYY-MM-DD`).
- * @returns `{ start, end }` con las fechas extremas, o `null` si no hay registros.
- */
 export function calculateDateRangeFromRecords(
   records: unknown[]
 ): { start: string | null; end: string | null } {
@@ -436,26 +332,13 @@ export function calculateDateRangeFromRecords(
   };
 }
 
-/**
- * Transforma las filas crudas del CSV en `ParsedCallRecord[]`, aplicando:
- * - Normalización de fechas, duraciones y teléfonos
- * - "Regla de Oro": `attended = conversationTotalSeconds > 0` (no basado en `durationSeconds`)
- * - Cálculo de `abandon_type`, `is_bounce`, `handle_time`
- * - Detección de anomalías (handle_time corrompido, salientes con queue_time, etc.)
- *
- * @remarks
- * Solo el último ejecutivo de la lista "Usuarios" es considerado como el agente que atendió.
- * El `unique_call_id` se genera hasheando `{aniHash}|{date}|{time}|{duration}`.
- *
- * @param rows - Filas crudas del CSV (resultado de `parseCSVText`).
- * @param columnMap - Mapa de columnas (resultado de `detectColumns`).
- * @returns Registros transformados, conteo de duplicados y lista de anomalías detectadas.
- */
+const PROGRESS_CHUNK = 500;
+
 export async function transformRows(
   rows: RawCallRecord[],
-  columnMap: Record<string, string>
+  columnMap: Record<string, string>,
+  onProgress?: (processed: number, total: number) => void
 ): Promise<{ records: ParsedCallRecord[]; duplicateCount: number; anomalies: typeof anomalies }> {
-  // Local anomalies tracking for this batch (evita race conditions entre uploads concurrentes)
   const anomalies: Array<{
     type: string;
     callId?: string;
@@ -483,7 +366,6 @@ export async function transformRows(
 
     const rawUser = columnMap.users ? (row[columnMap.users] ?? '') : '';
     const allUsers = parseExecutives(rawUser);
-    // Only the last user in the list actually handled the call
     let executives = allUsers.length > 0 ? [allUsers[allUsers.length - 1]] : [];
 
     const originalCallId = columnMap.callId
@@ -493,10 +375,6 @@ export async function transformRows(
     const direction = (columnMap.direction ? row[columnMap.direction] : '') ?? '';
     const isOutbound = direction.toLowerCase() === 'outbound' || direction.toLowerCase() === 'saliente';
 
-    // CRITICAL: attended should be based on CONVERSATION TIME, not total duration
-    // conversationTotalSeconds only has data when a human agent actually talked to customer
-    // durationSeconds includes IVR time, so it's poisoned for determining real attendance
-    // This is the "Regla de Oro": conversation happened = attended; no conversation = abandoned
     const conversationTotalSeconds = columnMap.conversationTotal
       ? parseNumericField(row[columnMap.conversationTotal] ?? '0')
       : durationSeconds;
@@ -507,7 +385,6 @@ export async function transformRows(
     const cleanPhone = cleanPhoneNumber(rawPhone);
     const aniHash = await hashPhone(cleanPhone);
 
-    // Generate unique call identifier
     const uniqueCallIdentifier = await generateUniqueCallId(aniHash, callDate, callTime, durationSeconds);
 
     const exportComplete = columnMap.exportComplete
@@ -517,30 +394,21 @@ export async function transformRows(
     const rawQueue = ((columnMap.queue ? row[columnMap.queue] : '') ?? '').trim();
     const isInbound = direction.toLowerCase() === 'inbound' || direction.toLowerCase() === 'entrante';
 
-    // Parse IVR time early to detect IVR calls
     const ivrTotalSeconds = columnMap.ivrTotal
       ? parseNumericField(row[columnMap.ivrTotal] ?? '0')
       : 0;
 
-    // Detect IVR-only calls BEFORE assigning placeholder executives
-    // We need to check original executives length from CSV, not the modified one
     const hasExecutive = executives.length > 0;
     let isIvrOnlyCall = false;
     if (isInbound && !hasExecutive && !rawQueue && ivrTotalSeconds >= 10) {
       isIvrOnlyCall = true;
     }
 
-    // Now assign placeholder executives for non-IVR cases
-    // For inbound calls: if not attended, mark as SIN ATENDER
-    // For outbound calls: preserve executive from CSV regardless of conversation
     if (!isOutbound && !attended && !isIvrOnlyCall) {
       executives = ['SIN ATENDER'];
     } else if (isOutbound && executives.length === 0) {
-      // Outbound calls should always have an executive
-      // If missing, mark as DESCONOCIDO so we can track missing data
       executives = ['DESCONOCIDO'];
     } else if (attended && executives.length === 0 && !isIvrOnlyCall) {
-      // If attended but no executive listed (inbound), mark as DESCONOCIDO
       executives = ['DESCONOCIDO'];
     }
 
@@ -548,35 +416,25 @@ export async function transformRows(
     if (VALID_QUEUES.has(rawQueue)) {
       queue = rawQueue;
     } else if (isOutbound) {
-      // Outbound calls don't require a queue - they only need an executive
       queue = '';
     } else if (isInbound) {
-      // Inbound calls without a valid queue - check if it's IVR or mark as unknown
-      // IVR calls (Interactive Voice Response) are calls with NO EXECUTIVE and NO QUEUE
-      // (All calls pass through IVR, but IVR-only calls are those never routed to an agent)
       if (rawQueue && rawQueue.toLowerCase().includes('ivr')) {
-        // Explicitly marked as IVR
         queue = 'IVR';
       } else if (isIvrOnlyCall) {
-        // No executive, no queue, AND significant IVR time (>= 10s) = call stayed in IVR
         queue = 'IVR';
       } else if (rawQueue) {
-        // Has a queue value but not in valid list - keep the original
         queue = rawQueue;
       } else {
-        // No queue value and no valid IVR-only markers - mark as unknown inbound
         queue = 'Sin cola';
       }
     } else {
       continue;
     }
 
-    // Parse Genesys fields
     const rawQueueTime = columnMap.queueTime
       ? parseNumericField(row[columnMap.queueTime] ?? '0')
       : 0;
 
-    // CAMBIO 3: Corregir automáticamente salientes con queue_time
     const queueTimeSeconds = (() => {
       if (isOutbound && rawQueueTime > 0) {
         anomalies.push({
@@ -587,22 +445,18 @@ export async function transformRows(
           severity: 'WARNING',
           timestamp: new Date(),
         });
-        return 0;  // Corregir automáticamente a 0
+        return 0;
       }
       return rawQueueTime;
     })();
 
-    // CAMBIO 1: Validar handle_time >= duration
     const rawHandleTime = columnMap.handleTime
       ? parseNumericField(row[columnMap.handleTime] ?? '0')
       : 0;
 
     const handleTimeSeconds = (() => {
-      // Si handle_time < duration y ambos son > 0, es un error del CSV
       if (rawHandleTime < durationSeconds && rawHandleTime > 0 && durationSeconds > 0) {
-        const effectiveHandleTime = durationSeconds + 45; // duration + ACW promedio
-
-        // Guardar para auditoría
+        const effectiveHandleTime = durationSeconds + 45;
         anomalies.push({
           type: 'handle_time_lt_duration',
           callId: originalCallId,
@@ -612,11 +466,11 @@ export async function transformRows(
           severity: 'CRITICAL',
           timestamp: new Date(),
         });
-
         return effectiveHandleTime;
       }
       return rawHandleTime > 0 ? rawHandleTime : durationSeconds;
     })();
+
     const alertSegments = columnMap.alertSegments
       ? parseNumericField(row[columnMap.alertSegments] ?? '1')
       : 1;
@@ -630,7 +484,6 @@ export async function transformRows(
       ? (row[columnMap.alertedUsers] ?? '')
       : '';
 
-    // Calculate derived fields
     const acwSeconds = 45;
     const holdTimeSeconds = Math.max(0, handleTimeSeconds - acwSeconds - durationSeconds);
     const abandonType = calculateAbandonType(attended, flowExit, queueTimeSeconds, alertedUsers, originalCallId, anomalies);
@@ -718,7 +571,15 @@ export async function transformRows(
     };
 
     results.push(record);
+
+    // Yield to event loop every PROGRESS_CHUNK rows so UI stays responsive
+    if (onProgress && (i + 1) % PROGRESS_CHUNK === 0) {
+      onProgress(i + 1, rows.length);
+      await new Promise<void>(r => setTimeout(r, 0));
+    }
   }
+
+  if (onProgress) onProgress(rows.length, rows.length);
 
   return { records: results, duplicateCount, anomalies: [...anomalies] };
 }
@@ -787,8 +648,6 @@ function parseNumericField(raw: string): number {
   if (!raw || raw.trim() === '') return 0;
   const s = raw.trim();
 
-  // Handle time format: "XXm YYs", "XX:YY:ZZ", "XX:YY", or plain number
-  // Examples: "19m 10s" -> 1150, "17m 38s" -> 1058, "39s" -> 39, "1:23:45" -> 5025
   if (s.includes('m') && s.includes('s')) {
     const mMatch = s.match(/(\d+)m/);
     const sMatch = s.match(/(\d+)s/);
@@ -800,23 +659,19 @@ function parseNumericField(raw: string): number {
   if (s.includes(':')) {
     const parts = s.split(':').map(p => parseInt(p, 10));
     if (parts.length === 3) {
-      // HH:MM:SS
       return parts[0] * 3600 + parts[1] * 60 + parts[2];
     } else if (parts.length === 2) {
-      // MM:SS
       return parts[0] * 60 + parts[1];
     }
   }
 
-  // Plain number (already in seconds)
   const num = parseInt(s, 10);
   return isNaN(num) ? 0 : num;
 }
 
 function parseFlowExit(raw: string): boolean {
-  if (!raw || raw.trim() === '') return false;  // Empty = didn't exit IVR (NaN/null means abandoned)
+  if (!raw || raw.trim() === '') return false;
   const s = raw.trim().toLowerCase();
-  // 1.0 or numeric 1 means exited successfully
   if (s === '1' || s === '1.0' || s === 'true' || s === 'sí' || s === 'si' || s === 'yes') return true;
   return false;
 }
@@ -831,23 +686,17 @@ function calculateAbandonType(
 ): string | null {
   if (attended) return null;
 
-  // IVR - colgó dentro del IVR
   if (!flowExit) return 'ivr';
 
-  // Queue - esperó en cola
   if (queueTime > 0) {
-    if (alertedUsers?.trim()) return 'alert';  // Fue alertado pero no respondió
-    return 'queue';  // Esperó pero nunca fue alertado
+    if (alertedUsers?.trim()) return 'alert';
+    return 'queue';
   }
 
-  // Edge case: salió del IVR pero ANTES de entrar a cola
-  // flowExit=true, queueTime=0, sin alertas = colgó en el transition point
   if (flowExit && queueTime === 0 && !alertedUsers?.trim()) {
-    // Esto es válido (usuario colgó al salir del IVR)
     return 'ivr-transition';
   }
 
-  // Si ningún caso aplica, loguear como anomalía
   if (!flowExit && queueTime === 0) {
     anomalies.push({
       type: 'abandon_type_unclassified',
@@ -864,7 +713,6 @@ function calculateAbandonType(
 
   return null;
 }
-
 
 function calculateIsBounce(
   alertSegments: number,
@@ -883,7 +731,6 @@ function calculateIsBounce(
   return firstAlerted !== lastExecutive;
 }
 
-// CAMBIO 6: Exportar función para guardar auditoría en BD
 export async function saveImportAudit(
   uploadId: string,
   anomaliesToSave: AnomalyEntry[],
@@ -893,14 +740,12 @@ export async function saveImportAudit(
     return;
   }
 
-  // Agrupar anomalías por tipo
   const grouped = anomaliesToSave.reduce((acc, anom) => {
     const type = anom.type;
     acc[type] = (acc[type] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  // Crear resumen
   const summary = {
     upload_id: uploadId,
     total_anomalies: anomaliesToSave.length,
@@ -915,7 +760,6 @@ export async function saveImportAudit(
     await supabaseClient
       .from('import_audit_log')
       .insert([summary]);
-
   } catch (error) {
     console.error('✗ Error guardando auditoría:', error);
   }

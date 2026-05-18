@@ -43,12 +43,10 @@ export type CallRecord = {
   is_bounce: boolean;
   hold_time_seconds: number;
   acw_seconds: number;
-  // IVR and timing metrics (new fields from Genesys Cloud)
   ivr_time_seconds: number | null;
   time_to_abandon: number | null;
   exit_reason: string | null;
   conversation_total_seconds: number | null;
-  // Additional metadata fields
   campaign: string | null;
   conversation_initiator: string | null;
   transfers: number | null;
@@ -127,4 +125,30 @@ export type AgentConnectivityHourly = {
   status: string;
   seconds_in_bucket: number;
   created_at: string;
+};
+
+export type DailyMetric = {
+  call_date: string;
+  call_direction: string;
+  queue: string;
+  total_calls: number;
+  attended_calls: number;
+  abandoned_calls: number;
+  avg_duration_seconds: number;
+  avg_queue_time_seconds: number;
+  avg_handle_time_seconds: number;
+  total_duration_seconds: number;
+  service_level_pct: number;
+  refreshed_at: string;
+};
+
+export type QueueMetric = {
+  call_date: string;
+  call_hour: number;
+  queue: string;
+  total_calls: number;
+  attended_calls: number;
+  avg_queue_time_seconds: number;
+  erlang_intensity: number;
+  refreshed_at: string;
 };

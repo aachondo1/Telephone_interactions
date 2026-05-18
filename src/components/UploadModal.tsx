@@ -2,13 +2,15 @@ import { useEffect } from 'react';
 import { X, UploadCloud } from 'lucide-react';
 import { CSVUploader } from './CSVUploader';
 
+type ProgressState = { message: string; percent: number };
+
 type Props = {
   isOpen: boolean;
   onClose: () => void;
   onFileSelected: (file: File) => void;
   isProcessing: boolean;
   error: string | null;
-  progress: string;
+  progress: ProgressState;
   title?: string;
   description?: string;
 };
@@ -64,8 +66,21 @@ export function UploadModal({ isOpen, onClose, onFileSelected, isProcessing, err
             error={error}
           />
 
-          {isProcessing && progress && (
-            <p className="text-center text-sm text-sky-600 animate-pulse">{progress}</p>
+          {isProcessing && progress.message && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-sky-700 font-medium">{progress.message}</p>
+                {progress.percent > 0 && (
+                  <span className="text-xs text-slate-400 tabular-nums">{progress.percent}%</span>
+                )}
+              </div>
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-sky-500 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${Math.min(progress.percent, 100)}%` }}
+                />
+              </div>
+            </div>
           )}
 
           {error && (
