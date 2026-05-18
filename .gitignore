@@ -44,3 +44,5 @@ audit-results/
 # Misc
 *.local
 .dyad/
+coverage/
+test-results/
