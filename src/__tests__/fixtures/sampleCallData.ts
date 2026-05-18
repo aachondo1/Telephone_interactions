@@ -3,235 +3,207 @@
  * Based on Genesys call interaction structure
  */
 
-export interface CallRecord {
-  id: string
-  call_id: string
-  call_date: string
-  agent_id: string
-  agent_name: string
-  queue: string
-  duration_seconds: number
-  wait_time_seconds: number
-  customer_id: string
-  status: 'completed' | 'abandoned' | 'transferred' | 'failed'
-  direction: 'inbound' | 'outbound'
-  attended: boolean
-  acd: boolean
-  created_at: string
-  updated_at: string
-}
+import type { CallRecord } from '../../lib/supabase';
 
-export interface AgentRecord {
-  id: string
-  agent_id: string
-  agent_name: string
-  status: 'available' | 'busy' | 'away' | 'break' | 'offline'
-  status_time: string
-  queue: string
-  total_calls: number
-  available_seconds: number
-  busy_seconds: number
-  away_seconds: number
-  break_seconds: number
-  created_at: string
-  updated_at: string
-}
-
-export interface QueueRecord {
-  id: string
-  queue_id: string
-  queue_name: string
-  call_date: string
-  incoming_calls: number
-  answered_calls: number
-  abandoned_calls: number
-  avg_wait_time: number
-  avg_talk_time: number
-  occupancy_rate: number
-  created_at: string
-  updated_at: string
-}
+export type { CallRecord } from '../../lib/supabase';
 
 export const SAMPLE_CALLS: CallRecord[] = [
   {
     id: '1',
-    call_id: 'CALL-001',
+    upload_id: 'upload-001',
     call_date: '2026-05-18',
-    agent_id: 'AGENT-001',
-    agent_name: 'John Doe',
+    call_time: '09:15',
+    call_hour: 9,
+    executive: 'John Doe',
+    original_call_id: 'CALL-001',
+    ani_hash: 'hash-001',
+    ani_masked: '+XX XXX XXXX01',
+    call_direction: 'inbound',
     queue: 'Customer Service',
     duration_seconds: 450,
-    wait_time_seconds: 35,
-    customer_id: 'CUST-001',
-    status: 'completed',
-    direction: 'inbound',
+    duration_formatted: '7m 30s',
     attended: true,
-    acd: true,
-    created_at: '2026-05-18T09:15:00Z',
-    updated_at: '2026-05-18T09:22:30Z',
+    export_complete: true,
+    is_overlapping: false,
+    unique_call_identifier: 'UC-001',
+    queue_time_seconds: 35,
+    handle_time_seconds: 450,
+    alert_segments: 0,
+    alert_time_seconds: 0,
+    flow_exit: false,
+    alerted_users: null,
+    users_not_respond: null,
+    abandon_type: null,
+    is_bounce: false,
+    hold_time_seconds: 0,
+    acw_seconds: 0,
+    ivr_time_seconds: null,
+    time_to_abandon: null,
+    exit_reason: null,
+    conversation_total_seconds: 450,
+    campaign: null,
+    conversation_initiator: null,
+    transfers: 0,
+    partial_result_timestamp: null,
+    filters: null,
   },
   {
     id: '2',
-    call_id: 'CALL-002',
+    upload_id: 'upload-001',
     call_date: '2026-05-18',
-    agent_id: 'AGENT-002',
-    agent_name: 'Jane Smith',
+    call_time: '09:20',
+    call_hour: 9,
+    executive: 'Jane Smith',
+    original_call_id: 'CALL-002',
+    ani_hash: 'hash-002',
+    ani_masked: '+XX XXX XXXX02',
+    call_direction: 'inbound',
     queue: 'Billing',
     duration_seconds: 600,
-    wait_time_seconds: 42,
-    customer_id: 'CUST-002',
-    status: 'completed',
-    direction: 'inbound',
+    duration_formatted: '10m 0s',
     attended: true,
-    acd: true,
-    created_at: '2026-05-18T09:20:00Z',
-    updated_at: '2026-05-18T09:30:00Z',
+    export_complete: true,
+    is_overlapping: false,
+    unique_call_identifier: 'UC-002',
+    queue_time_seconds: 42,
+    handle_time_seconds: 600,
+    alert_segments: 0,
+    alert_time_seconds: 0,
+    flow_exit: false,
+    alerted_users: null,
+    users_not_respond: null,
+    abandon_type: null,
+    is_bounce: false,
+    hold_time_seconds: 0,
+    acw_seconds: 0,
+    ivr_time_seconds: null,
+    time_to_abandon: null,
+    exit_reason: null,
+    conversation_total_seconds: 600,
+    campaign: null,
+    conversation_initiator: null,
+    transfers: 0,
+    partial_result_timestamp: null,
+    filters: null,
   },
   {
     id: '3',
-    call_id: 'CALL-003',
+    upload_id: 'upload-001',
     call_date: '2026-05-18',
-    agent_id: 'AGENT-001',
-    agent_name: 'John Doe',
+    call_time: '09:35',
+    call_hour: 9,
+    executive: 'John Doe',
+    original_call_id: 'CALL-003',
+    ani_hash: 'hash-003',
+    ani_masked: '+XX XXX XXXX03',
+    call_direction: 'inbound',
     queue: 'Customer Service',
     duration_seconds: 0,
-    wait_time_seconds: 120,
-    customer_id: 'CUST-003',
-    status: 'abandoned',
-    direction: 'inbound',
+    duration_formatted: '0s',
     attended: false,
-    acd: true,
-    created_at: '2026-05-18T09:35:00Z',
-    updated_at: '2026-05-18T09:37:00Z',
+    export_complete: true,
+    is_overlapping: false,
+    unique_call_identifier: 'UC-003',
+    queue_time_seconds: 120,
+    handle_time_seconds: 0,
+    alert_segments: 0,
+    alert_time_seconds: 0,
+    flow_exit: false,
+    alerted_users: null,
+    users_not_respond: null,
+    abandon_type: 'queue',
+    is_bounce: false,
+    hold_time_seconds: 0,
+    acw_seconds: 0,
+    ivr_time_seconds: null,
+    time_to_abandon: 120,
+    exit_reason: null,
+    conversation_total_seconds: null,
+    campaign: null,
+    conversation_initiator: null,
+    transfers: 0,
+    partial_result_timestamp: null,
+    filters: null,
   },
   {
     id: '4',
-    call_id: 'CALL-004',
+    upload_id: 'upload-001',
     call_date: '2026-05-18',
-    agent_id: 'AGENT-003',
-    agent_name: 'Mike Johnson',
+    call_time: '10:00',
+    call_hour: 10,
+    executive: 'Mike Johnson',
+    original_call_id: 'CALL-004',
+    ani_hash: 'hash-004',
+    ani_masked: '+XX XXX XXXX04',
+    call_direction: 'inbound',
     queue: 'Technical Support',
     duration_seconds: 1200,
-    wait_time_seconds: 25,
-    customer_id: 'CUST-004',
-    status: 'completed',
-    direction: 'inbound',
+    duration_formatted: '20m 0s',
     attended: true,
-    acd: true,
-    created_at: '2026-05-18T10:00:00Z',
-    updated_at: '2026-05-18T10:20:00Z',
+    export_complete: true,
+    is_overlapping: false,
+    unique_call_identifier: 'UC-004',
+    queue_time_seconds: 25,
+    handle_time_seconds: 1200,
+    alert_segments: 0,
+    alert_time_seconds: 0,
+    flow_exit: false,
+    alerted_users: null,
+    users_not_respond: null,
+    abandon_type: null,
+    is_bounce: false,
+    hold_time_seconds: 0,
+    acw_seconds: 0,
+    ivr_time_seconds: null,
+    time_to_abandon: null,
+    exit_reason: null,
+    conversation_total_seconds: 1200,
+    campaign: null,
+    conversation_initiator: null,
+    transfers: 0,
+    partial_result_timestamp: null,
+    filters: null,
   },
   {
     id: '5',
-    call_id: 'CALL-005',
+    upload_id: 'upload-001',
     call_date: '2026-05-18',
-    agent_id: 'AGENT-002',
-    agent_name: 'Jane Smith',
+    call_time: '10:15',
+    call_hour: 10,
+    executive: 'Jane Smith',
+    original_call_id: 'CALL-005',
+    ani_hash: 'hash-005',
+    ani_masked: '+XX XXX XXXX05',
+    call_direction: 'inbound',
     queue: 'Billing',
     duration_seconds: 300,
-    wait_time_seconds: 15,
-    customer_id: 'CUST-005',
-    status: 'transferred',
-    direction: 'inbound',
+    duration_formatted: '5m 0s',
     attended: true,
-    acd: true,
-    created_at: '2026-05-18T10:15:00Z',
-    updated_at: '2026-05-18T10:20:00Z',
+    export_complete: true,
+    is_overlapping: false,
+    unique_call_identifier: 'UC-005',
+    queue_time_seconds: 15,
+    handle_time_seconds: 300,
+    alert_segments: 0,
+    alert_time_seconds: 0,
+    flow_exit: false,
+    alerted_users: null,
+    users_not_respond: null,
+    abandon_type: null,
+    is_bounce: false,
+    hold_time_seconds: 0,
+    acw_seconds: 0,
+    ivr_time_seconds: null,
+    time_to_abandon: null,
+    exit_reason: null,
+    conversation_total_seconds: 300,
+    campaign: null,
+    conversation_initiator: null,
+    transfers: 1,
+    partial_result_timestamp: null,
+    filters: null,
   },
-]
-
-export const SAMPLE_AGENTS: AgentRecord[] = [
-  {
-    id: '1',
-    agent_id: 'AGENT-001',
-    agent_name: 'John Doe',
-    status: 'available',
-    status_time: '2026-05-18T11:00:00Z',
-    queue: 'Customer Service',
-    total_calls: 8,
-    available_seconds: 1800,
-    busy_seconds: 2400,
-    away_seconds: 300,
-    break_seconds: 600,
-    created_at: '2026-05-18T09:00:00Z',
-    updated_at: '2026-05-18T11:00:00Z',
-  },
-  {
-    id: '2',
-    agent_id: 'AGENT-002',
-    agent_name: 'Jane Smith',
-    status: 'busy',
-    status_time: '2026-05-18T10:50:00Z',
-    queue: 'Billing',
-    total_calls: 12,
-    available_seconds: 1200,
-    busy_seconds: 3000,
-    away_seconds: 600,
-    break_seconds: 300,
-    created_at: '2026-05-18T09:00:00Z',
-    updated_at: '2026-05-18T11:00:00Z',
-  },
-  {
-    id: '3',
-    agent_id: 'AGENT-003',
-    agent_name: 'Mike Johnson',
-    status: 'available',
-    status_time: '2026-05-18T10:55:00Z',
-    queue: 'Technical Support',
-    total_calls: 5,
-    available_seconds: 2100,
-    busy_seconds: 1800,
-    away_seconds: 300,
-    break_seconds: 600,
-    created_at: '2026-05-18T09:00:00Z',
-    updated_at: '2026-05-18T11:00:00Z',
-  },
-]
-
-export const SAMPLE_QUEUES: QueueRecord[] = [
-  {
-    id: '1',
-    queue_id: 'QUEUE-001',
-    queue_name: 'Customer Service',
-    call_date: '2026-05-18',
-    incoming_calls: 45,
-    answered_calls: 42,
-    abandoned_calls: 3,
-    avg_wait_time: 35,
-    avg_talk_time: 450,
-    occupancy_rate: 0.75,
-    created_at: '2026-05-18T09:00:00Z',
-    updated_at: '2026-05-18T17:00:00Z',
-  },
-  {
-    id: '2',
-    queue_id: 'QUEUE-002',
-    queue_name: 'Billing',
-    call_date: '2026-05-18',
-    incoming_calls: 32,
-    answered_calls: 30,
-    abandoned_calls: 2,
-    avg_wait_time: 42,
-    avg_talk_time: 600,
-    occupancy_rate: 0.82,
-    created_at: '2026-05-18T09:00:00Z',
-    updated_at: '2026-05-18T17:00:00Z',
-  },
-  {
-    id: '3',
-    queue_id: 'QUEUE-003',
-    queue_name: 'Technical Support',
-    call_date: '2026-05-18',
-    incoming_calls: 28,
-    answered_calls: 25,
-    abandoned_calls: 3,
-    avg_wait_time: 50,
-    avg_talk_time: 1200,
-    occupancy_rate: 0.88,
-    created_at: '2026-05-18T09:00:00Z',
-    updated_at: '2026-05-18T17:00:00Z',
-  },
-]
+];
 
 /**
  * Create a mock call record with default values
@@ -239,63 +211,42 @@ export const SAMPLE_QUEUES: QueueRecord[] = [
 export function createMockCallRecord(overrides?: Partial<CallRecord>): CallRecord {
   return {
     id: '1',
-    call_id: 'CALL-TEST',
+    upload_id: 'upload-test',
     call_date: new Date().toISOString().split('T')[0],
-    agent_id: 'AGENT-TEST',
-    agent_name: 'Test Agent',
+    call_time: '09:00',
+    call_hour: 9,
+    executive: 'Test Agent',
+    original_call_id: 'CALL-TEST',
+    ani_hash: 'hash-test',
+    ani_masked: '+XX XXX XXXTEST',
+    call_direction: 'inbound',
     queue: 'Test Queue',
     duration_seconds: 300,
-    wait_time_seconds: 30,
-    customer_id: 'CUST-TEST',
-    status: 'completed',
-    direction: 'inbound',
+    duration_formatted: '5m 0s',
     attended: true,
-    acd: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    export_complete: true,
+    is_overlapping: false,
+    unique_call_identifier: 'UC-TEST',
+    queue_time_seconds: 30,
+    handle_time_seconds: 300,
+    alert_segments: 0,
+    alert_time_seconds: 0,
+    flow_exit: false,
+    alerted_users: null,
+    users_not_respond: null,
+    abandon_type: null,
+    is_bounce: false,
+    hold_time_seconds: 0,
+    acw_seconds: 0,
+    ivr_time_seconds: null,
+    time_to_abandon: null,
+    exit_reason: null,
+    conversation_total_seconds: 300,
+    campaign: null,
+    conversation_initiator: null,
+    transfers: 0,
+    partial_result_timestamp: null,
+    filters: null,
     ...overrides,
-  }
-}
-
-/**
- * Create a mock agent record with default values
- */
-export function createMockAgentRecord(overrides?: Partial<AgentRecord>): AgentRecord {
-  return {
-    id: '1',
-    agent_id: 'AGENT-TEST',
-    agent_name: 'Test Agent',
-    status: 'available',
-    status_time: new Date().toISOString(),
-    queue: 'Test Queue',
-    total_calls: 5,
-    available_seconds: 1800,
-    busy_seconds: 2400,
-    away_seconds: 300,
-    break_seconds: 600,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    ...overrides,
-  }
-}
-
-/**
- * Create a mock queue record with default values
- */
-export function createMockQueueRecord(overrides?: Partial<QueueRecord>): QueueRecord {
-  return {
-    id: '1',
-    queue_id: 'QUEUE-TEST',
-    queue_name: 'Test Queue',
-    call_date: new Date().toISOString().split('T')[0],
-    incoming_calls: 10,
-    answered_calls: 9,
-    abandoned_calls: 1,
-    avg_wait_time: 35,
-    avg_talk_time: 450,
-    occupancy_rate: 0.75,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    ...overrides,
-  }
+  };
 }
