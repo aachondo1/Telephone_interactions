@@ -113,6 +113,14 @@ function findColumn(headers: string[], aliases: string[]): string | null {
   return null;
 }
 
+/**
+ * Detecta y mapea columnas del CSV exportado desde Genesys usando aliases conocidos.
+ * @param headers - Cabeceras tal como aparecen en el archivo CSV.
+ * @returns Mapa de clave interna → nombre real de columna en el CSV.
+ * @example
+ * detectColumns(['Fecha', 'Cola', 'Duración'])
+ * // → { startTime: 'Fecha', queue: 'Cola', duration: 'Duración' }
+ */
 export function detectColumns(headers: string[]): Record<string, string> {
   const map: Record<string, string> = {};
   for (const [key, aliases] of Object.entries(COLUMN_ALIASES)) {
@@ -124,6 +132,14 @@ export function detectColumns(headers: string[]): Record<string, string> {
   return map;
 }
 
+/**
+ * Valida que el mapa de columnas contenga las columnas mínimas requeridas.
+ * @param columnMap - Resultado de `detectColumns`.
+ * @returns Lista de claves faltantes. Array vacío si el CSV es válido.
+ * @example
+ * validateColumns({ startTime: 'Fecha', queue: 'Cola' })
+ * // → ['direction', 'duration']  ← faltan dos columnas
+ */
 export function validateColumns(columnMap: Record<string, string>): string[] {
   const required = ['startTime', 'direction', 'queue', 'duration'];
   const missing: string[] = [];
@@ -140,7 +156,14 @@ function detectDelimiter(firstLine: string): string {
   return tabCount > semiCount ? '\t' : ';';
 }
 
-// Parses semicolon-delimited CSV or tab-delimited TSV with quoted fields
+/**
+ * Parsea texto CSV o TSV (detecta delimitador automáticamente) respetando campos entre comillas.
+ * @param text - Contenido completo del archivo como string.
+ * @returns Cabeceras y filas como objetos `{ header → valor }`.
+ * @example
+ * parseCSVText('Fecha;Cola\n01/05/26;BiceHipotecaria')
+ * // → { headers: ['Fecha', 'Cola'], rows: [{ Fecha: '01/05/26', Cola: 'BiceHipotecaria' }] }
+ */
 export function parseCSVText(text: string): { headers: string[]; rows: RawCallRecord[] } {
   const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
   if (lines.length === 0) return { headers: [], rows: [] };
@@ -187,7 +210,16 @@ export function parseCSVText(text: string): { headers: string[]; rows: RawCallRe
   return { headers, rows };
 }
 
-// Duration normalization: supports "19m 10s", "38s", "1m 5s", "00:01:31", "1:05", "90"
+/**
+ * Normaliza una duración en texto a segundos. Soporta los formatos exportados por Genesys:
+ * `"19m 10s"`, `"38s"`, `"00:01:31"`, `"1:05"`, `"90"` (segundos planos).
+ * @param raw - Cadena de duración tal como viene del CSV.
+ * @returns Número de segundos. Retorna `0` si el valor es vacío o no reconocido.
+ * @example
+ * parseDurationToSeconds('19m 10s') // → 1150
+ * parseDurationToSeconds('00:01:31') // → 91
+ * parseDurationToSeconds('38s')      // → 38
+ */
 export function parseDurationToSeconds(raw: string): number {
   if (!raw || raw.trim() === '') return 0;
   const s = raw.trim();
@@ -217,6 +249,14 @@ export function parseDurationToSeconds(raw: string): number {
   return 0;
 }
 
+/**
+ * Formatea segundos a string legible `MM:SS` o `HH:MM:SS`.
+ * @param seconds - Duración en segundos (negativo se trata como 0).
+ * @returns String con formato `"MM:SS"` o `"HH:MM:SS"`.
+ * @example
+ * formatDuration(91)   // → "01:31"
+ * formatDuration(3661) // → "01:01:01"
+ */
 export function formatDuration(seconds: number): string {
   if (seconds < 0) seconds = 0;
   const h = Math.floor(seconds / 3600);
@@ -228,7 +268,15 @@ export function formatDuration(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-// Parses "DD/MM/YY HH:MM" or "DD/MM/YYYY HH:MM:SS" etc.
+/**
+ * Parsea la fecha-hora de Genesys en formato `"DD/MM/YY HH:MM"` o `"DD/MM/YYYY HH:MM:SS"`.
+ * @param raw - Cadena de fecha-hora del CSV.
+ * @returns `callDate` en formato ISO `YYYY-MM-DD`, `callTime` como `HH:MM:SS`, `callHour` como entero.
+ * Todos son `null` si el valor es vacío o no parseable.
+ * @example
+ * parseDateTime('01/05/26 09:35')
+ * // → { callDate: '2026-05-01', callTime: '09:35', callHour: 9 }
+ */
 export function parseDateTime(raw: string): { callDate: string | null; callTime: string | null; callHour: number | null } {
   if (!raw || raw.trim() === '') return { callDate: null, callTime: null, callHour: null };
 
@@ -260,7 +308,14 @@ export function parseDateTime(raw: string): { callDate: string | null; callTime:
   return { callDate, callTime, callHour: isNaN(callHour ?? NaN) ? null : callHour };
 }
 
-// Remove tel:, sip:, spaces, dashes, +, etc. leaving only digits
+/**
+ * Normaliza un número de teléfono eliminando prefijos SIP/TEL y caracteres no numéricos.
+ * @param raw - Teléfono tal como llega del CSV (puede incluir `sip:`, `tel:`, `+`, guiones).
+ * @returns Sólo dígitos, sin prefijo `+`. String vacío si el input es vacío.
+ * @example
+ * cleanPhoneNumber('sip:56912345678@domain.com') // → '56912345678'
+ * cleanPhoneNumber('+56 9 1234-5678')             // → '56912345678'
+ */
 export function cleanPhoneNumber(raw: string): string {
   if (!raw || raw.trim() === '') return '';
   return raw
@@ -272,7 +327,12 @@ export function cleanPhoneNumber(raw: string): string {
     .replace(/^\+/, '');
 }
 
-// Consistent hash using a simple deterministic function (no crypto needed)
+/**
+ * Genera un hash SHA-256 truncado (16 hex chars) del número de teléfono, con salt fijo.
+ * Usado para construir `unique_call_id` sin exponer el número real.
+ * @param phone - Número limpio (solo dígitos, resultado de `cleanPhoneNumber`).
+ * @returns Hash de 16 caracteres hexadecimales. String vacío si `phone` es vacío.
+ */
 export async function hashPhone(phone: string): Promise<string> {
   if (!phone) return '';
   const encoder = new TextEncoder();
@@ -282,6 +342,15 @@ export async function hashPhone(phone: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
 }
 
+/**
+ * Genera un ID único por llamada (SHA-256 de 64 hex chars) combinando hash del teléfono,
+ * fecha, hora y duración. Permite deduplicación al reimportar el mismo CSV.
+ * @param aniHash - Hash del teléfono (resultado de `hashPhone`).
+ * @param callDate - Fecha en formato `YYYY-MM-DD`.
+ * @param callTime - Hora en formato `HH:MM:SS`.
+ * @param durationSeconds - Duración de la llamada en segundos.
+ * @returns Hash SHA-256 de 64 hex chars. String vacío si algún parámetro clave es nulo.
+ */
 export async function generateUniqueCallId(
   aniHash: string,
   callDate: string | null,
@@ -297,7 +366,13 @@ export async function generateUniqueCallId(
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Mask phone: show last 4 digits only e.g. +56 9 XXXX 4567
+/**
+ * Enmascara un número de teléfono mostrando solo los últimos 4 dígitos.
+ * @param phone - Número limpio (solo dígitos).
+ * @returns Teléfono enmascarado, ej. `"XXXXXXX4567"`. `"XXXX"` si tiene menos de 4 dígitos.
+ * @example
+ * maskPhone('56912345678') // → 'XXXXXXX5678'
+ */
 export function maskPhone(phone: string): string {
   if (!phone || phone.length < 4) return phone ? 'XXXX' : '';
   const last4 = phone.slice(-4);
@@ -305,11 +380,24 @@ export function maskPhone(phone: string): string {
   return masked + last4;
 }
 
+/**
+ * Parsea la lista de ejecutivos separados por punto y coma del campo "Usuarios".
+ * @param raw - Valor crudo del campo (ej. `"Ana García;Pedro López"`).
+ * @returns Array de nombres de ejecutivos con espacios recortados. Array vacío si el input es vacío.
+ * @example
+ * parseExecutives('Ana García;Pedro López') // → ['Ana García', 'Pedro López']
+ */
 export function parseExecutives(raw: string): string[] {
   if (!raw || raw.trim() === '') return [];
   return raw.split(';').map(e => e.trim()).filter(e => e !== '');
 }
 
+/**
+ * Determina si la exportación Genesys es completa (no parcial).
+ * Acepta variantes en español e inglés: `"sí"`, `"si"`, `"yes"`, `"1"`, `"true"`, `"completa"`.
+ * @param raw - Valor del campo "Exportación completa" del CSV.
+ * @returns `true` si la exportación es completa, `false` en caso contrario.
+ */
 export function isExportComplete(raw: string): boolean {
   const s = (raw ?? '').trim().toLowerCase();
   return s === 'sí' || s === 'si' || s === 'yes' || s === '1' || s === 'true' || s === 'completa';
@@ -325,6 +413,11 @@ const VALID_QUEUES = new Set([
   'CN - Cobranza judicial',
 ]);
 
+/**
+ * Calcula el rango de fechas mínimo y máximo a partir de los registros importados.
+ * @param records - Array de registros con campo `call_date` (formato `YYYY-MM-DD`).
+ * @returns `{ start, end }` con las fechas extremas, o `null` si no hay registros.
+ */
 export function calculateDateRangeFromRecords(
   records: unknown[]
 ): { start: string | null; end: string | null } {
@@ -343,6 +436,21 @@ export function calculateDateRangeFromRecords(
   };
 }
 
+/**
+ * Transforma las filas crudas del CSV en `ParsedCallRecord[]`, aplicando:
+ * - Normalización de fechas, duraciones y teléfonos
+ * - "Regla de Oro": `attended = conversationTotalSeconds > 0` (no basado en `durationSeconds`)
+ * - Cálculo de `abandon_type`, `is_bounce`, `handle_time`
+ * - Detección de anomalías (handle_time corrompido, salientes con queue_time, etc.)
+ *
+ * @remarks
+ * Solo el último ejecutivo de la lista "Usuarios" es considerado como el agente que atendió.
+ * El `unique_call_id` se genera hasheando `{aniHash}|{date}|{time}|{duration}`.
+ *
+ * @param rows - Filas crudas del CSV (resultado de `parseCSVText`).
+ * @param columnMap - Mapa de columnas (resultado de `detectColumns`).
+ * @returns Registros transformados, conteo de duplicados y lista de anomalías detectadas.
+ */
 export async function transformRows(
   rows: RawCallRecord[],
   columnMap: Record<string, string>

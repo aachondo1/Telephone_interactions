@@ -6,6 +6,14 @@ import { hashPhone, maskPhone, filterOverlappingCalls } from './csvParser';
 
 const BATCH_SIZE = 500;
 
+/**
+ * Guarda un CSV procesado en Supabase: crea el registro de upload y persiste las llamadas
+ * en batches de 500, usando upsert por `unique_call_identifier` para deduplicar.
+ * @param filename - Nombre del archivo CSV original.
+ * @param records - Registros transformados por `transformRows`.
+ * @returns Upload creado, cantidad de registros guardados y estadísticas de deduplicación.
+ * @throws Error si falla la inserción del upload o de algún batch de registros.
+ */
 export async function saveUpload(
   filename: string,
   records: ParsedCallRecord[]
@@ -116,6 +124,12 @@ export async function saveUpload(
   return { upload, savedCount, stats };
 }
 
+/**
+ * Obtiene todos los registros de llamadas de un upload específico, paginando de a 1000.
+ * @param uploadId - UUID del upload en `call_uploads`.
+ * @returns Array completo de `CallRecord` para ese upload.
+ * @throws Error si falla alguna consulta a Supabase.
+ */
 export async function getCallRecords(uploadId: string): Promise<CallRecord[]> {
   const PAGE_SIZE = 1000;
   const allRecords: CallRecord[] = [];
@@ -139,6 +153,11 @@ export async function getCallRecords(uploadId: string): Promise<CallRecord[]> {
   return allRecords;
 }
 
+/**
+ * Obtiene el historial de todos los uploads de llamadas, ordenados por fecha descendente.
+ * @returns Array de `CallUpload` con metadata de cada importación.
+ * @throws Error si falla la consulta a Supabase.
+ */
 export async function getAllUploads(): Promise<CallUpload[]> {
   const { data, error } = await supabase
     .from('call_uploads')
@@ -149,6 +168,12 @@ export async function getAllUploads(): Promise<CallUpload[]> {
   return (data ?? []) as CallUpload[];
 }
 
+/**
+ * Obtiene todos los registros de llamadas de todos los uploads, paginando de a 1000.
+ * Ordenados por `call_date` ascendente.
+ * @returns Array completo de `CallRecord` de la base de datos.
+ * @throws Error si falla alguna consulta a Supabase.
+ */
 export async function getAllCallRecords(): Promise<CallRecord[]> {
   const PAGE_SIZE = 1000;
   const allRecords: CallRecord[] = [];
@@ -172,6 +197,13 @@ export async function getAllCallRecords(): Promise<CallRecord[]> {
   return allRecords;
 }
 
+/**
+ * Guarda un upload de estado de agentes (reporte de conectividad Genesys).
+ * @param filename - Nombre del archivo CSV de estado de agentes.
+ * @param rows - Filas parseadas por `agentStatusParser`.
+ * @returns Upload creado y cantidad de registros guardados.
+ * @throws Error si falla la inserción del upload o los registros.
+ */
 export async function saveAgentStatusUpload(
   filename: string,
   rows: AgentStatusRow[]
