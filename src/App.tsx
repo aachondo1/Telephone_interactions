@@ -124,11 +124,7 @@ export default function App() {
       setProgress({ message: 'Actualizando caché de métricas...', percent: 97 });
       await refreshMetricsCache();
 
-      const successMsg = `✓ ${savedCount.toLocaleString('es-CL')} registros guardados${
-        stats.canceledOverlappingCalls > 0 ? ` (${stats.canceledOverlappingCalls} llamadas superpuestas detectadas)` : ''
-      }`;
-      setProgress({ message: successMsg, percent: 100 });
-
+      // Reload historical records BEFORE showing success (keeps progress ascending)
       setProgress({ message: 'Recargando histórico completo...', percent: 98 });
       const allRecords = await getAllCallRecords();
 
@@ -143,6 +139,12 @@ export default function App() {
       };
 
       setDataState({ phase: 'ready', records: allRecords, upload: virtualUpload });
+
+      const successMsg = `✓ ${savedCount.toLocaleString('es-CL')} registros guardados${
+        stats.canceledOverlappingCalls > 0 ? ` (${stats.canceledOverlappingCalls} llamadas superpuestas detectadas)` : ''
+      }`;
+      setProgress({ message: successMsg, percent: 100 });
+
       setIsProcessing(false);
       setModalOpen(false);
     } catch (err) {
