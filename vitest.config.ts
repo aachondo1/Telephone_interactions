@@ -13,6 +13,14 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/__tests__/setup.ts',
+    exclude: [
+      'node_modules',
+      'dist',
+      'e2e/**/*.spec.ts', // Exclude Playwright tests
+      '.idea',
+      '.git',
+      '.cache',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
