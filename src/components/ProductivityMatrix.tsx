@@ -60,9 +60,9 @@ export function ProductivityMatrix({ data }: Props) {
     ...getQuadrantInfo(d.connectionRatio, d.workQueueHours, avgConnectionRatio, avgWorkQueueHours),
   }));
 
-  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: Record<string, unknown> }> } = {}) => {
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: ProductivityPoint & { color: string; label: string; disconnectedSeconds: number; workQueueSeconds: number } }> } = {}) => {
     if (!active || !payload || !payload.length) return null;
-    const d = payload[0].payload as Record<string, unknown>;
+    const d = payload[0].payload;
     return (
       <div className="bg-white border border-slate-300 rounded p-3 shadow-lg min-w-[200px]">
         <p className="font-semibold text-sm text-slate-900 mb-1">{d.name}</p>
