@@ -33,7 +33,7 @@ describe('Data Audit: Record Validation', () => {
       const call = SAMPLE_CALLS[0]
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/
 
-      expect(dateRegex.test(call.call_date)).toBe(true)
+      expect(call.call_date && dateRegex.test(call.call_date)).toBe(true)
     })
 
     it('should validate call direction is inbound or outbound', () => {
@@ -71,7 +71,7 @@ describe('Data Audit: Record Validation', () => {
       const call = createMockCallRecord({ call_date: futureDateStr })
 
       // Date validation would flag this
-      expect(call.call_date > '2026-05-18').toBe(true)
+      expect(call.call_date && call.call_date > '2026-05-18').toBe(true)
     })
   })
 
@@ -147,14 +147,15 @@ describe('Data Audit: Record Validation', () => {
         createMockCallRecord({ executive: 'Jane' }),
       ]
 
-      const completeness = records.filter(r => r.executive.length > 0).length / records.length
+      const nonEmptyExecs = records.filter(r => r.executive && r.executive.length > 0)
+      const completeness = nonEmptyExecs.length / records.length
       expect(completeness).toBe(2 / 3)
     })
 
     it('should calculate data quality score', () => {
       const records = SAMPLE_CALLS.map(c => ({
         ...c,
-        hasValidDate: /^\d{4}-\d{2}-\d{2}$/.test(c.call_date),
+        hasValidDate: c.call_date ? /^\d{4}-\d{2}-\d{2}$/.test(c.call_date) : false,
         hasValidDuration: typeof c.duration_seconds === 'number',
         hasValidDirection: ['inbound', 'outbound'].includes(c.call_direction),
       }))
@@ -227,30 +228,37 @@ describe('Data Audit: Record Validation', () => {
 
     it('should detect abandoned calls with queue time', () => {
       const abandoned = createMockCallRecord({
-        status: 'abandoned',
-        wait_time_seconds: 120,
+        attended: false,
+        abandon_type: 'queue',
+        queue_time_seconds: 120,
         duration_seconds: 0,
       })
 
-      expect(abandoned.status).toBe('abandoned')
-      expect(abandoned.wait_time_seconds).toBeGreaterThan(0)
+      expect(abandoned.attended).toBe(false)
+      expect(abandoned.abandon_type).toBe('queue')
+      expect(abandoned.queue_time_seconds).toBeGreaterThan(0)
+    })
+
+    it('should detect calls by abandon type', () => {
+      const queueAbandon = createMockCallRecord({
+        abandon_type: 'queue',
+      })
+
+      const ivreabandon = createMockCallRecord({
+        abandon_type: 'ivr',
+      })
+
+      expect(queueAbandon.abandon_type).toBe('queue')
+      expect(ivreabandon.abandon_type).toBe('ivr')
     })
 
     it('should detect transferred calls', () => {
       const transferred = createMockCallRecord({
-        status: 'transferred',
+        transfers: 1,
         duration_seconds: 300,
       })
 
-      expect(transferred.status).toBe('transferred')
-    })
-
-    it('should detect failed calls', () => {
-      const failed = createMockCallRecord({
-        status: 'failed',
-      })
-
-      expect(failed.status).toBe('failed')
+      expect(transferred.transfers).toBeGreaterThan(0)
     })
   })
 
@@ -261,7 +269,7 @@ describe('Data Audit: Record Validation', () => {
 
       const call = createMockCallRecord({ call_date: tomorrow })
 
-      expect(call.call_date > today).toBe(true)
+      expect(call.call_date && call.call_date > today).toBe(true)
     })
 
     it('should detect calls with very old dates', () => {
@@ -269,11 +277,14 @@ describe('Data Audit: Record Validation', () => {
         call_date: '1990-01-01',
       })
 
-      const callDate = new Date(call.call_date)
-      const now = new Date()
-      const yearsDiff = now.getFullYear() - callDate.getFullYear()
-
-      expect(yearsDiff).toBeGreaterThan(30)
+      if (call.call_date) {
+        const callDate = new Date(call.call_date)
+        const now = new Date()
+        const yearsDiff = now.getFullYear() - callDate.getFullYear()
+        expect(yearsDiff).toBeGreaterThan(30)
+      } else {
+        expect(true).toBe(true)
+      }
     })
 
     it('should validate call_date matches call_hour', () => {
@@ -292,7 +303,7 @@ describe('Data Audit: Record Validation', () => {
       })
 
       const timeRegex = /^\d{2}:\d{2}$/
-      expect(timeRegex.test(call.call_time)).toBe(true)
+      expect(call.call_time && timeRegex.test(call.call_time)).toBe(true)
     })
   })
 

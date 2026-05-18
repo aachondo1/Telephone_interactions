@@ -110,15 +110,15 @@ describe('SupabaseService: Data Operations', () => {
 
   describe('Deduplication handling', () => {
     it('should identify duplicate records by unique call identifier', () => {
-      const call1 = createMockCallRecord({ unique_call_identifier: 'id-123' } as unknown)
-      const call2 = createMockCallRecord({ unique_call_identifier: 'id-123' } as unknown)
+      const call1 = createMockCallRecord({ unique_call_identifier: 'id-123' })
+      const call2 = createMockCallRecord({ unique_call_identifier: 'id-123' })
 
       expect(call1.unique_call_identifier).toBe(call2.unique_call_identifier)
     })
 
     it('should distinguish different call identifiers', () => {
-      const call1 = createMockCallRecord({ unique_call_identifier: 'id-123' } as unknown)
-      const call2 = createMockCallRecord({ unique_call_identifier: 'id-456' } as unknown)
+      const call1 = createMockCallRecord({ unique_call_identifier: 'id-123' })
+      const call2 = createMockCallRecord({ unique_call_identifier: 'id-456' })
 
       expect(call1.unique_call_identifier).not.toBe(call2.unique_call_identifier)
     })
@@ -229,7 +229,7 @@ describe('SupabaseService: Data Operations', () => {
         { call_date: null },
       ]
 
-      const validDates = records.map(r => r.call_date).filter((d): d is string => d !== null)
+      const validDates = records.map(r => r.call_date).filter((d) => d !== null && d !== undefined)
       expect(validDates).toHaveLength(0)
     })
   })

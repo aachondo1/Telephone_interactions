@@ -7,11 +7,7 @@ import { ReactElement } from 'react'
 import { expect } from 'vitest'
 import {
   CallRecord,
-  AgentRecord,
-  QueueRecord,
   createMockCallRecord,
-  createMockAgentRecord,
-  createMockQueueRecord,
 } from '../fixtures/sampleCallData'
 
 /**
@@ -33,34 +29,20 @@ export function createMockCallRecords(count: number, overrides?: Partial<CallRec
     createMockCallRecord({
       id: `${i + 1}`,
       call_id: `CALL-${String(i + 1).padStart(3, '0')}`,
+      executive: `Agent ${i + 1}`,
       ...overrides,
     }),
   )
 }
 
 /**
- * Helper to create multiple agent records for testing
+ * Placeholder for queue records (not yet implemented)
  */
-export function createMockAgentRecords(count: number, overrides?: Partial<AgentRecord>): AgentRecord[] {
-  return Array.from({ length: count }, (_, i) =>
-    createMockAgentRecord({
-      id: `${i + 1}`,
-      agent_id: `AGENT-${String(i + 1).padStart(3, '0')}`,
-      agent_name: `Agent ${i + 1}`,
-      ...overrides,
-    }),
-  )
-}
-
-/**
- * Helper to create multiple queue records for testing
- */
-export function createMockQueueRecords(count: number, overrides?: Partial<QueueRecord>): QueueRecord[] {
-  return Array.from({ length: count }, (_, i) =>
-    createMockQueueRecord({
-      id: `${i + 1}`,
-      queue_id: `QUEUE-${String(i + 1).padStart(3, '0')}`,
-      queue_name: `Queue ${i + 1}`,
+export function createMockQueueRecords(count: number, overrides?: Record<string, unknown>) {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `${i + 1}`,
+    queue_id: `QUEUE-${String(i + 1).padStart(3, '0')}`,
+    queue_name: `Queue ${i + 1}`,
       ...overrides,
     }),
   )
@@ -93,24 +75,24 @@ export interface CalculatedKPIs {
 
 export function calculateCallCenterKPIs(calls: CallRecord[]): CalculatedKPIs {
   const totalCalls = calls.length
-  const completedCalls = calls.filter((c) => c.status === 'completed').length
-  const abandonedCalls = calls.filter((c) => c.status === 'abandoned').length
-  const transferredCalls = calls.filter((c) => c.status === 'transferred').length
+  const attendedCalls = calls.filter((c) => c.attended).length
+  const abandonedCalls = calls.filter((c) => !c.attended).length
+  const transferredCalls = calls.filter((c) => c.transfers && c.transfers > 0).length
 
   const totalDuration = calls.reduce((sum, c) => sum + c.duration_seconds, 0)
-  const totalWaitTime = calls.reduce((sum, c) => sum + c.wait_time_seconds, 0)
+  const totalQueueTime = calls.reduce((sum, c) => sum + c.queue_time_seconds, 0)
 
-  const averageHandleTime = completedCalls > 0 ? totalDuration / completedCalls : 0
-  const averageWaitTime = totalCalls > 0 ? totalWaitTime / totalCalls : 0
+  const averageHandleTime = attendedCalls > 0 ? totalDuration / attendedCalls : 0
+  const averageWaitTime = totalCalls > 0 ? totalQueueTime / totalCalls : 0
   const abandonmentRate = totalCalls > 0 ? (abandonedCalls / totalCalls) * 100 : 0
 
-  // Service Level: percentage of calls answered within 20 seconds
-  const answeredWithinSL = calls.filter((c) => c.wait_time_seconds <= 20 && c.status === 'completed').length
-  const serviceLevel = completedCalls > 0 ? (answeredWithinSL / completedCalls) * 100 : 0
+  // Service Level: percentage of attended calls with queue time <= 20 seconds
+  const answeredWithinSL = calls.filter((c) => c.queue_time_seconds <= 20 && c.attended).length
+  const serviceLevel = attendedCalls > 0 ? (answeredWithinSL / attendedCalls) * 100 : 0
 
   return {
     totalCalls,
-    completedCalls,
+    completedCalls: attendedCalls,
     abandonedCalls,
     transferredCalls,
     averageHandleTime,
@@ -218,27 +200,28 @@ export function isValidISO8601Date(dateString: string): boolean {
 export function validateCallRecord(call: unknown): call is CallRecord {
   const requiredFields = [
     'id',
-    'call_id',
+    'original_call_id',
     'call_date',
-    'agent_id',
-    'agent_name',
+    'call_time',
+    'call_hour',
+    'executive',
     'queue',
     'duration_seconds',
-    'wait_time_seconds',
-    'customer_id',
-    'status',
-    'direction',
-    'acd',
-    'created_at',
-    'updated_at',
+    'queue_time_seconds',
+    'call_direction',
+    'attended',
   ]
 
+  if (typeof call !== 'object' || call === null) {
+    return false
+  }
+
+  const callObj = call as Record<string, unknown>
   return (
-    typeof call === 'object' &&
-    call !== null &&
-    requiredFields.every((field) => field in call) &&
-    isValidISO8601Date(call.call_date) &&
-    isValidISO8601Date(call.created_at) &&
-    isValidISO8601Date(call.updated_at)
+    requiredFields.every((field) => field in callObj) &&
+    typeof callObj.id === 'string' &&
+    typeof callObj.original_call_id === 'string' &&
+    typeof callObj.duration_seconds === 'number' &&
+    typeof callObj.attended === 'boolean'
   )
 }

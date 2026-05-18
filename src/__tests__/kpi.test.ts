@@ -172,13 +172,13 @@ describe('KPI: Service Level Calculations', () => {
       expect(result.overallSL).toBe(0)
     })
 
-    it('should handle undefined call hour gracefully', () => {
+    it('should include calls at hour 0 (midnight)', () => {
       const records: CallRecord[] = [
         {
           ...createMockCallRecord(),
           attended: true,
           call_direction: 'inbound',
-          call_hour: undefined,
+          call_hour: 0,
           queue_time_seconds: 10,
           alert_time_seconds: 5,
           flow_exit: true,
@@ -187,7 +187,8 @@ describe('KPI: Service Level Calculations', () => {
 
       const result = calculateServiceLevelPerceptual(records)
 
-      expect(result.overallSL).toBe(0)
+      expect(result.overallSL).toBe(100)
+      expect(result.points[0].totalInQueue).toBe(1)
     })
 
     it('should return points with correct labels', () => {

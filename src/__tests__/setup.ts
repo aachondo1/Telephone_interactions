@@ -38,22 +38,26 @@ Object.defineProperty(window, 'matchMedia', {
 })
 
 // Mock localStorage
-const localStorageMock = {
-  getItem: vi.fn(),
+const localStorageMock: Storage = {
+  getItem: vi.fn(() => null),
   setItem: vi.fn(),
   removeItem: vi.fn(),
   clear: vi.fn(),
+  key: vi.fn(() => null),
+  length: 0,
 }
-global.localStorage = localStorageMock as unknown
+global.localStorage = localStorageMock
 
 // Mock sessionStorage
-const sessionStorageMock = {
-  getItem: vi.fn(),
+const sessionStorageMock: Storage = {
+  getItem: vi.fn(() => null),
   setItem: vi.fn(),
   removeItem: vi.fn(),
   clear: vi.fn(),
+  key: vi.fn(() => null),
+  length: 0,
 }
-global.sessionStorage = sessionStorageMock as unknown
+global.sessionStorage = sessionStorageMock
 
 // Extend expect with custom matchers if needed
 expect.extend({})

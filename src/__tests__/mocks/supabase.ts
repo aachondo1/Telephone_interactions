@@ -48,8 +48,9 @@ const createMockQueryBuilder = () => ({
 export const mockSupabaseClient = {
   from: vi.fn((tableName: string) => {
     const builder = createMockQueryBuilder()
-    // Store table name for debugging
-    builder._tableName = tableName
+    // Store table name for debugging (only if builder supports it)
+    const builderWithName = builder as Record<string, unknown>
+    builderWithName._tableName = tableName
     return builder
   }),
   auth: {
@@ -89,7 +90,7 @@ export function setupMockSupabaseQuery(
   tableName: string,
   response: { data?: unknown; error?: unknown } = { data: [], error: null },
 ) {
-  const mockFrom = mockSupabaseClient.from as unknown
+  const mockFrom = mockSupabaseClient.from
   mockFrom.mockImplementation((table: string) => {
     if (table === tableName) {
       return {
