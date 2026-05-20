@@ -1,10 +1,10 @@
 import { parseCSVText, detectColumns, validateColumns, transformRows } from '../lib/csvParser';
-import type { ParsedCallRecord } from '../lib/csvParser';
+import type { ParsedCallRecord, AnomalyEntry } from '../lib/csvParser';
 
 type InMessage = { type: 'start'; text: string };
 type OutMessage =
   | { type: 'progress'; message: string; percent: number }
-  | { type: 'done'; records: ParsedCallRecord[]; percent: number }
+  | { type: 'done'; records: ParsedCallRecord[]; anomalies: AnomalyEntry[] }
   | { type: 'error'; message: string };
 
 const post = (msg: OutMessage) => self.postMessage(msg);
@@ -45,7 +45,7 @@ self.onmessage = async (e: MessageEvent<InMessage>) => {
       percent: 15,
     });
 
-    const { records } = await transformRows(rows, columnMap, (processed, total) => {
+    const { records, anomalies } = await transformRows(rows, columnMap, (processed, total) => {
       const pct = 15 + Math.round((processed / total) * 75);
       post({
         type: 'progress',
@@ -54,7 +54,7 @@ self.onmessage = async (e: MessageEvent<InMessage>) => {
       });
     });
 
-    post({ type: 'done', records, percent: 90 });
+    post({ type: 'done', records, anomalies });
   } catch (err) {
     post({
       type: 'error',

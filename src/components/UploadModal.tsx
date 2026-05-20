@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { X, UploadCloud } from 'lucide-react';
 import { CSVUploader } from './CSVUploader';
 
-type ProgressState = { message: string; percent: number };
+export type ProgressState = { message: string; percent: number };
 
 type Props = {
   isOpen: boolean;

@@ -4,15 +4,15 @@ import { Dashboard } from './components/Dashboard';
 import { Sidebar } from './components/Sidebar';
 import type { Section } from './components/Sidebar';
 import { UploadModal } from './components/UploadModal';
-import { calculateDateRangeFromRecords } from './lib/csvParser';
-import type { ParsedCallRecord } from './lib/csvParser';
+import { calculateDateRangeFromRecords, saveImportAudit } from './lib/csvParser';
+import type { ParsedCallRecord, AnomalyEntry } from './lib/csvParser';
 import { parseAgentStatusCSV } from './lib/agentStatusParser';
 import { saveUpload, getAllUploads, getAllCallRecords, saveAgentStatusUpload, saveAgentConnectivityUpload, getAllAgentStatusUploads, combineAgentStatusRecords, refreshMetricsCache } from './lib/supabaseService';
 import { getDataQualityReport } from './lib/kpi';
+import { supabase } from './lib/supabase';
 import type { CallRecord, CallUpload, AgentStatusRecord } from './lib/supabase';
 import type { DataQualityReport } from './lib/kpi';
-
-type ProgressState = { message: string; percent: number };
+import type { ProgressState } from './components/UploadModal';
 
 type DataState =
   | { phase: 'loading' }
@@ -92,14 +92,14 @@ export default function App() {
         { type: 'module' }
       );
 
-      const parsed = await new Promise<ParsedCallRecord[]>((resolve, reject) => {
+      const { records: parsed, anomalies } = await new Promise<{ records: ParsedCallRecord[]; anomalies: AnomalyEntry[] }>((resolve, reject) => {
         worker.onmessage = (e: MessageEvent) => {
-          const msg = e.data as { type: string; message?: string; percent?: number; records?: ParsedCallRecord[] };
+          const msg = e.data as { type: string; message?: string; percent?: number; records?: ParsedCallRecord[]; anomalies?: AnomalyEntry[] };
           if (msg.type === 'progress') {
             setProgress({ message: msg.message ?? '', percent: msg.percent ?? 0 });
           } else if (msg.type === 'done') {
             worker.terminate();
-            resolve(msg.records ?? []);
+            resolve({ records: msg.records ?? [], anomalies: msg.anomalies ?? [] });
           } else if (msg.type === 'error') {
             worker.terminate();
             reject(new Error(msg.message ?? 'Error en el worker'));
@@ -113,13 +113,15 @@ export default function App() {
       });
 
       setProgress({ message: `Guardando ${parsed.length.toLocaleString('es-CL')} registros...`, percent: 92 });
-      const { savedCount, stats } = await saveUpload(file.name, parsed, (saved, total) => {
+      const { upload, savedCount, stats } = await saveUpload(file.name, parsed, (saved, total) => {
         const pct = 92 + Math.round((saved / total) * 4);
         setProgress({
           message: `Guardando lote ${saved.toLocaleString('es-CL')} / ${total.toLocaleString('es-CL')}...`,
           percent: pct,
         });
       });
+
+      void saveImportAudit(upload.id, anomalies, supabase);
 
       setProgress({ message: 'Actualizando caché de métricas...', percent: 97 });
       await refreshMetricsCache();
@@ -144,6 +146,7 @@ export default function App() {
         stats.canceledOverlappingCalls > 0 ? ` (${stats.canceledOverlappingCalls} llamadas superpuestas detectadas)` : ''
       }`;
       setProgress({ message: successMsg, percent: 100 });
+      await new Promise(r => setTimeout(r, 800));
 
       setIsProcessing(false);
       setModalOpen(false);
