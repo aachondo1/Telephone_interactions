@@ -131,11 +131,14 @@ export function validateColumns(columnMap: Record<string, string>): string[] {
   return missing;
 }
 
-// Detects delimiter: tab (TSV) or semicolon (CSV)
+// Detects delimiter: tab (TSV), semicolon, or comma
 function detectDelimiter(firstLine: string): string {
-  const tabCount = (firstLine.match(/\t/g) || []).length;
-  const semiCount = (firstLine.match(/;/g) || []).length;
-  return tabCount > semiCount ? '\t' : ';';
+  const tabCount   = (firstLine.match(/\t/g) || []).length;
+  const semiCount  = (firstLine.match(/;/g)  || []).length;
+  const commaCount = (firstLine.match(/,/g)  || []).length;
+  if (tabCount > semiCount && tabCount > commaCount) return '\t';
+  if (semiCount >= commaCount) return ';';
+  return ',';
 }
 
 export function parseCSVText(text: string): { headers: string[]; rows: RawCallRecord[] } {
