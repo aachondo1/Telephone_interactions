@@ -4,12 +4,15 @@ import { Dashboard } from './components/Dashboard';
 import { Sidebar } from './components/Sidebar';
 import type { Section } from './components/Sidebar';
 import { UploadModal } from './components/UploadModal';
-import { parseCSVText, detectColumns, validateColumns, transformRows, calculateDateRangeFromRecords } from './lib/csvParser';
+import { calculateDateRangeFromRecords, saveImportAudit } from './lib/csvParser';
+import type { ParsedCallRecord, AnomalyEntry } from './lib/csvParser';
 import { parseAgentStatusCSV } from './lib/agentStatusParser';
-import { saveUpload, getAllUploads, getAllCallRecords, saveAgentStatusUpload, saveAgentConnectivityUpload, getAllAgentStatusUploads, combineAgentStatusRecords } from './lib/supabaseService';
+import { saveUpload, getAllUploads, getAllCallRecords, saveAgentStatusUpload, saveAgentConnectivityUpload, getAllAgentStatusUploads, combineAgentStatusRecords, refreshMetricsCache } from './lib/supabaseService';
 import { getDataQualityReport } from './lib/kpi';
+import { supabase } from './lib/supabase';
 import type { CallRecord, CallUpload, AgentStatusRecord } from './lib/supabase';
 import type { DataQualityReport } from './lib/kpi';
+import type { ProgressState } from './components/UploadModal';
 
 type DataState =
   | { phase: 'loading' }
@@ -21,7 +24,7 @@ export default function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [progress, setProgress] = useState('');
+  const [progress, setProgress] = useState<ProgressState>({ message: '', percent: 0 });
 
   // Agent status state
   const [agentStatusRecords, setAgentStatusRecords] = useState<AgentStatusRecord[]>([]);
@@ -29,7 +32,7 @@ export default function App() {
   const [agentStatusModalOpen, setAgentStatusModalOpen] = useState(false);
   const [agentStatusProcessing, setAgentStatusProcessing] = useState(false);
   const [agentStatusError, setAgentStatusError] = useState<string | null>(null);
-  const [agentStatusProgress, setAgentStatusProgress] = useState('');
+  const [agentStatusProgress, setAgentStatusProgress] = useState<ProgressState>({ message: '', percent: 0 });
 
   // Navigation
   const [activeSection, setActiveSection] = useState<Section>('inicio');
@@ -49,7 +52,6 @@ export default function App() {
       getAllCallRecords(),
     ])
       .then(([, allAgentStatusUploads, records]) => {
-        // Combine records from ALL agent status uploads (April + May + June, etc.)
         const combinedAgentRecords = combineAgentStatusRecords(allAgentStatusUploads);
         if (combinedAgentRecords.length > 0) {
           setAgentStatusRecords(combinedAgentRecords);
@@ -79,43 +81,53 @@ export default function App() {
   const processFile = useCallback(async (file: File) => {
     setIsProcessing(true);
     setUploadError(null);
-    setProgress('Leyendo archivo...');
+    setProgress({ message: 'Leyendo archivo...', percent: 0 });
     try {
       const text = await file.text();
+      setProgress({ message: 'Iniciando procesamiento en segundo plano...', percent: 2 });
 
-      setProgress('Detectando columnas...');
-      const { headers, rows } = parseCSVText(text);
+      // Offload CPU-intensive CSV parsing + row transformation to a Web Worker
+      const worker = new Worker(
+        new URL('./workers/csvWorker.ts', import.meta.url),
+        { type: 'module' }
+      );
 
-      if (headers.length === 0) {
-        setUploadError('El archivo CSV está vacío o no pudo leerse.');
-        setIsProcessing(false);
-        return;
-      }
+      const { records: parsed, anomalies } = await new Promise<{ records: ParsedCallRecord[]; anomalies: AnomalyEntry[] }>((resolve, reject) => {
+        worker.onmessage = (e: MessageEvent) => {
+          const msg = e.data as { type: string; message?: string; percent?: number; records?: ParsedCallRecord[]; anomalies?: AnomalyEntry[] };
+          if (msg.type === 'progress') {
+            setProgress({ message: msg.message ?? '', percent: msg.percent ?? 0 });
+          } else if (msg.type === 'done') {
+            worker.terminate();
+            resolve({ records: msg.records ?? [], anomalies: msg.anomalies ?? [] });
+          } else if (msg.type === 'error') {
+            worker.terminate();
+            reject(new Error(msg.message ?? 'Error en el worker'));
+          }
+        };
+        worker.onerror = (err: ErrorEvent) => {
+          worker.terminate();
+          reject(new Error(err.message ?? 'Error desconocido en el worker de procesamiento'));
+        };
+        worker.postMessage({ type: 'start', text });
+      });
 
-      const columnMap = detectColumns(headers);
-      const missingCols = validateColumns(columnMap);
+      setProgress({ message: `Guardando ${parsed.length.toLocaleString('es-CL')} registros...`, percent: 92 });
+      const { upload, savedCount, stats } = await saveUpload(file.name, parsed, (saved, total) => {
+        const pct = 92 + Math.round((saved / total) * 4);
+        setProgress({
+          message: `Guardando lote ${saved.toLocaleString('es-CL')} / ${total.toLocaleString('es-CL')}...`,
+          percent: pct,
+        });
+      });
 
-      if (missingCols.length > 0) {
-        setUploadError(
-          `No se encontraron columnas requeridas: ${missingCols.join(', ')}. Columnas detectadas: ${headers.join(', ')}`
-        );
-        setIsProcessing(false);
-        return;
-      }
+      void saveImportAudit(upload.id, anomalies, supabase);
 
-      setProgress(`Transformando ${rows.length.toLocaleString('es-CL')} registros...`);
-      const { records: parsed } = await transformRows(rows, columnMap);
+      setProgress({ message: 'Actualizando caché de métricas...', percent: 97 });
+      await refreshMetricsCache();
 
-      setProgress(`Guardando ${parsed.length.toLocaleString('es-CL')} registros...`);
-      const { savedCount, stats } = await saveUpload(file.name, parsed);
-
-      let successMessage = `✓ Se guardaron ${savedCount.toLocaleString('es-CL')} registros`;
-      if (stats.canceledOverlappingCalls > 0) {
-        successMessage += ` (${stats.canceledOverlappingCalls} llamadas superpuestas detectadas)`;
-      }
-      setProgress(successMessage);
-
-      setProgress(`Recargando histórico completo...`);
+      // Reload historical records BEFORE showing success (keeps progress ascending)
+      setProgress({ message: 'Recargando histórico completo...', percent: 98 });
       const allRecords = await getAllCallRecords();
 
       const dateRange = calculateDateRangeFromRecords(allRecords);
@@ -129,6 +141,13 @@ export default function App() {
       };
 
       setDataState({ phase: 'ready', records: allRecords, upload: virtualUpload });
+
+      const successMsg = `✓ ${savedCount.toLocaleString('es-CL')} registros guardados${
+        stats.canceledOverlappingCalls > 0 ? ` (${stats.canceledOverlappingCalls} llamadas superpuestas detectadas)` : ''
+      }`;
+      setProgress({ message: successMsg, percent: 100 });
+      await new Promise(r => setTimeout(r, 800));
+
       setIsProcessing(false);
       setModalOpen(false);
     } catch (err) {
@@ -139,26 +158,24 @@ export default function App() {
     }
   }, []);
 
-
   const processAgentStatusFile = useCallback(async (file: File) => {
     setAgentStatusProcessing(true);
     setAgentStatusError(null);
-    setAgentStatusProgress('Leyendo archivo...');
+    setAgentStatusProgress({ message: 'Leyendo archivo...', percent: 0 });
     try {
       const text = await file.text();
-      setAgentStatusProgress('Procesando agentes...');
+      setAgentStatusProgress({ message: 'Procesando agentes...', percent: 30 });
       const { rows, errors, rawEvents } = parseAgentStatusCSV(text);
       if (errors.length > 0 && rows.length === 0) {
         setAgentStatusError(errors[0]);
         setAgentStatusProcessing(false);
         return;
       }
-      setAgentStatusProgress(`Guardando ${rows.length} agentes...`);
+      setAgentStatusProgress({ message: `Guardando ${rows.length} agentes...`, percent: 55 });
       await saveAgentStatusUpload(file.name, rows);
 
-      // If the file was timeline format, also persist raw events for Gantt / adherence charts
       if (rawEvents && rawEvents.length > 0) {
-        setAgentStatusProgress(`Guardando ${rawEvents.length} eventos de timeline...`);
+        setAgentStatusProgress({ message: `Guardando ${rawEvents.length} eventos de timeline...`, percent: 70 });
         try {
           await saveAgentConnectivityUpload(file.name, rawEvents);
           setConnectivityRefreshKey(k => k + 1);
@@ -167,8 +184,7 @@ export default function App() {
         }
       }
 
-      // Reload ALL agent status uploads (cumulative across multiple files)
-      setAgentStatusProgress('Reloading all agent data...');
+      setAgentStatusProgress({ message: 'Recargando datos de agentes...', percent: 90 });
       const { getAllAgentStatusUploads: getAllUploads } = await import('./lib/supabaseService');
       const allUploads = await getAllUploads();
       const combinedRecords = combineAgentStatusRecords(allUploads);

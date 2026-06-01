@@ -1,27 +1,18 @@
 import { supabase } from './supabase';
-import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert, CallUpload, DeduplicationStats, AgentConnectivityUpload, AgentConnectivityRaw } from './supabase';
+import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert, CallUpload, DeduplicationStats, AgentConnectivityUpload, AgentConnectivityRaw, DailyMetric, QueueMetric } from './supabase';
 import type { ParsedCallRecord } from './csvParser';
 import type { AgentStatusRow, AgentConnectivityRawRow } from './agentStatusParser';
 import { hashPhone, maskPhone, filterOverlappingCalls } from './csvParser';
 
 const BATCH_SIZE = 500;
 
-/**
- * Guarda un CSV procesado en Supabase: crea el registro de upload y persiste las llamadas
- * en batches de 500, usando upsert por `unique_call_identifier` para deduplicar.
- * @param filename - Nombre del archivo CSV original.
- * @param records - Registros transformados por `transformRows`.
- * @returns Upload creado, cantidad de registros guardados y estadísticas de deduplicación.
- * @throws Error si falla la inserción del upload o de algún batch de registros.
- */
 export async function saveUpload(
   filename: string,
-  records: ParsedCallRecord[]
+  records: ParsedCallRecord[],
+  onBatchProgress?: (saved: number, total: number) => void
 ): Promise<{ upload: CallUpload; savedCount: number; stats: DeduplicationStats }> {
-  // Mark overlapping calls instead of filtering them
   const { records: markedRecords, canceledCount } = filterOverlappingCalls(records);
 
-  // Determine date range
   const dates = markedRecords
     .map(r => r.callDate)
     .filter((d): d is string => d !== null)
@@ -29,14 +20,11 @@ export async function saveUpload(
   const dateRangeStart = dates[0] ?? null;
   const dateRangeEnd = dates[dates.length - 1] ?? null;
 
-  // Expand records by executive (one row per executive)
   const expanded: Omit<CallRecordInsert, 'upload_id'>[] = [];
 
   for (const record of markedRecords) {
     const hash = await hashPhone(record.cleanPhone);
     const masked = maskPhone(record.cleanPhone);
-
-    // Only use last executive from the list (they attended the call)
     const lastExecutive = record.executives[record.executives.length - 1] || 'SIN ATENDER';
 
     expanded.push({
@@ -75,11 +63,10 @@ export async function saveUpload(
       transfers: record.transfers || null,
       partial_result_timestamp: record.partialResultTimestamp || null,
       filters: record.filters || null,
-      upload_id: '', // placeholder, will be set below
+      upload_id: '',
     } as Omit<CallRecordInsert, 'upload_id'>);
   }
 
-  // Insert upload metadata
   const { data: uploadData, error: uploadError } = await supabase
     .from('call_uploads')
     .insert({
@@ -97,7 +84,6 @@ export async function saveUpload(
 
   const upload = uploadData as CallUpload;
 
-  // Insert records in batches, using upsert to skip duplicates by unique_call_identifier
   let savedCount = 0;
   for (let i = 0; i < expanded.length; i += BATCH_SIZE) {
     const batch = expanded.slice(i, i + BATCH_SIZE).map(r => ({
@@ -112,6 +98,7 @@ export async function saveUpload(
       throw new Error(`Error al guardar registros (batch ${i / BATCH_SIZE + 1}): ${error.message}`);
     }
     savedCount += batch.length;
+    onBatchProgress?.(savedCount, expanded.length);
   }
 
   const stats: DeduplicationStats = {
@@ -124,12 +111,6 @@ export async function saveUpload(
   return { upload, savedCount, stats };
 }
 
-/**
- * Obtiene todos los registros de llamadas de un upload específico, paginando de a 1000.
- * @param uploadId - UUID del upload en `call_uploads`.
- * @returns Array completo de `CallRecord` para ese upload.
- * @throws Error si falla alguna consulta a Supabase.
- */
 export async function getCallRecords(uploadId: string): Promise<CallRecord[]> {
   const PAGE_SIZE = 1000;
   const allRecords: CallRecord[] = [];
@@ -153,11 +134,6 @@ export async function getCallRecords(uploadId: string): Promise<CallRecord[]> {
   return allRecords;
 }
 
-/**
- * Obtiene el historial de todos los uploads de llamadas, ordenados por fecha descendente.
- * @returns Array de `CallUpload` con metadata de cada importación.
- * @throws Error si falla la consulta a Supabase.
- */
 export async function getAllUploads(): Promise<CallUpload[]> {
   const { data, error } = await supabase
     .from('call_uploads')
@@ -168,12 +144,6 @@ export async function getAllUploads(): Promise<CallUpload[]> {
   return (data ?? []) as CallUpload[];
 }
 
-/**
- * Obtiene todos los registros de llamadas de todos los uploads, paginando de a 1000.
- * Ordenados por `call_date` ascendente.
- * @returns Array completo de `CallRecord` de la base de datos.
- * @throws Error si falla alguna consulta a Supabase.
- */
 export async function getAllCallRecords(): Promise<CallRecord[]> {
   const PAGE_SIZE = 1000;
   const allRecords: CallRecord[] = [];
@@ -197,13 +167,6 @@ export async function getAllCallRecords(): Promise<CallRecord[]> {
   return allRecords;
 }
 
-/**
- * Guarda un upload de estado de agentes (reporte de conectividad Genesys).
- * @param filename - Nombre del archivo CSV de estado de agentes.
- * @param rows - Filas parseadas por `agentStatusParser`.
- * @returns Upload creado y cantidad de registros guardados.
- * @throws Error si falla la inserción del upload o los registros.
- */
 export async function saveAgentStatusUpload(
   filename: string,
   rows: AgentStatusRow[]
@@ -238,8 +201,6 @@ export async function saveAgentStatusUpload(
     out_of_queue_seconds: r.outOfQueueSeconds,
   }));
 
-  // Dedup at app level before insert because PostgREST cannot resolve conflicts
-  // on functional indexes (which are needed to handle NULL dates in the unique index).
   const agentIds = candidates.map(r => r.agent_id);
   const { data: existing } = await supabase
     .from('agent_status_records')
@@ -288,11 +249,6 @@ export async function getLatestAgentStatusUpload(): Promise<{ upload: AgentStatu
   return { upload, records };
 }
 
-/**
- * Get ALL agent status uploads (not just the latest)
- * Allows loading multiple periods (e.g., April + May + June data)
- * @returns Array of uploads with their records
- */
 export async function getAllAgentStatusUploads(): Promise<Array<{ upload: AgentStatusUpload; records: AgentStatusRecord[] }>> {
   const { data, error } = await supabase
     .from('agent_status_uploads')
@@ -311,19 +267,6 @@ export async function getAllAgentStatusUploads(): Promise<Array<{ upload: AgentS
 
   return results;
 }
-
-/**
- * Combine records from multiple uploads into a single dataset
- * Deduplicates by agent_id + date range to avoid counting same period twice
- * Useful for analyzing across multiple periods (April + May + June, etc.)
- * @param uploads - Multiple uploads to combine
- * @returns Combined AgentStatusRecord array (deduplicated)
- */
-/**
- * Save raw timeline events to agent_connectivity_uploads + agent_connectivity_raw.
- * Before inserting, deletes existing records for the same agents in the same date
- * range so re-importing a period replaces rather than duplicates data.
- */
 
 function aggregateRawToHourly(
   uploadId: string,
@@ -402,7 +345,6 @@ export async function saveAgentConnectivityUpload(
 
   const upload = uploadData as AgentConnectivityUpload;
 
-  // Delete previous records for same agents overlapping this date range
   const agentIds = [...new Set(rawEvents.map(e => e.agentId))];
   const { error: deleteError } = await supabase
     .from('agent_connectivity_raw')
@@ -436,7 +378,6 @@ export async function saveAgentConnectivityUpload(
     savedCount += batch.length;
   }
 
-  // Clean previous hourly aggregations for same agents/date range
   const { error: deleteHourlyError } = await supabase
     .from('agent_connectivity_hourly')
     .delete()
@@ -448,7 +389,6 @@ export async function saveAgentConnectivityUpload(
     console.warn('[saveAgentConnectivityUpload] Error al limpiar registros horarios previos:', deleteHourlyError.message);
   }
 
-  // Insert hourly aggregations
   const hourlyRows = aggregateRawToHourly(upload.id, rawEvents);
   for (let i = 0; i < hourlyRows.length; i += BATCH_SIZE) {
     const batch = hourlyRows.slice(i, i + BATCH_SIZE);
@@ -459,10 +399,6 @@ export async function saveAgentConnectivityUpload(
   return { upload, savedCount };
 }
 
-/**
- * Load raw connectivity events for a given date range.
- * Pass no arguments to load all records.
- */
 export async function getAgentConnectivityRaw(
   startDate?: string,
   endDate?: string
@@ -496,8 +432,6 @@ export async function getAgentConnectivityRaw(
 export function combineAgentStatusRecords(
   uploads: Array<{ upload: AgentStatusUpload; records: AgentStatusRecord[] }>
 ): AgentStatusRecord[] {
-  // Group by agent and SUM their time across different periods (March + April + May → one row).
-  // Track seen periods per agent to avoid double-counting when the same file is loaded twice.
   type MergedEntry = { record: AgentStatusRecord; seenPeriods: Set<string> };
   const agentMap = new Map<string, MergedEntry>();
 
@@ -526,11 +460,6 @@ export function combineAgentStatusRecords(
   return Array.from(agentMap.values()).map(e => e.record);
 }
 
-/**
- * Returns total in-queue seconds per agent_name for a given date range,
- * sourced from agent_connectivity_hourly (status containing 'cola' or 'queue').
- * Data was already clipped to business hours during upload.
- */
 export async function getHourlyInQueueByAgent(
   startDate: string,
   endDate: string,
@@ -562,4 +491,62 @@ export async function getHourlyInQueueByAgent(
   }
 
   return result;
+}
+
+/**
+ * Rebuilds the daily_metrics and queue_metrics cache tables in Supabase.
+ * Called automatically after each successful CSV import.
+ * Failures are logged as warnings (non-blocking) since the cache is optional.
+ */
+export async function refreshMetricsCache(): Promise<void> {
+  try {
+    const { error } = await supabase.rpc('refresh_all_metrics');
+    if (error) {
+      console.warn('[refreshMetricsCache] Error al actualizar caché:', error.message);
+    }
+  } catch (err) {
+    console.warn('[refreshMetricsCache] Excepción al actualizar caché:', err);
+  }
+}
+
+/**
+ * Reads pre-aggregated daily metrics from the cache table.
+ * Returns quickly since data is already aggregated in the database.
+ */
+export async function getDailyMetrics(
+  startDate?: string,
+  endDate?: string
+): Promise<DailyMetric[]> {
+  let query = supabase
+    .from('daily_metrics')
+    .select('*')
+    .order('call_date', { ascending: true });
+
+  if (startDate) query = query.gte('call_date', startDate);
+  if (endDate)   query = query.lte('call_date', endDate);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Error al cargar métricas diarias: ${error.message}`);
+  return (data ?? []) as DailyMetric[];
+}
+
+/**
+ * Reads pre-aggregated hourly queue metrics from the cache table.
+ */
+export async function getQueueMetrics(
+  startDate?: string,
+  endDate?: string
+): Promise<QueueMetric[]> {
+  let query = supabase
+    .from('queue_metrics')
+    .select('*')
+    .order('call_date', { ascending: true })
+    .order('call_hour', { ascending: true });
+
+  if (startDate) query = query.gte('call_date', startDate);
+  if (endDate)   query = query.lte('call_date', endDate);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Error al cargar métricas de colas: ${error.message}`);
+  return (data ?? []) as QueueMetric[];
 }
