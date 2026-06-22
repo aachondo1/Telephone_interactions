@@ -478,14 +478,15 @@ export function ExecutiveDashboard({ kpis, records, filteredRecords, filters, ag
         });
     }
 
-    // Fallback: aggregated AgentStatusRecord (no daily granularity — % won't change with filter)
+    // Fallback: aggregated AgentStatusRecord — only use records that overlap with the current date range
+    const { start: filterStart, end: filterEnd } = dateRanges.current;
     const fallbackMap = new Map<string, { inQueue: number; workSecs: number }>();
     for (const r of agentStatusRecords ?? []) {
+      if (!r.date_range_start || !r.date_range_end) continue;
+      if (r.date_range_end < filterStart || r.date_range_start > filterEnd) continue;
       const key = (r.agent_name || '').toLowerCase().trim();
       const prev = fallbackMap.get(key) ?? { inQueue: 0, workSecs: 0 };
-      const rWork = r.date_range_start && r.date_range_end
-        ? getWorkingSecondsInRange(r.date_range_start, r.date_range_end)
-        : 0;
+      const rWork = getWorkingSecondsInRange(r.date_range_start, r.date_range_end);
       fallbackMap.set(key, { inQueue: prev.inQueue + (r.in_queue_seconds || 0), workSecs: prev.workSecs + rWork });
     }
     return kpis.executiveStats
