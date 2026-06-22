@@ -379,7 +379,9 @@ export async function saveAgentConnectivityUpload(
   let savedCount = 0;
   for (let i = 0; i < records.length; i += BATCH_SIZE) {
     const batch = records.slice(i, i + BATCH_SIZE);
-    const { error } = await supabase.from('agent_connectivity_raw').insert(batch);
+    const { error } = await supabase
+      .from('agent_connectivity_raw')
+      .upsert(batch, { onConflict: 'agent_id,start_time,status', ignoreDuplicates: true });
     if (error) {
       throw new Error(`Error al guardar eventos de conectividad (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${error.message}`);
     }
@@ -400,7 +402,9 @@ export async function saveAgentConnectivityUpload(
   const hourlyRows = aggregateRawToHourly(upload.id, rawEvents);
   for (let i = 0; i < hourlyRows.length; i += BATCH_SIZE) {
     const batch = hourlyRows.slice(i, i + BATCH_SIZE);
-    const { error } = await supabase.from('agent_connectivity_hourly').insert(batch);
+    const { error } = await supabase
+      .from('agent_connectivity_hourly')
+      .upsert(batch, { onConflict: 'agent_id,date,hour,status', ignoreDuplicates: false });
     if (error) throw new Error(`Error al guardar datos horarios: ${error.message}`);
   }
 
