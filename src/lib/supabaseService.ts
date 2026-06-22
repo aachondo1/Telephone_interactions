@@ -191,14 +191,18 @@ export async function saveAgentStatusUpload(
   const upload = uploadData as AgentStatusUpload;
 
   const candidates = rows.map(r => ({
-    upload_id:           upload.id,
-    agent_id:            r.agentId,
-    agent_name:          r.agentName,
-    date_range_start:    r.dateRangeStart,
-    date_range_end:      r.dateRangeEnd,
-    connected_seconds:   r.connectedSeconds,
-    in_queue_seconds:    r.inQueueSeconds,
+    upload_id:            upload.id,
+    agent_id:             r.agentId,
+    agent_name:           r.agentName,
+    date_range_start:     r.dateRangeStart,
+    date_range_end:       r.dateRangeEnd,
+    connected_seconds:    r.connectedSeconds,
+    in_queue_seconds:     r.inQueueSeconds,
     out_of_queue_seconds: r.outOfQueueSeconds,
+    ...(r.noRespondSeconds !== undefined && { no_respond_seconds: r.noRespondSeconds }),
+    ...(r.occupancy        !== undefined && { occupancy:          r.occupancy }),
+    ...(r.loginTime        !== undefined && { login_time:         r.loginTime }),
+    ...(r.logoutTime       !== undefined && { logout_time:        r.logoutTime }),
   }));
 
   const agentIds = candidates.map(r => r.agent_id);

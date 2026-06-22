@@ -9,6 +9,10 @@ export type AgentStatusRow = {
   connectedSeconds: number;
   inQueueSeconds: number;
   outOfQueueSeconds: number;
+  noRespondSeconds?: number;
+  occupancy?: number;
+  loginTime?: string;
+  logoutTime?: string;
 };
 
 // Parses "Xd Xh Xm Xs" — all parts optional, e.g. "3d 11h 57m 42s", "16h 41m 50s", "52m 20s"
@@ -92,6 +96,16 @@ export function parseAgentStatusCSV(text: string): AgentStatusParseResult {
     return parseTimelineFormat(rows, headers, colAgentId, colAgentName, colTimelineStart, colTimelineEnd, colStatus, colStatusSecondary);
   }
 
+  // Check if this is "Resumen de estados del agente" format (Ocupación, No responde, Iniciar sesión, Cerrar sesión)
+  const colOccupancy  = findCol(headers, ['ocupación', 'ocupacion', 'occupancy']);
+  const colNoRespond  = findCol(headers, ['no responde', 'not responding', 'no_responde']);
+  const colLogin      = findCol(headers, ['iniciar sesión', 'iniciar sesion', 'login', 'log in']);
+  const colLogout     = findCol(headers, ['cerrar sesión', 'cerrar sesion', 'logout', 'log out']);
+
+  if (colOccupancy || colNoRespond || (colLogin && colLogout)) {
+    return parseResumenFormat(rows, colAgentId, colAgentName, colStart, colEnd, colOccupancy, colNoRespond, colLogin, colLogout);
+  }
+
   // Otherwise, expect aggregated format
   const missing: string[] = [];
   if (!colAgentName) missing.push('Nombre del agente');
@@ -100,12 +114,12 @@ export function parseAgentStatusCSV(text: string): AgentStatusParseResult {
   if (!colOutQueue)  missing.push('Fuera de la cola');
 
   if (missing.length > 0) {
+    const hint = colTimelineStart || colTimelineEnd
+      ? '\n\nNota: Se detectó que podría ser un reporte de timeline (Hora de inicio/finalización). Para esos archivos, por favor usa: Importar → Conectividad de Agentes (Timeline).'
+      : '';
     return {
       rows: [],
-      errors: [`No se encontraron columnas requeridas: ${missing.join(', ')}. Columnas detectadas: ${headers.join(', ')}.
-
-Nota: Se detectó que podría ser un reporte de timeline (Hora de inicio/finalización).
-Para esos archivos, por favor usa: Importar → Conectividad de Agentes (Timeline).`],
+      errors: [`No se encontraron columnas requeridas: ${missing.join(', ')}. Columnas detectadas: ${headers.join(', ')}.${hint}`],
     };
   }
 
@@ -138,6 +152,78 @@ Para esos archivos, por favor usa: Importar → Conectividad de Agentes (Timelin
   }
 
   return { rows: result, errors };
+}
+
+// Parse "Resumen de estados del agente" format (Ocupación, No responde, Iniciar sesión, Cerrar sesión)
+function parseResumenFormat(
+  rows: Record<string, string>[],
+  colAgentId: string | null,
+  colAgentName: string | null,
+  colPeriodStart: string | null,
+  colPeriodEnd: string | null,
+  colOccupancy: string | null,
+  colNoRespond: string | null,
+  colLogin: string | null,
+  colLogout: string | null
+): AgentStatusParseResult {
+  const result: AgentStatusRow[] = [];
+
+  for (const row of rows) {
+    const agentName = colAgentName ? (row[colAgentName] ?? '').trim() : '';
+    if (!agentName) continue;
+
+    const loginStr  = colLogin  ? (row[colLogin]  ?? '').trim() : '';
+    const logoutStr = colLogout ? (row[colLogout] ?? '').trim() : '';
+
+    const loginDt  = loginStr  ? parseTimelineDateTime(loginStr)  : null;
+    const logoutDt = logoutStr ? parseTimelineDateTime(logoutStr) : null;
+
+    const loginIso  = loginDt  && !isNaN(loginDt.getTime())  ? loginDt.toISOString()  : undefined;
+    const logoutIso = logoutDt && !isNaN(logoutDt.getTime()) ? logoutDt.toISOString() : undefined;
+
+    // dateRangeStart/End: prefer login/logout dates, fall back to period interval
+    const periodStartRaw = colPeriodStart ? (row[colPeriodStart] ?? '').trim() : '';
+    const periodEndRaw   = colPeriodEnd   ? (row[colPeriodEnd]   ?? '').trim() : '';
+    const periodStartDt  = periodStartRaw ? parseTimelineDateTime(periodStartRaw) : null;
+    const periodEndDt    = periodEndRaw   ? parseTimelineDateTime(periodEndRaw)   : null;
+
+    const dateRangeStart =
+      (loginDt  && !isNaN(loginDt.getTime()))  ? loginDt.toISOString().split('T')[0]
+      : (periodStartDt && !isNaN(periodStartDt.getTime())) ? periodStartDt.toISOString().split('T')[0]
+      : null;
+    const dateRangeEnd =
+      (logoutDt && !isNaN(logoutDt.getTime())) ? logoutDt.toISOString().split('T')[0]
+      : (periodEndDt && !isNaN(periodEndDt.getTime())) ? periodEndDt.toISOString().split('T')[0]
+      : null;
+
+    const noRespondSeconds = colNoRespond ? parseAgentDuration(row[colNoRespond] ?? '') : 0;
+
+    const occupancyRaw = colOccupancy ? (row[colOccupancy] ?? '').trim() : '';
+    const occupancy = occupancyRaw !== '' ? parseFloat(occupancyRaw) : undefined;
+
+    // Skip rows with no useful data at all
+    if (!agentName && !loginIso && !logoutIso && noRespondSeconds === 0 && occupancy === undefined) continue;
+
+    result.push({
+      agentId:           colAgentId ? (row[colAgentId] ?? '').trim() || agentName : agentName,
+      agentName,
+      dateRangeStart,
+      dateRangeEnd,
+      connectedSeconds:  0,
+      inQueueSeconds:    0,
+      outOfQueueSeconds: 0,
+      noRespondSeconds,
+      occupancy:  Number.isFinite(occupancy) ? occupancy : undefined,
+      loginTime:  loginIso,
+      logoutTime: logoutIso,
+    });
+  }
+
+  if (result.length === 0) {
+    return { rows: [], errors: ['No se encontraron agentes con datos en el reporte de estados.'] };
+  }
+
+  return { rows: result, errors: [] };
 }
 
 // Parse timeline format (Hora de inicio, Hora de finalización, Estado principal)
