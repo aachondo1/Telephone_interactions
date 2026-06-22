@@ -3,6 +3,10 @@ import type { AgentStatusRecord, AgentStatusUpload, CallRecord, CallRecordInsert
 import type { ParsedCallRecord } from './csvParser';
 import type { AgentStatusRow, AgentConnectivityRawRow } from './agentStatusParser';
 import { hashPhone, maskPhone, filterOverlappingCalls } from './csvParser';
+import { STANDARD_BUSINESS_HOURS } from './businessHours';
+import type { DayOfWeek } from './businessHours';
+
+const _DOW_KEYS: DayOfWeek[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
 const BATCH_SIZE = 500;
 
@@ -484,10 +488,17 @@ export async function getHourlyInQueueByAgent(
 
     for (const row of data) {
       const s = (row.status as string).toLowerCase();
-      if (s.includes('cola') || s.includes('queue')) {
-        const key = (row.agent_name as string).toLowerCase().trim();
-        result.set(key, (result.get(key) ?? 0) + (row.seconds_in_bucket as number));
-      }
+      if (!s.includes('cola') && !s.includes('queue')) continue;
+
+      // Only count queue seconds that fall within business hours (same filter as workSecs denominator)
+      const dayDate = new Date((row.date as string) + 'T00:00:00');
+      const bh = STANDARD_BUSINESS_HOURS[_DOW_KEYS[dayDate.getDay()]];
+      if (bh.endHour === 0 && bh.endMinute === 0) continue; // closed day (weekend)
+      const hr = row.hour as number;
+      if (hr < bh.startHour || hr >= bh.endHour) continue; // outside business hours
+
+      const key = (row.agent_name as string).toLowerCase().trim();
+      result.set(key, (result.get(key) ?? 0) + (row.seconds_in_bucket as number));
     }
 
     if (data.length < PAGE_SIZE) break;
