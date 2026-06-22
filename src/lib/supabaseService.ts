@@ -483,7 +483,7 @@ export async function getHourlyInQueueByAgent(
   while (true) {
     const { data, error } = await supabase
       .from('agent_connectivity_hourly')
-      .select('agent_name, status, seconds_in_bucket')
+      .select('agent_name, date, hour, status, seconds_in_bucket')
       .gte('date', startDate)
       .lte('date', endDate)
       .range(from, from + PAGE_SIZE - 1);
@@ -497,7 +497,7 @@ export async function getHourlyInQueueByAgent(
       // Only count queue seconds that fall within business hours (same filter as workSecs denominator)
       const dayDate = new Date((row.date as string) + 'T00:00:00');
       const bh = STANDARD_BUSINESS_HOURS[_DOW_KEYS[dayDate.getDay()]];
-      if (bh.endHour === 0 && bh.endMinute === 0) continue; // closed day (weekend)
+      if (!bh || (bh.endHour === 0 && bh.endMinute === 0)) continue; // closed day (weekend) or invalid date
       const hr = row.hour as number;
       if (hr < bh.startHour || hr >= bh.endHour) continue; // outside business hours
 
